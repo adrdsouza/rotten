@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines performance optimizations for the Damned Designs Qwik storefront, comparing current implementation against Qwik best practices and the official Vendure Qwik starter. The recommendations focus on improving loading speed, reducing bundle size, and enhancing user experience.
+This document outlines performance optimizations for the Rotten Hand Qwik storefront, comparing current implementation against Qwik best practices and the official Vendure Qwik starter. The recommendations focus on improving loading speed, reducing bundle size, and enhancing user experience.
 
 ## Current Implementation Analysis
 
@@ -211,8 +211,8 @@ export default function createServer(options) {
 
 ```html
 <!-- In head section of root.tsx -->
-<link rel="dns-prefetch" href="https://damneddesigns.com" />
-<link rel="preconnect" href="https://damneddesigns.com" crossorigin />
+<link rel="dns-prefetch" href="https://rottenhand.com" />
+<link rel="preconnect" href="https://rottenhand.com" crossorigin />
 
 <!-- Preload critical fonts -->
 <link rel="preload" href="/fonts/main-font.woff2" as="font" type="font/woff2" crossorigin />
@@ -230,7 +230,7 @@ module.exports = {
     name: 'frontend',
     script: 'pnpm',
     args: 'serve',
-    cwd: '/home/vendure/damneddesigns/frontend',
+    cwd: '/home/vendure/rottenhand/frontend',
     env: {
       NODE_ENV: 'production',
       PORT: 4000,
@@ -280,7 +280,7 @@ setupServiceWorker({
 import { GraphQLClient } from 'graphql-request';
 import { QueryCache } from '@tanstack/query-core';
 
-const VENDURE_API_URL = 'http://5.78.142.235:3000/shop-api';
+const VENDURE_API_URL = 'http://5.78.82.156:3000/shop-api';
 const queryCache = new QueryCache();
 
 export const vendureClient = new GraphQLClient(VENDURE_API_URL, {
@@ -375,4 +375,4 @@ After implementing these optimizations, monitor the following metrics:
 
 ## Conclusion
 
-By implementing these optimizations, the Damned Designs Qwik storefront will achieve significantly improved performance metrics, resulting in better user experience, higher conversion rates, and improved SEO rankings. The focus on Qwik's unique resumability model and progressive enhancement ensures the site will perform well across all devices and network conditions.
+By implementing these optimizations, the Rotten Hand Qwik storefront will achieve significantly improved performance metrics, resulting in better user experience, higher conversion rates, and improved SEO rankings. The focus on Qwik's unique resumability model and progressive enhancement ensures the site will perform well across all devices and network conditions.

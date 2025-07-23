@@ -2,36 +2,36 @@
 
 ## Overview
 
-This document outlines the customizations made to the Vendure Qwik storefront for Damned Designs, including store branding, favicon configuration, and technical setup details.
+This document outlines the customizations made to the Vendure Qwik storefront for Rotten Hand, including store branding, favicon configuration, and technical setup details.
 
 ## Store Branding Customizations
 
 ### 1. Store Name Configuration
 
-The storefront has been rebranded from "Vendure Qwik Starter" to "Damned Designs" across all components.
+The storefront has been rebranded from "Vendure Qwik Starter" to "Rotten Hand" across all components.
 
 #### Files Modified:
 
 **Constants Configuration**
 - **File**: [`frontend/src/constants.ts`](frontend/src/constants.ts:1)
-- **Change**: Updated `APP_NAME` constant from `'Vendure Qwik Starter'` to `'Damned Designs'`
+- **Change**: Updated `APP_NAME` constant from `'Vendure Qwik Starter'` to `'Rotten Hand'`
 
 **Meta Description**
 - **File**: [`frontend/src/components/head/head.tsx`](frontend/src/components/head/head.tsx:36)
-- **Change**: Updated meta description to `"Damned Designs"`
+- **Change**: Updated meta description to `"Rotten Hand"`
 
 **Main Heading and Subtitle**
 - **File**: [`frontend/src/locales/message.en.json`](frontend/src/locales/message.en.json:54)
 - **Changes**:
-  - Main heading: `"Damned Designs"` with gradient styling
+  - Main heading: `"Rotten Hand"` with gradient styling
   - Subtitle: `"Premium quality products and exceptional service"`
 
 **PWA Manifest**
 - **File**: [`frontend/public/manifest.json`](frontend/public/manifest.json:3)
 - **Changes**:
-  - App name: `"Damned Designs"`
-  - Short name: `"Damned Designs"`
-  - Description: `"Premium quality products and exceptional service at Damned Designs."`
+  - App name: `"Rotten Hand"`
+  - Short name: `"Rotten Hand"`
+  - Description: `"Premium quality products and exceptional service at Rotten Hand."`
 
 ### 2. Favicon System with Dark/Light Mode Support
 
@@ -92,7 +92,7 @@ The Qwik storefront is successfully deployed and running with the following conf
 ```
 
 #### Access Points
-- **Production**: https://damneddesigns.com
+- **Production**: https://rottenhand.com
 - **Local Development**: http://localhost:4000
 - **Backend API**: http://localhost:3000
 
@@ -114,7 +114,7 @@ HardenPlugin.init({
 cors: {
   origin: IS_DEV
     ? ["http://localhost:3000", "http://localhost:4000"] // Added port 4000
-    : ['https://damneddesigns.com/admin', "https://damneddesigns.com"],
+    : ['https://rottenhand.com/admin', "https://rottenhand.com"],
   credentials: true,
 },
 ```
@@ -150,7 +150,7 @@ module.exports = {
       name: 'frontend',
       script: 'pnpm',
       args: 'preview:server',
-      cwd: '/home/vendure/damneddesigns/frontend',
+      cwd: '/home/vendure/rottenhand/frontend',
       env: {
         NODE_ENV: 'production',
         PORT: 4000,
@@ -188,20 +188,20 @@ VITE_STRIPE_PUBLISHABLE_KEY=
 
 ## Verified Working Features
 
-- ✅ **Store Name**: "Damned Designs" displayed across all pages
+- ✅ **Store Name**: "Rotten Hand" displayed across all pages
 - ✅ **Adaptive Favicons**: Dark/light mode support configured
-- ✅ **PWA Manifest**: Updated with Damned Designs branding
+- ✅ **PWA Manifest**: Updated with Rotten Hand branding
 - ✅ **GraphQL API**: Connectivity working without complexity errors
 - ✅ **SSR/Hydration**: Proper server-side rendering with client hydration
 - ✅ **Production Build**: Optimized and running via PM2
-- ✅ **Domain Access**: https://damneddesigns.com accessible
+- ✅ **Domain Access**: https://rottenhand.com accessible
 - ✅ **HTTP 200 Responses**: All pages loading correctly
 
 ## Development Commands
 
 ### Frontend Management
 ```bash
-cd /home/vendure/damneddesigns/frontend
+cd /home/vendure/rottenhand/frontend
 
 # Development server
 pnpm dev
@@ -232,7 +232,7 @@ pm2 start ecosystem.config.cjs
 ## Customization Summary
 
 ### Completed Customizations:
-1. **✅ Store Branding**: Complete rebrand to "Damned Designs"
+1. **✅ Store Branding**: Complete rebrand to "Rotten Hand"
 2. **✅ Favicon System**: Adaptive dark/light mode favicon support
 3. **✅ PWA Configuration**: Updated manifest with new branding
 4. **✅ Production Deployment**: Running via PM2 with proper configuration
@@ -253,7 +253,7 @@ pm2 start ecosystem.config.cjs
 **Problem**: PM2 fails to start frontend with error:
 ```
 ReferenceError: require is not defined in ES module scope, you can use import instead
-This file is being treated as an ES module because it has a '.js' file extension and '/home/vendure/damneddesigns/frontend/package.json' contains "type": "module".
+This file is being treated as an ES module because it has a '.js' file extension and '/home/vendure/rottenhand/frontend/package.json' contains "type": "module".
 ```
 
 **Root Cause**: PM2 was configured to run a CommonJS `server.js` file directly, but the project is configured as an ES module.
@@ -274,7 +274,7 @@ module.exports = {
       name: 'frontend',
       script: 'pnpm',
       args: 'preview:server',  // Use preview:server, not server.js directly
-      cwd: '/home/vendure/damneddesigns/frontend',
+      cwd: '/home/vendure/rottenhand/frontend',
       env: {
         NODE_ENV: 'production',
         PORT: 4000,
@@ -290,7 +290,7 @@ module.exports = {
 
 3. **Build and restart:**
 ```bash
-cd /home/vendure/damneddesigns/frontend
+cd /home/vendure/rottenhand/frontend
 pnpm build
 pm2 start ecosystem.config.cjs
 ```
@@ -324,7 +324,7 @@ module.exports = {
       name: 'frontend',
       script: 'pnpm',
       args: 'preview:server',
-      cwd: '/home/vendure/damneddesigns/frontend',
+      cwd: '/home/vendure/rottenhand/frontend',
       env: {
         NODE_ENV: 'production',
         PORT: 4000,
@@ -412,7 +412,7 @@ export default defineConfig((config) => {
 					"style-src 'self' 'unsafe-inline'",
 					"img-src 'self' data: https:",
 					"font-src 'self'",
-					"connect-src 'self' https://damneddesigns.com",
+					"connect-src 'self' https://rottenhand.com",
 					"frame-ancestors 'none'",
 				].join('; '),
 			},
@@ -443,9 +443,9 @@ export default defineConfig((config) => {
 
 ```env
 # Production Vendure API Configuration
-VITE_VENDURE_DEV_URL=https://damneddesigns.com
-VITE_VENDURE_LOCAL_URL=https://damneddesigns.com
-VITE_VENDURE_PROD_URL=https://damneddesigns.com
+VITE_VENDURE_DEV_URL=https://rottenhand.com
+VITE_VENDURE_LOCAL_URL=https://rottenhand.com
+VITE_VENDURE_PROD_URL=https://rottenhand.com
 
 # Instance Configuration
 VITE_IS_READONLY_INSTANCE=false
@@ -477,7 +477,7 @@ A comprehensive security audit script has been created to scan for:
 
 #### Usage:
 ```bash
-cd /home/vendure/damneddesigns/frontend
+cd /home/vendure/rottenhand/frontend
 node scripts/security-audit.js
 ```
 

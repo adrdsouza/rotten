@@ -9,7 +9,7 @@ This document details the problems identified in the checkout refactoring proces
 ### 1. Build-Breaking ESLint Error
 **Problem**: `.bak` backup file causing ESLint failures
 ```
-Error: /home/vendure/damneddesigns/frontend/src/components/checkout/CheckoutAddresses.tsx.bak
+Error: /home/vendure/rottenhand/frontend/src/components/checkout/CheckoutAddresses.tsx.bak
   0:0  error  Parsing error: The keyword 'import' is reserved
 ```
 

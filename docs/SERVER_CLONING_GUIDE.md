@@ -1,4 +1,4 @@
-# 🚀 Complete Server Cloning Guide for Damned Designs
+# 🚀 Complete Server Cloning Guide for Rotten Hand
 
 This guide provides step-by-step instructions for cloning your Vendure 3.3.5 ecommerce site to a new server, including database setup, environment configuration, and deployment.
 
@@ -14,7 +14,7 @@ Before starting, ensure you have:
 ## 🗂️ Project Structure Overview
 
 ```
-/home/vendure/damneddesigns/
+/home/vendure/rottenhand/
 ├── backend/           # Vendure 3.3.5 backend (Node.js/TypeScript)
 ├── frontend/          # Qwik storefront
 ├── database/          # Database scripts and backups
@@ -34,8 +34,8 @@ sudo usermod -aG sudo vendure
 sudo su - vendure
 
 # Create project directory
-mkdir -p /home/vendure/damneddesigns
-cd /home/vendure/damneddesigns
+mkdir -p /home/vendure/rottenhand
+cd /home/vendure/rottenhand
 ```
 
 ### 1.2 Install Required Software
@@ -111,7 +111,7 @@ psql -h localhost -U vendureuser -d vendure_db -c "SELECT count(*) FROM \"order\
 
 ### 3.1 Clone Repository
 ```bash
-cd /home/vendure/damneddesigns
+cd /home/vendure/rottenhand
 git clone https://github.com/adrdsouza/damn.git .
 
 # Verify the clone
@@ -180,7 +180,7 @@ REDIS_PORT=6379
 REDIS_PASSWORD=your_redis_password
 
 # Logging
-LOG_BASE_PATH=/home/vendure/damneddesigns/backend/logs
+LOG_BASE_PATH=/home/vendure/rottenhand/backend/logs
 ```
 
 ### 4.2 Frontend Environment Variables
@@ -536,7 +536,7 @@ sudo systemctl start nginx
 This documentation serves as both a deployment guide and a reference for the AI agent when helping with server management tasks. Keep this document updated as the infrastructure evolves.
 
 ### Key Files to Monitor
-- `/home/vendure/damneddesigns/backend/logs/` - Application logs
+- `/home/vendure/rottenhand/backend/logs/` - Application logs
 - `/var/log/nginx/` - Web server logs
 - `/var/log/postgresql/` - Database logs
 - `~/.pm2/logs/` - PM2 process logs
@@ -549,4 +549,4 @@ This documentation serves as both a deployment guide and a reference for the AI 
 
 ---
 
-**🎉 Congratulations!** Your Damned Designs Vendure site should now be successfully cloned and running on the new server.
+**🎉 Congratulations!** Your Rotten Hand Vendure site should now be successfully cloned and running on the new server.

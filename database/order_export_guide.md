@@ -177,9 +177,9 @@ For regular order processing, it's recommended to:
 
 This will ensure that the next export only includes new orders that need to be processed.
 
-## Damned Designs Order Fulfillment Workflow
+## Rotten Hand Order Fulfillment Workflow
 
-The following workflow is optimized for Damned Designs' e-commerce operations:
+The following workflow is optimized for Rotten Hand' e-commerce operations:
 
 1. **Daily Export**: Each morning, run the export command to generate a fresh CSV of all PaymentSettled orders:
    ```bash

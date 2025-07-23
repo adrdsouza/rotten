@@ -14,7 +14,7 @@ set -e  # Exit on any error
 # Configuration
 DB_HOST="localhost"
 DB_PORT="5432"
-DB_NAME="vendure_db"
+DB_NAME="rotten_db"
 DB_USER="vendureuser"
 DB_PASSWORD="adrdsouza"
 BACKUP_DIR="database/backups"
@@ -24,7 +24,7 @@ DATE_ONLY=$(date +%Y-%m-%d)
 # Create backup directory if it doesn't exist
 mkdir -p "$BACKUP_DIR"
 
-echo "🚀 COMPLETE DATABASE BACKUP - Damned Designs"
+echo "🚀 COMPLETE DATABASE BACKUP - Rotten Hand"
 echo "============================================="
 echo ""
 echo "Database: $DB_NAME"

@@ -1,7 +1,7 @@
 # Safari Image Loading Fix
 
 ## Problem
-Images from `https://damneddesigns.com/assetspreview/*` work on desktop but not Safari mobile due to CORS headers.
+Images from `https://rottenhand.com/assetspreview/*` work on desktop but not Safari mobile due to CORS headers.
 
 ## Root Cause
 Your server returns these problematic headers:
@@ -42,7 +42,7 @@ export const config: VendureConfig = {
   // ...existing config
   apiOptions: {
     cors: {
-      origin: ['https://damneddesigns.com', 'http://localhost:4000'],
+      origin: ['https://rottenhand.com', 'http://localhost:4000'],
       credentials: true,
     },
   },
@@ -82,7 +82,7 @@ This tells Safari to make a proper CORS request for cross-origin images.
 
 After applying server fixes, test with:
 ```bash
-curl -I https://damneddesigns.com/assetspreview/b6/dscf7119__preview.png?preset=thumb
+curl -I https://rottenhand.com/assetspreview/b6/dscf7119__preview.png?preset=thumb
 ```
 
 You should see:

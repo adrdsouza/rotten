@@ -8,7 +8,7 @@ Automated database backup system that creates daily, weekly, and monthly backups
 
 ### Step 1: Run Setup Script
 ```bash
-cd /home/vendure/damneddesigns
+cd /home/vendure/rottenhand
 ./database/setup-google-drive-backup.sh
 ```
 
@@ -41,7 +41,7 @@ The script will guide you through:
 ## 📁 Google Drive Structure
 
 ```
-DamnedDesigns-Backups/
+RottenHand-Backups/
 └── database/
     ├── daily/          # Daily backups (30 days)
     ├── weekly/         # Weekly backups (12 weeks)
@@ -75,10 +75,10 @@ DamnedDesigns-Backups/
 ### Direct rclone Commands
 ```bash
 # List backups
-rclone lsf gdrive:DamnedDesigns-Backups/database/daily/
+rclone lsf gdrive:RottenHand-Backups/database/daily/
 
 # Download a backup
-rclone copy gdrive:DamnedDesigns-Backups/database/daily/backup_file.dump ./
+rclone copy gdrive:RottenHand-Backups/database/daily/backup_file.dump ./
 
 # Check Google Drive space
 rclone about gdrive:
@@ -137,7 +137,7 @@ SEND_EMAIL=true
 ./database/manage-gdrive-backups.sh download
 
 # Or direct download
-rclone copy gdrive:DamnedDesigns-Backups/database/daily/vendure_daily_20250722_160153.dump ./
+rclone copy gdrive:RottenHand-Backups/database/daily/vendure_daily_20250722_160153.dump ./
 ```
 
 ### 2. Restore Database

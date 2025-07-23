@@ -16,7 +16,7 @@ export default component$(() => {
   
   <h2 class="text-2xl font-bold text-black mt-8 mb-4">Introduction</h2>
   <p>
-   Damned Designs ("we,""our," or"us") respects your privacy and is committed to protecting your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website, make a purchase, or interact with us in any way.
+   Rotten Hand ("we,""our," or"us") respects your privacy and is committed to protecting your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website, make a purchase, or interact with us in any way.
   </p>
   <p>
    Please read this Privacy Policy carefully. By accessing or using our website, you acknowledge that you have read, understood, and agree to be bound by all the terms of this Privacy Policy.
@@ -90,8 +90,8 @@ export default component$(() => {
    If you have questions or concerns about this Privacy Policy or our privacy practices, please contact us at:
   </p>
   <div class="mt-4">
-   <p><strong>Damned Designs</strong></p>
-   <p>Email: privacy@damneddesigns.com</p>
+   <p><strong>Rotten Hand</strong></p>
+   <p>Email: privacy@rottenhand.com</p>
    <p>Phone: (555) 123-4567</p>
   </div>
   </div>
@@ -102,7 +102,7 @@ export default component$(() => {
 export const head = () =>
  createSEOHead({
  title: 'Privacy Policy',
- description: 'Privacy policy for Damned Designs. Learn how we protect your data and respect your privacy.',
+ description: 'Privacy policy for Rotten Hand. Learn how we protect your data and respect your privacy.',
  noindex: false,
  });
 

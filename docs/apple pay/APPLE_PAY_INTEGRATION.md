@@ -1,4 +1,4 @@
-# Apple Pay Integration Guide for Damned Designs
+# Apple Pay Integration Guide for Rotten Hand
 
 ## Overview
 
@@ -8,7 +8,7 @@ This guide explains how Apple Pay integration works with your current world-clas
 
 - **Direct card processing** (superior to Collect.js)
 - **Apple verification file** already in place
-- **Domain registered**: `damneddesigns.com` 
+- **Domain registered**: `rottenhand.com` 
 - **World-class PCI-compliant logging system**
 
 ## Integration Options
@@ -63,14 +63,14 @@ This guide explains how Apple Pay integration works with your current world-clas
 
 ### 1. Apple Pay Certificates
 You need to obtain from Apple:
-- **Merchant ID**: `merchant.com.damneddesigns`
+- **Merchant ID**: `merchant.com.rottenhand`
 - **Payment Processing Certificate**
 - **Private Key**
 
 ### 2. Environment Variables
 ```bash
 # Apple Pay Configuration
-APPLE_PAY_MERCHANT_ID=merchant.com.damneddesigns
+APPLE_PAY_MERCHANT_ID=merchant.com.rottenhand
 APPLE_PAY_CERTIFICATE_PATH=/path/to/cert.pem
 APPLE_PAY_PRIVATE_KEY_PATH=/path/to/key.pem
 
@@ -82,7 +82,7 @@ NMI_SECURITY_KEY=your_nmi_security_key
 In your NMI merchant portal:
 1. Enable Apple Pay processing
 2. Upload your Apple Pay certificates
-3. Configure allowed domains (already done: `damneddesigns.com`)
+3. Configure allowed domains (already done: `rottenhand.com`)
 
 ## How Collect.js Alternative Works
 
@@ -102,7 +102,7 @@ const collectJS = new CollectJS({
     // Your existing card fields
   },
   applePaySettings: {
-    displayName: 'Damned Designs',
+    displayName: 'Rotten Hand',
     total: orderTotal,
     currency: 'USD'
   },

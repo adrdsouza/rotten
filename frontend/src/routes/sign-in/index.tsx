@@ -426,7 +426,7 @@ export default component$(() => {
 export const head = () => {
 	return createSEOHead({
 		title: 'Sign In | Sign Up',
-		description: 'Sign in to your existing account or create a new Damned Designs account to shop, track orders, and manage your profile.',
+		description: 'Sign in to your existing account or create a new Rotten Hand account to shop, track orders, and manage your profile.',
 		noindex: true,
 	});
 };

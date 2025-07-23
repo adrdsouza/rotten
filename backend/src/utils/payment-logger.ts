@@ -127,7 +127,7 @@ export class PaymentLogger {
 
     private static writeToLog(type: 'audit' | 'payment' | 'security', message: string, data: any = {}): void {
         try {
-            const logDir = process.env.LOG_BASE_PATH || '/home/vendure/damneddesigns/backend/logs';
+            const logDir = process.env.LOG_BASE_PATH || '/home/vendure/rottenhand/backend/logs';
             const typeDir = path.join(logDir, `${type}-backup`);
             
             // Ensure directory exists

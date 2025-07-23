@@ -2,11 +2,11 @@
 
 **Date:** June 6, 2025  
 **Status:** 🚧 In Progress  
-**Project:** Damned Designs Newsletter Integration
+**Project:** Rotten Hand Newsletter Integration
 
 ## 📋 Overview
 
-This document outlines the complete implementation plan for integrating SendPulse newsletter functionality into the Damned Designs e-commerce platform. We'll be replacing the existing static newsletter form with a fully functional system that stores subscribers in SendPulse.
+This document outlines the complete implementation plan for integrating SendPulse newsletter functionality into the Rotten Hand e-commerce platform. We'll be replacing the existing static newsletter form with a fully functional system that stores subscribers in SendPulse.
 
 ## 🎯 Goals
 
@@ -47,13 +47,13 @@ SENDPULSE_API_USER_ID=your_api_user_id_here
 SENDPULSE_API_SECRET=your_api_secret_here
 SENDPULSE_TOKEN_STORAGE=/tmp/sendpulse/
 SENDPULSE_NEWSLETTER_BOOK_ID=your_address_book_id_here
-SENDPULSE_SENDER_NAME=Damned Designs
-SENDPULSE_SENDER_EMAIL=newsletter@damneddesigns.com
+SENDPULSE_SENDER_NAME=Rotten Hand
+SENDPULSE_SENDER_EMAIL=newsletter@rottenhand.com
 ```
 
 #### 1.2 Install Dependencies
 ```bash
-cd /home/vendure/damneddesigns/backend
+cd /home/vendure/rottenhand/backend
 pnpm add sendpulse-api joi rate-limiter-flexible
 ```
 

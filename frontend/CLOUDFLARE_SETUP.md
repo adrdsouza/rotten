@@ -45,7 +45,7 @@
 ## 1. SIGN UP FOR CLOUDFLARE (FREE)
 - Go to https://www.cloudflare.com/
 - Sign up for free account
-- Add your domain: damneddesigns.com
+- Add your domain: rottenhand.com
 
 ## 2. CHANGE NAMESERVERS
 You'll need to change your domain's nameservers to Cloudflare's:
@@ -99,17 +99,17 @@ You'll need to change your domain's nameservers to Cloudflare's:
 ### E. Rules > Page Rules (FREE PLAN - 3 rules available):
 **Create these rules in order of priority:**
 
-1. **Rule 1**: `damneddesigns.com/build/*` (Qwik optimized bundles - CRITICAL)
+1. **Rule 1**: `rottenhand.com/build/*` (Qwik optimized bundles - CRITICAL)
    - Settings: Cache Level → Cache Everything
    - Edge Cache TTL → 1 year
    - Browser Cache TTL → 1 year
 
-2. **Rule 2**: `damneddesigns.com/assets/*` (Images, fonts, etc.)
+2. **Rule 2**: `rottenhand.com/assets/*` (Images, fonts, etc.)
    - Settings: Cache Level → Cache Everything
    - Edge Cache TTL → 1 month
    - Browser Cache TTL → 1 year  
 
-3. **Rule 3**: `damneddesigns.com/*.*` (All files with extensions)
+3. **Rule 3**: `rottenhand.com/*.*` (All files with extensions)
    - Settings: Cache Level → Cache Everything
    - Edge Cache TTL → 1 month
    - Browser Cache TTL → 1 year

@@ -34,7 +34,7 @@ DD29235,USPS,9434650206217052577786
 
 Save your CSV file as `tracking.csv` in the backend/scripts directory:
 ```
-/home/vendure/damneddesigns/backend/scripts/tracking.csv
+/home/vendure/rottenhand/backend/scripts/tracking.csv
 ```
 
 ### 3. Run the Script
@@ -42,7 +42,7 @@ Save your CSV file as `tracking.csv` in the backend/scripts directory:
 Navigate to the backend directory and run:
 
 ```bash
-cd /home/vendure/damneddesigns/backend
+cd /home/vendure/rottenhand/backend
 pnpm exec ts-node scripts/bulk-tracking-cli.ts
 ```
 
@@ -60,7 +60,7 @@ pnpm exec ts-node scripts/bulk-tracking-cli.ts
 Before processing live orders, test with dry-run mode:
 
 ```bash
-cd /home/vendure/damneddesigns/backend
+cd /home/vendure/rottenhand/backend
 pnpm exec ts-node scripts/bulk-tracking-cli.ts --dry-run
 ```
 
@@ -75,7 +75,7 @@ This will:
 Once you've verified the dry run results:
 
 ```bash
-cd /home/vendure/damneddesigns/backend
+cd /home/vendure/rottenhand/backend
 pnpm exec ts-node scripts/bulk-tracking-cli.ts
 ```
 
@@ -210,10 +210,10 @@ ORDER BY o.code;
 
 ## File Locations
 
-- **Script**: `/home/vendure/damneddesigns/backend/scripts/bulk-tracking-cli.ts`
-- **Default CSV**: `/home/vendure/damneddesigns/backend/scripts/tracking.csv`
-- **Guide**: `/home/vendure/damneddesigns/backend/scripts/BULK_TRACKING_GUIDE.md`
-- **Working Directory**: `/home/vendure/damneddesigns/backend/`
+- **Script**: `/home/vendure/rottenhand/backend/scripts/bulk-tracking-cli.ts`
+- **Default CSV**: `/home/vendure/rottenhand/backend/scripts/tracking.csv`
+- **Guide**: `/home/vendure/rottenhand/backend/scripts/BULK_TRACKING_GUIDE.md`
+- **Working Directory**: `/home/vendure/rottenhand/backend/`
 
 ## Support
 

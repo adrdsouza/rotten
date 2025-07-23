@@ -7,7 +7,7 @@ OUTPUT_FILE="active_orders_export_$(date +%Y-%m-%d).csv"
 
 echo "Exporting open orders to: $OUTPUT_FILE"
 
-sudo -u postgres psql -d vendure_db -c "\copy (
+sudo -u postgres psql -d rotten_db -c "\copy (
 SELECT 
     o.code AS order_code,
     o.state AS order_status,

@@ -9,7 +9,7 @@ Your Apple Pay integration is **already implemented**! Here's what I've set up:
 3. ✅ **Payment.tsx updated** - Includes Apple Pay + your credit card form
 4. ✅ **Backend endpoints** - API routes for validation and processing
 5. ✅ **NMI handler enhanced** - Supports Apple Pay tokens
-6. ✅ **Domain registered** - `damneddesigns.com` 
+6. ✅ **Domain registered** - `rottenhand.com` 
 
 ## 🚀 Next Steps (Required)
 
@@ -20,7 +20,7 @@ Visit [Apple Developer Portal](https://developer.apple.com/account) and:
 1. **Create Merchant ID**:
    - Go to Certificates, Identifiers & Profiles
    - Select "Merchant IDs"
-   - Create new: `merchant.com.damneddesigns`
+   - Create new: `merchant.com.rottenhand`
 
 2. **Generate Certificates**:
    - Payment Processing Certificate
@@ -32,7 +32,7 @@ Add to your `.env` files:
 
 ```bash
 # Apple Pay Configuration
-APPLE_PAY_MERCHANT_ID=merchant.com.damneddesigns
+APPLE_PAY_MERCHANT_ID=merchant.com.rottenhand
 APPLE_PAY_CERTIFICATE_PATH=/path/to/apple-pay-cert.pem
 APPLE_PAY_PRIVATE_KEY_PATH=/path/to/apple-pay-key.pem
 
@@ -46,12 +46,12 @@ Login to your NMI merchant portal:
 1. Go to **Payment Methods** → **Apple Pay**
 2. Upload your Apple Pay certificates
 3. Enable Apple Pay processing
-4. Confirm `damneddesigns.com` is in allowed domains
+4. Confirm `rottenhand.com` is in allowed domains
 
 ### 4. Test on HTTPS
 
 Apple Pay only works on HTTPS domains. Test on:
-- ✅ Production: `https://damneddesigns.com`
+- ✅ Production: `https://rottenhand.com`
 - ✅ Staging with HTTPS
 - ❌ Local development (HTTP) - won't show Apple Pay button
 

@@ -72,7 +72,7 @@ export default component$(() => {
 export const head = () => {
 	return createSEOHead({
 		title: 'Forgot Password',
-		description: 'Reset your Damned Designs account password.',
+		description: 'Reset your Rotten Hand account password.',
 		noindex: true,
 	});
 };

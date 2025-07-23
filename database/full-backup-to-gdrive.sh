@@ -8,13 +8,13 @@ set -e
 # Configuration
 DB_HOST="localhost"
 DB_PORT="5432"
-DB_NAME="vendure_db"
+DB_NAME="rotten_db"
 DB_USER="vendureuser"
 DB_PASSWORD="adrdsouza"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="/home/vendure/damneddesigns/database/backups/full"
-GDRIVE_DIR="gdrive:DamnedDesigns-Backups/database/full"
-LOG_FILE="/home/vendure/damneddesigns/database/logs/full-backup.log"
+BACKUP_DIR="/home/vendure/rottenhand/database/backups/full"
+GDRIVE_DIR="gdrive:RottenHand-Backups/database/full"
+LOG_FILE="/home/vendure/rottenhand/database/logs/full-backup.log"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
@@ -84,4 +84,4 @@ log "🎉 Weekly full backup completed successfully!"
 log "   File: $BACKUP_FILE ($BACKUP_SIZE)"
 
 # Create marker file for incremental backups
-echo "$TIMESTAMP" > "/home/vendure/damneddesigns/database/backups/last_full_backup.txt"
+echo "$TIMESTAMP" > "/home/vendure/rottenhand/database/backups/last_full_backup.txt"

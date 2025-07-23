@@ -74,8 +74,8 @@ export default component$(() => {
         <div class="mt-6 border-t border-gray-200 pt-6">
           <p class="text-xs text-gray-500 text-center">
             Need help? Contact us at{' '}
-            <a href="mailto:info@damneddesigns.com" target='_blank' class="text-[#e34545] hover:text-black">
-              info@damneddesigns.com
+            <a href="mailto:info@rottenhand.com" target='_blank' class="text-[#e34545] hover:text-black">
+              info@rottenhand.com
             </a>
           </p>
         </div>

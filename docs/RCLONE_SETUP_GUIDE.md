@@ -61,7 +61,7 @@ You should see your Google Drive folders listed.
 
 Once rclone is configured, run:
 ```bash
-cd /home/vendure/damneddesigns
+cd /home/vendure/rottenhand
 ./database/setup-incremental-backups.sh
 ```
 
@@ -108,7 +108,7 @@ After setup, use these commands:
 Your backups will be organized as:
 ```
 Google Drive/
-└── DamnedDesigns-Backups/
+└── RottenHand-Backups/
     └── database/
         ├── full/          # Weekly full backups (~7MB each)
         └── incremental/   # 6-hourly incremental backups (~1-3MB each)

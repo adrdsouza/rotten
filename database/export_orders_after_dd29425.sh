@@ -9,7 +9,7 @@ OUTPUT_FILE="orders_after_dd29425_$(date +%Y-%m-%d).csv"
 echo "Exporting orders after DD29425 to $OUTPUT_FILE..."
 
 # Run the SQL query as postgres user
-sudo -u postgres psql -d vendure_db -c "\copy (
+sudo -u postgres psql -d rotten_db -c "\copy (
     SELECT
         o.code AS order_code,
         o.state AS order_status,

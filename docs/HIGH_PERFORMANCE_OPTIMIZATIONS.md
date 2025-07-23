@@ -110,7 +110,7 @@ node_args: ['--max-old-space-size=4096'] // 4GB heap size
 
 ### **1. Update Backend Configuration**
 ```bash
-cd /home/vendure/damneddesigns/backend
+cd /home/vendure/rottenhand/backend
 pnpm run build
 ```
 

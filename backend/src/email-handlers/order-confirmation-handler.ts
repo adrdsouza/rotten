@@ -54,7 +54,7 @@ export const orderConfirmationHandler = new EmailEventListener('order-confirmati
         };
     })
     .setRecipient(event => event.order.customer!.emailAddress)
-    .setFrom('"Damned Designs" <sales@damneddesigns.com>')
+    .setFrom('"Rotten Hand" <sales@rottenhand.com>')
     .setSubject('Order confirmation for #{{ order.code }}')
     .setTemplateVars(event => ({
         order: event.data.order,

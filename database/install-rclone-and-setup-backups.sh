@@ -26,11 +26,11 @@ fi
 # Configuration
 DB_HOST="localhost"
 DB_PORT="5432"
-DB_NAME="vendure_db"
+DB_NAME="rotten_db"
 DB_USER="vendureuser"
 DB_PASSWORD="adrdsouza"
-BACKUP_BASE_DIR="/home/vendure/damneddesigns/database/backups"
-LOG_DIR="/home/vendure/damneddesigns/database/logs"
+BACKUP_BASE_DIR="/home/vendure/rottenhand/database/backups"
+LOG_DIR="/home/vendure/rottenhand/database/logs"
 
 # Create directories
 mkdir -p "$BACKUP_BASE_DIR"/{full,incremental}
@@ -113,12 +113,12 @@ create_gdrive_structure() {
     echo "📁 Creating Google Drive backup structure..."
     
     # Create backup directories
-    rclone mkdir gdrive:DamnedDesigns-Backups/database/full
-    rclone mkdir gdrive:DamnedDesigns-Backups/database/incremental
+    rclone mkdir gdrive:RottenHand-Backups/database/full
+    rclone mkdir gdrive:RottenHand-Backups/database/incremental
     
     echo "   ✅ Google Drive directories created:"
-    echo "      - DamnedDesigns-Backups/database/full (weekly full backups)"
-    echo "      - DamnedDesigns-Backups/database/incremental (6-hourly incremental)"
+    echo "      - RottenHand-Backups/database/full (weekly full backups)"
+    echo "      - RottenHand-Backups/database/incremental (6-hourly incremental)"
 }
 
 # Function to create full backup script
@@ -142,7 +142,7 @@ DB_USER="$DB_USER"
 DB_PASSWORD="$DB_PASSWORD"
 TIMESTAMP=\$(date +%Y%m%d_%H%M%S)
 BACKUP_DIR="$BACKUP_BASE_DIR/full"
-GDRIVE_DIR="gdrive:DamnedDesigns-Backups/database/full"
+GDRIVE_DIR="gdrive:RottenHand-Backups/database/full"
 LOG_FILE="$LOG_DIR/full-backup.log"
 
 log() {
@@ -241,7 +241,7 @@ DB_USER="$DB_USER"
 DB_PASSWORD="$DB_PASSWORD"
 TIMESTAMP=\$(date +%Y%m%d_%H%M%S)
 BACKUP_DIR="$BACKUP_BASE_DIR/incremental"
-GDRIVE_DIR="gdrive:DamnedDesigns-Backups/database/incremental"
+GDRIVE_DIR="gdrive:RottenHand-Backups/database/incremental"
 LOG_FILE="$LOG_DIR/incremental-backup.log"
 
 log() {
@@ -352,11 +352,11 @@ setup_cron_jobs() {
     
     # Add new cron jobs
     (crontab -l 2>/dev/null; cat << EOF
-# Damned Designs Database Backup Schedule
+# Rotten Hand Database Backup Schedule
 # Full backup every Sunday at 2:00 AM
-0 2 * * 0 cd /home/vendure/damneddesigns && ./database/full-backup-to-gdrive.sh
+0 2 * * 0 cd /home/vendure/rottenhand && ./database/full-backup-to-gdrive.sh
 # Incremental backups every 6 hours (6 AM, 12 PM, 6 PM, 12 AM)
-0 6,12,18,0 * * * cd /home/vendure/damneddesigns && ./database/incremental-backup-to-gdrive.sh
+0 6,12,18,0 * * * cd /home/vendure/rottenhand && ./database/incremental-backup-to-gdrive.sh
 EOF
     ) | crontab -
     
@@ -376,8 +376,8 @@ create_management_script() {
 # 🚀 BACKUP MANAGEMENT SCRIPT
 # Manage full and incremental backups
 
-GDRIVE_FULL="gdrive:DamnedDesigns-Backups/database/full"
-GDRIVE_INCREMENTAL="gdrive:DamnedDesigns-Backups/database/incremental"
+GDRIVE_FULL="gdrive:RottenHand-Backups/database/full"
+GDRIVE_INCREMENTAL="gdrive:RottenHand-Backups/database/incremental"
 
 case ${1:-status} in
     status)
@@ -414,10 +414,10 @@ case ${1:-status} in
         
     logs)
         echo "📋 Recent Full Backup Logs:"
-        tail -10 /home/vendure/damneddesigns/database/logs/full-backup.log 2>/dev/null || echo "No full backup logs"
+        tail -10 /home/vendure/rottenhand/database/logs/full-backup.log 2>/dev/null || echo "No full backup logs"
         echo ""
         echo "📋 Recent Incremental Backup Logs:"
-        tail -10 /home/vendure/damneddesigns/database/logs/incremental-backup.log 2>/dev/null || echo "No incremental backup logs"
+        tail -10 /home/vendure/rottenhand/database/logs/incremental-backup.log 2>/dev/null || echo "No incremental backup logs"
         ;;
         
     *)
@@ -470,8 +470,8 @@ main() {
     echo "   - Incremental: Every 6 hours (6 AM, 12 PM, 6 PM, 12 AM)"
     echo ""
     echo "📁 Google Drive Structure:"
-    echo "   - DamnedDesigns-Backups/database/full/ (weekly full backups)"
-    echo "   - DamnedDesigns-Backups/database/incremental/ (6-hourly incremental)"
+    echo "   - RottenHand-Backups/database/full/ (weekly full backups)"
+    echo "   - RottenHand-Backups/database/incremental/ (6-hourly incremental)"
     echo ""
     echo "🔧 Management Commands:"
     echo "   - Status: ./database/manage-backups.sh status"

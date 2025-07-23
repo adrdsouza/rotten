@@ -3,7 +3,7 @@ import { component$, type QRL } from '@qwik.dev/core';
 // Helper function to generate responsive srcset for Vendure assets
 const generateResponsiveSources = (src: string, widths: number[] = [320, 640, 1024, 1280]) => {
   // Check if this is a Vendure asset URL
-  const isVendureAsset = src.includes('/assets/') || src.includes('/assetspreview/') || src.includes('damneddesigns.com');
+  const isVendureAsset = src.includes('/assets/') || src.includes('/assetspreview/') || src.includes('rottenhand.com');
   
   if (!isVendureAsset) {
     // For non-Vendure images, return as-is
@@ -136,7 +136,7 @@ export const generateImagePreloadLinks = (
       type: 'image/avif',
       imagesrcset: imageSources.avifSrcset || undefined,
       imagesizes: config?.sizes,
-      crossorigin: (src.includes('damneddesigns.com/assetspreview') || !src.startsWith('/')) ? 'anonymous' : undefined,
+      crossorigin: (src.includes('rottenhand.com/assetspreview') || !src.startsWith('/')) ? 'anonymous' : undefined,
     });
   }
 
@@ -148,7 +148,7 @@ export const generateImagePreloadLinks = (
       type: 'image/webp',
       imagesrcset: imageSources.webpSrcset || undefined,
       imagesizes: config?.sizes,
-      crossorigin: (src.includes('damneddesigns.com/assetspreview') || !src.startsWith('/')) ? 'anonymous' : undefined,
+      crossorigin: (src.includes('rottenhand.com/assetspreview') || !src.startsWith('/')) ? 'anonymous' : undefined,
     });
   }
 
@@ -159,7 +159,7 @@ export const generateImagePreloadLinks = (
       href: imageSources.original,
       imagesrcset: imageSources.originalSrcset || undefined,
       imagesizes: config?.sizes,
-      crossorigin: (src.includes('damneddesigns.com/assetspreview') || !src.startsWith('/')) ? 'anonymous' : undefined,
+      crossorigin: (src.includes('rottenhand.com/assetspreview') || !src.startsWith('/')) ? 'anonymous' : undefined,
     });
   }
 
@@ -219,7 +219,7 @@ export const OptimizedImage = component$<OptimizedImageProps>(({
  ...rest
 }) => {
  // Safari CORS fix: Add crossorigin attribute for external domain images
- const isCrossOrigin = src && (src.includes('damneddesigns.com/assetspreview') || !src.startsWith('/'));
+ const isCrossOrigin = src && (src.includes('rottenhand.com/assetspreview') || !src.startsWith('/'));
 
  // Generate responsive image sources using the same smart logic
  const config = responsive !== 'none' ? RESPONSIVE_CONFIGS[responsive] : null;

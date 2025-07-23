@@ -1,6 +1,6 @@
 # NMI Payment Gateway Integration
 
-This document outlines the implementation details and configuration of the NMI (Network Merchants, Inc.) payment gateway integration for the Damned Designs e-commerce platform.
+This document outlines the implementation details and configuration of the NMI (Network Merchants, Inc.) payment gateway integration for the Rotten Hand e-commerce platform.
 
 ## Overview
 
@@ -143,7 +143,7 @@ Monitor the following in your production environment:
 
 For issues with the NMI payment integration, contact:
 - NMI Support: [support@nmi.com](mailto:support@nmi.com)
-- Internal Development Team: [dev@damneddesigns.com](mailto:dev@damneddesigns.com)
+- Internal Development Team: [dev@rottenhand.com](mailto:dev@rottenhand.com)
 
 ## Changelog
 

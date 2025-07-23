@@ -339,7 +339,7 @@ export default component$(() => {
 						/>
 						<img
 							src={HeroImageJPEG_1024}
-							alt="Premium Knife from Damned Designs"
+							alt="Premium Knife from Rotten Hand"
 							loading="eager"
 							fetchPriority="high"
 							width={1024}
@@ -399,7 +399,7 @@ export default component$(() => {
 							/>
 							<img
 								src={Section2ImageJPEG_1024}
-								alt="Damned Designs Background"
+								alt="Rotten Hand Background"
 								loading="lazy"
 								width={1024}
 								height={683}
@@ -452,7 +452,7 @@ export default component$(() => {
 							/>
 							<img
 								src={HomeLastJPEG_1024}
-								alt="Damned Designs Background"
+								alt="Rotten Hand Background"
 								loading="lazy"
 								width={1024}
 								height={683}
@@ -476,7 +476,7 @@ export default component$(() => {
 
 export const head = () => {
 	return createSEOHead({
-		title: 'Damned Designs - Precision Crafted Knives',
+		title: 'Rotten Hand - Precision Crafted Knives',
 		description: 'Premium handcrafted knives and tools. Shop our unique collection of custom blades, EDC gear, and more.',
 		noindex: false,
 		links: [

@@ -486,7 +486,7 @@ The original refactoring attempt removed sophisticated, working validation patte
 
 ## Files
 
-- **Original Working Files**: `/home/vendure/damneddesigns/old/`
-- **Problematic Refactor**: `/home/vendure/damneddesigns/frontend/src/components/checkout/CheckoutAddresses.tsx`
-- **New Implementation**: `/home/vendure/damneddesigns/frontend/src/components/checkout/CheckoutAddressesNew.tsx`
+- **Original Working Files**: `/home/vendure/rottenhand/old/`
+- **Problematic Refactor**: `/home/vendure/rottenhand/frontend/src/components/checkout/CheckoutAddresses.tsx`
+- **New Implementation**: `/home/vendure/rottenhand/frontend/src/components/checkout/CheckoutAddressesNew.tsx`
 - **Analysis Document**: This file (`CHECKOUT_REFACTORING_ANALYSIS.md`)

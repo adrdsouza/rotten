@@ -1,4 +1,4 @@
-# Prefetch Implementation Summary - Damned Designs Qwik Storefront
+# Prefetch Implementation Summary - Rotten Hand Qwik Storefront
 
 ## 🚀 Status: OPTIMIZED FOR PERFORMANCE ✅
 
@@ -173,7 +173,7 @@ qwikVite({
 
 ## 🌟 Current State Summary
 
-The Damned Designs storefront now has **optimized prefetching coverage** with minimal console warnings:
+The Rotten Hand storefront now has **optimized prefetching coverage** with minimal console warnings:
 
 1. ✅ **Homepage → Shop** (High-intent CTA - Automatic)
 2. ✅ **Navigation Links** (Hover-based - Desktop only)

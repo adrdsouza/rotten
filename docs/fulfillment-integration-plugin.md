@@ -385,4 +385,4 @@ This plugin is designed to be extensible for other fulfillment providers. To add
 
 ## 📄 License
 
-This plugin is part of the Damned Designs Vendure implementation and follows the same licensing terms.
+This plugin is part of the Rotten Hand Vendure implementation and follows the same licensing terms.

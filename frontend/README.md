@@ -1,4 +1,4 @@
-# Damned Designs - Custom Knife Storefront
+# Rotten Hand - Custom Knife Storefront
 
 An e-commerce storefront for [Vendure](https://www.vendure.io) built with [Qwik](https://qwik.builder.io/) & [Qwik City](https://qwik.builder.io/qwikcity/overview).
 

@@ -1,4 +1,4 @@
-# Incremental Backup System - Damned Designs
+# Incremental Backup System - Rotten Hand
 
 ## 🎯 System Overview
 
@@ -22,7 +22,7 @@
 
 ```
 Google Drive/
-└── DamnedDesigns-Backups/
+└── RottenHand-Backups/
     └── database/
         ├── full/          # Weekly full backups (~7.4MB each)
         └── incremental/   # 6-hourly incremental backups (~1-3MB each)
@@ -114,7 +114,7 @@ Displays step-by-step restore procedures.
 ### Quick Restore (Recent Data Loss)
 1. **Download latest full backup**:
    ```bash
-   rclone copy vdrive:DamnedDesigns-Backups/database/full/[latest_backup] ./
+   rclone copy vdrive:RottenHand-Backups/database/full/[latest_backup] ./
    ```
 
 2. **Restore full backup**:
@@ -124,7 +124,7 @@ Displays step-by-step restore procedures.
 
 3. **Apply incremental backups** (if needed):
    ```bash
-   rclone copy vdrive:DamnedDesigns-Backups/database/incremental/[incremental_file] ./
+   rclone copy vdrive:RottenHand-Backups/database/incremental/[incremental_file] ./
    gunzip [incremental_file]
    PGPASSWORD=adrdsouza psql -d vendure_db -f [incremental_file.sql]
    ```

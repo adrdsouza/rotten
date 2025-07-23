@@ -1,7 +1,7 @@
 -- Export Orders after DD29425 to CSV
 -- This script exports all orders with order codes greater than DD29425
 -- Run the export with:
--- sudo -u postgres psql -d vendure_db -c "\copy (
+-- sudo -u postgres psql -d rotten_db -c "\copy (
 -- [SQL QUERY BELOW]
 -- ) TO STDOUT WITH CSV HEADER" > orders_after_dd29425_$(date +%Y-%m-%d).csv
 

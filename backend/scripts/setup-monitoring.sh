@@ -6,13 +6,13 @@
 echo "🔧 Setting up comprehensive monitoring..."
 
 # Create monitoring directory
-mkdir -p /home/vendure/damneddesigns/backend/logs
+mkdir -p /home/vendure/rottenhand/backend/logs
 
 # Make health monitor executable
-chmod +x /home/vendure/damneddesigns/backend/scripts/health-monitor.js
+chmod +x /home/vendure/rottenhand/backend/scripts/health-monitor.js
 
 # Add cron job for health monitoring (every 5 minutes)
-CRON_JOB="*/5 * * * * cd /home/vendure/damneddesigns/backend && node scripts/health-monitor.js >> logs/monitoring-cron.log 2>&1"
+CRON_JOB="*/5 * * * * cd /home/vendure/rottenhand/backend && node scripts/health-monitor.js >> logs/monitoring-cron.log 2>&1"
 
 # Check if cron job already exists
 if ! crontab -l 2>/dev/null | grep -q "health-monitor.js"; then
@@ -24,11 +24,11 @@ else
 fi
 
 # Create log rotation script
-cat > /home/vendure/damneddesigns/backend/scripts/rotate-logs.sh << 'EOF'
+cat > /home/vendure/rottenhand/backend/scripts/rotate-logs.sh << 'EOF'
 #!/bin/bash
 # Log rotation script for monitoring logs
 
-LOG_DIR="/home/vendure/damneddesigns/backend/logs"
+LOG_DIR="/home/vendure/rottenhand/backend/logs"
 MAX_SIZE="10M"
 BACKUP_COUNT=5
 
@@ -64,10 +64,10 @@ for log_file in pm2-backend.log pm2-worker.log pm2-backend-out.log pm2-worker-ou
 done
 EOF
 
-chmod +x /home/vendure/damneddesigns/backend/scripts/rotate-logs.sh
+chmod +x /home/vendure/rottenhand/backend/scripts/rotate-logs.sh
 
 # Add log rotation cron job (daily at 2 AM)
-LOG_ROTATION_CRON="0 2 * * * /home/vendure/damneddesigns/backend/scripts/rotate-logs.sh"
+LOG_ROTATION_CRON="0 2 * * * /home/vendure/rottenhand/backend/scripts/rotate-logs.sh"
 
 if ! crontab -l 2>/dev/null | grep -q "rotate-logs.sh"; then
     (crontab -l 2>/dev/null; echo "$LOG_ROTATION_CRON") | crontab -

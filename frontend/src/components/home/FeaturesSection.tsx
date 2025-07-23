@@ -2,7 +2,7 @@ import { component$ } from '@qwik.dev/core';
 
 /**
  * Features section component - extracted for lazy loading
- * Contains the "Why Choose Damned Designs" features grid
+ * Contains the "Why Choose Rotten Hand" features grid
  */
 export const FeaturesSection = component$(() => {
   return (

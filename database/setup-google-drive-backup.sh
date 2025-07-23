@@ -103,16 +103,16 @@ create_gdrive_structure() {
     echo "📁 Creating Google Drive backup structure..."
     
     # Create backup directories
-    rclone mkdir gdrive:DamnedDesigns-Backups
-    rclone mkdir gdrive:DamnedDesigns-Backups/database
-    rclone mkdir gdrive:DamnedDesigns-Backups/database/daily
-    rclone mkdir gdrive:DamnedDesigns-Backups/database/weekly
-    rclone mkdir gdrive:DamnedDesigns-Backups/database/monthly
+    rclone mkdir gdrive:RottenHand-Backups
+    rclone mkdir gdrive:RottenHand-Backups/database
+    rclone mkdir gdrive:RottenHand-Backups/database/daily
+    rclone mkdir gdrive:RottenHand-Backups/database/weekly
+    rclone mkdir gdrive:RottenHand-Backups/database/monthly
     
     echo "   ✅ Google Drive backup directories created"
-    echo "      - DamnedDesigns-Backups/database/daily"
-    echo "      - DamnedDesigns-Backups/database/weekly"
-    echo "      - DamnedDesigns-Backups/database/monthly"
+    echo "      - RottenHand-Backups/database/daily"
+    echo "      - RottenHand-Backups/database/weekly"
+    echo "      - RottenHand-Backups/database/monthly"
 }
 
 # Function to create automated backup script
@@ -132,20 +132,20 @@ set -e
 BACKUP_TYPE=${1:-daily}  # daily, weekly, or monthly
 DB_HOST="localhost"
 DB_PORT="5432"
-DB_NAME="vendure_db"
+DB_NAME="rotten_db"
 DB_USER="vendureuser"
 DB_PASSWORD="adrdsouza"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 DATE_ONLY=$(date +%Y-%m-%d)
-LOCAL_BACKUP_DIR="/home/vendure/damneddesigns/database/backups"
-GDRIVE_BACKUP_DIR="gdrive:DamnedDesigns-Backups/database/$BACKUP_TYPE"
+LOCAL_BACKUP_DIR="/home/vendure/rottenhand/database/backups"
+GDRIVE_BACKUP_DIR="gdrive:RottenHand-Backups/database/$BACKUP_TYPE"
 
 # Email settings (optional)
 EMAIL_TO="your-email@example.com"  # Change this to your email
 SEND_EMAIL=false  # Set to true to enable email notifications
 
 # Logging
-LOG_FILE="/home/vendure/damneddesigns/database/logs/gdrive-backup.log"
+LOG_FILE="/home/vendure/rottenhand/database/logs/gdrive-backup.log"
 mkdir -p "$(dirname "$LOG_FILE")"
 
 log() {
@@ -229,14 +229,14 @@ find "$LOCAL_BACKUP_DIR" -name "vendure_${BACKUP_TYPE}_*.dump" -mtime +7 -delete
 
 # Send email notification (if enabled)
 if [ "$SEND_EMAIL" = true ] && command -v mail &> /dev/null; then
-    SUBJECT="✅ Damned Designs - $BACKUP_TYPE backup successful"
+    SUBJECT="✅ Rotten Hand - $BACKUP_TYPE backup successful"
     BODY="Database backup completed successfully:
     
 Backup: $BACKUP_FILE
 Size: $BACKUP_SIZE
 Date: $(date)
 Type: $BACKUP_TYPE
-Location: Google Drive - DamnedDesigns-Backups/database/$BACKUP_TYPE/
+Location: Google Drive - RottenHand-Backups/database/$BACKUP_TYPE/
 
 Log file: $LOG_FILE"
     
@@ -245,7 +245,7 @@ fi
 
 log "🎉 $BACKUP_TYPE backup completed successfully!"
 log "   File: $BACKUP_FILE ($BACKUP_SIZE)"
-log "   Location: Google Drive - DamnedDesigns-Backups/database/$BACKUP_TYPE/"
+log "   Location: Google Drive - RottenHand-Backups/database/$BACKUP_TYPE/"
 EOF
 
     chmod +x database/backup-to-gdrive.sh
@@ -258,9 +258,9 @@ setup_cron_jobs() {
     echo "⏰ Setting up automated backup schedule..."
     
     # Create cron jobs
-    CRON_DAILY="0 2 * * * cd /home/vendure/damneddesigns && ./database/backup-to-gdrive.sh daily"
-    CRON_WEEKLY="0 3 * * 0 cd /home/vendure/damneddesigns && ./database/backup-to-gdrive.sh weekly"
-    CRON_MONTHLY="0 4 1 * * cd /home/vendure/damneddesigns && ./database/backup-to-gdrive.sh monthly"
+    CRON_DAILY="0 2 * * * cd /home/vendure/rottenhand && ./database/backup-to-gdrive.sh daily"
+    CRON_WEEKLY="0 3 * * 0 cd /home/vendure/rottenhand && ./database/backup-to-gdrive.sh weekly"
+    CRON_MONTHLY="0 4 1 * * cd /home/vendure/rottenhand && ./database/backup-to-gdrive.sh monthly"
     
     # Add cron jobs if they don't exist
     (crontab -l 2>/dev/null | grep -v "backup-to-gdrive.sh"; echo "$CRON_DAILY"; echo "$CRON_WEEKLY"; echo "$CRON_MONTHLY") | crontab -
@@ -292,7 +292,7 @@ test_backup_system() {
         
         echo ""
         echo "✅ Test backup completed!"
-        echo "   Check your Google Drive at: DamnedDesigns-Backups/database/daily/"
+        echo "   Check your Google Drive at: RottenHand-Backups/database/daily/"
     else
         echo "⏭️  Test backup skipped"
     fi
@@ -323,13 +323,13 @@ main() {
     echo "   - Monthly: 4:00 AM 1st of month (keeps 12 months)"
     echo ""
     echo "📁 Google Drive Location:"
-    echo "   DamnedDesigns-Backups/database/"
+    echo "   RottenHand-Backups/database/"
     echo ""
     echo "🔧 Manual Commands:"
     echo "   - Test backup: ./database/backup-to-gdrive.sh daily"
     echo "   - View cron jobs: crontab -l"
     echo "   - Check logs: tail -f database/logs/gdrive-backup.log"
-    echo "   - List Google Drive backups: rclone lsf gdrive:DamnedDesigns-Backups/database/daily/"
+    echo "   - List Google Drive backups: rclone lsf gdrive:RottenHand-Backups/database/daily/"
     echo ""
     echo "✅ Your database backups are now automated to Google Drive!"
 }

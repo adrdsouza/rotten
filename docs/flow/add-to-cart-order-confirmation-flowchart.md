@@ -588,4 +588,4 @@ The system is designed to handle both positive flows efficiently and negative sc
 - GraphQL resolvers - API endpoints
 - Order management services - Order lifecycle
 
-This document serves as the single source of truth for understanding the complete add-to-cart to order confirmation flow in the Damned Designs e-commerce system.
+This document serves as the single source of truth for understanding the complete add-to-cart to order confirmation flow in the Rotten Hand e-commerce system.

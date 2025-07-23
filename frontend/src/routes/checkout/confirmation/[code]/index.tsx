@@ -324,7 +324,7 @@ export default component$(() => {
 export const head = ({ params }: { params: { code: string } }) => {
 	return createSEOHead({
 		title: `Order Confirmation`,
-		description: `Thank you for your order${params?.code ? ' #' + params.code : ''} at Damned Designs. View your order summary and details.`,
+		description: `Thank you for your order${params?.code ? ' #' + params.code : ''} at Rotten Hand. View your order summary and details.`,
 		noindex: true,
 	});
 };

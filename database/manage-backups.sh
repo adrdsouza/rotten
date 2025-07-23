@@ -3,8 +3,8 @@
 # 🚀 BACKUP MANAGEMENT SCRIPT
 # Manage full and incremental backups
 
-GDRIVE_FULL="gdrive:DamnedDesigns-Backups/database/full"
-GDRIVE_INCREMENTAL="gdrive:DamnedDesigns-Backups/database/incremental"
+GDRIVE_FULL="gdrive:RottenHand-Backups/database/full"
+GDRIVE_INCREMENTAL="gdrive:RottenHand-Backups/database/incremental"
 
 case ${1:-status} in
     status)
@@ -41,10 +41,10 @@ case ${1:-status} in
         
     logs)
         echo "📋 Recent Full Backup Logs:"
-        tail -10 /home/vendure/damneddesigns/database/logs/full-backup.log 2>/dev/null || echo "No full backup logs"
+        tail -10 /home/vendure/rottenhand/database/logs/full-backup.log 2>/dev/null || echo "No full backup logs"
         echo ""
         echo "📋 Recent Incremental Backup Logs:"
-        tail -10 /home/vendure/damneddesigns/database/logs/incremental-backup.log 2>/dev/null || echo "No incremental backup logs"
+        tail -10 /home/vendure/rottenhand/database/logs/incremental-backup.log 2>/dev/null || echo "No incremental backup logs"
         ;;
         
     *)

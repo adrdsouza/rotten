@@ -8,7 +8,7 @@ We've implemented multiple ways to enable console logs for debugging:
 
 ### Method 1: Enable Debug Mode via URL (Easiest)
 1. Add `?debug=true` to your URL
-   - Example: `https://damneddesigns.com/checkout?debug=true`
+   - Example: `https://rottenhand.com/checkout?debug=true`
 2. Refresh the page
 3. Console logs will now be visible
 

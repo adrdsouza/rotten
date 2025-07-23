@@ -2,7 +2,7 @@
 
 ## 🎯 **What We Accomplished**
 
-I've successfully implemented the **100% safe prefetching optimization** for the Damned Designs checkout flow. This is the first phase of our three-tier optimization plan, chosen because it provides immediate performance benefits with **zero risk** to the existing functionality.
+I've successfully implemented the **100% safe prefetching optimization** for the Rotten Hand checkout flow. This is the first phase of our three-tier optimization plan, chosen because it provides immediate performance benefits with **zero risk** to the existing functionality.
 
 ## 🚀 **Implementation Summary**
 

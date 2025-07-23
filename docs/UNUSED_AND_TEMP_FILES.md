@@ -1,6 +1,6 @@
 # Unused, Temporary, and Old Files Report
 
-This report lists files across the server (including the `damneddesigns` directory and others) that are likely unused, temporary, or old. The analysis is based on file naming, extensions, and codebase references.
+This report lists files across the server (including the `rottenhand` directory and others) that are likely unused, temporary, or old. The analysis is based on file naming, extensions, and codebase references.
 
 ---
 
@@ -19,10 +19,10 @@ This report lists files across the server (including the `damneddesigns` directo
 
 ## Unused Files
 
-Below are files in `damneddesigns/backend` and `damneddesigns/frontend` (excluding all assets directories) that do not appear to be referenced or imported anywhere else in the codebase, based on automated analysis. These may be safe to remove, but review before deleting:
+Below are files in `rottenhand/backend` and `rottenhand/frontend` (excluding all assets directories) that do not appear to be referenced or imported anywhere else in the codebase, based on automated analysis. These may be safe to remove, but review before deleting:
 
-- `/home/vendure/damneddesigns/frontend/scripts/tsconfig.scripts.json` — Script TypeScript config (appears unused)
-- `/home/vendure/damneddesigns/backend/src/plugins/custom-shipping/package.json` — Plugin manifest (appears unused)
+- `/home/vendure/rottenhand/frontend/scripts/tsconfig.scripts.json` — Script TypeScript config (appears unused)
+- `/home/vendure/rottenhand/backend/src/plugins/custom-shipping/package.json` — Plugin manifest (appears unused)
 
 _(Note: Most code/config/docs/scripts in the main app directories are referenced or used. If you want a deeper scan for a specific file type or directory, let me know.)_
 
@@ -32,14 +32,14 @@ _(Note: Most code/config/docs/scripts in the main app directories are referenced
 
 ## Temporary/Log/Backup Files
 
-- `/home/vendure/damneddesigns/backend/final_test.log`
-- `/home/vendure/damneddesigns/backend/logs/audit-backup/2025-05-29.log`
-- `/home/vendure/damneddesigns/backend/logs/audit-backup/2025-05-30.log`
-- `/home/vendure/damneddesigns/backend/logs/payment-backup/2025-05-29.log`
-- `/home/vendure/damneddesigns/backend/server.log`
-- `/home/vendure/damneddesigns/backend/server_test.log`
-- `/home/vendure/damneddesigns/backend/startup.log`
-- `/home/vendure/damneddesigns/backend/package.json.backup`
+- `/home/vendure/rottenhand/backend/final_test.log`
+- `/home/vendure/rottenhand/backend/logs/audit-backup/2025-05-29.log`
+- `/home/vendure/rottenhand/backend/logs/audit-backup/2025-05-30.log`
+- `/home/vendure/rottenhand/backend/logs/payment-backup/2025-05-29.log`
+- `/home/vendure/rottenhand/backend/server.log`
+- `/home/vendure/rottenhand/backend/server_test.log`
+- `/home/vendure/rottenhand/backend/startup.log`
+- `/home/vendure/rottenhand/backend/package.json.backup`
 - `/home/vendure/docker-stacks/nginx/data/logs/fallback_access.log`
 - `/home/vendure/docker-stacks/nginx/data/logs/fallback_access.log.1.gz`
 - `/home/vendure/docker-stacks/nginx/data/logs/fallback_error.log`
@@ -98,10 +98,10 @@ _(Note: Most code/config/docs/scripts in the main app directories are referenced
 
 ## Old/Deprecated Files
 
-- `/home/vendure/damneddesigns/backend/package.json.backup`
-- `/home/vendure/damneddesigns/backend/logs/audit-backup/2025-05-29.log`
-- `/home/vendure/damneddesigns/backend/logs/audit-backup/2025-05-30.log`
-- `/home/vendure/damneddesigns/backend/logs/payment-backup/2025-05-29.log`
+- `/home/vendure/rottenhand/backend/package.json.backup`
+- `/home/vendure/rottenhand/backend/logs/audit-backup/2025-05-29.log`
+- `/home/vendure/rottenhand/backend/logs/audit-backup/2025-05-30.log`
+- `/home/vendure/rottenhand/backend/logs/payment-backup/2025-05-29.log`
 - `/home/vendure/vendure_db_after_inventory_update.sql` (likely an old DB dump)
 
 ---
@@ -144,7 +144,7 @@ _(Note: Most code/config/docs/scripts in the main app directories are referenced
 - `.windsurf-server/` — Windsurf tool data (miscellaneous)
 - `.yarn/` — Yarn cache/data (dev tool)
 - `.yarnrc` — Yarn config (dev tool)
-- `damneddesigns/` — Main project dir (app)
+- `rottenhand/` — Main project dir (app)
 - `docker-stacks/` — Docker configs (app/dev tool)
 - `frontend-ecosystem.config.js` — Project config (app)
 - `package-lock.json` — NPM lockfile (app)
@@ -154,7 +154,7 @@ _(Note: Most code/config/docs/scripts in the main app directories are referenced
 
 ---
 
-### /home/vendure/damneddesigns
+### /home/vendure/rottenhand
 
 - `package-lock.json` — Project lockfile (app)
 - `package.json` — Project manifest (app)
@@ -162,7 +162,7 @@ _(Note: Most code/config/docs/scripts in the main app directories are referenced
 
 ---
 
-### /home/vendure/damneddesigns/backend
+### /home/vendure/rottenhand/backend
 
 - `README.md` — Documentation (app)
 - `assets/source/16/damned-mascot.png` — Asset image (app)
@@ -217,7 +217,7 @@ _(Note: Most code/config/docs/scripts in the main app directories are referenced
 
 ---
 
-### /home/vendure/damneddesigns/frontend
+### /home/vendure/rottenhand/frontend
 
 - `README.md` — Documentation (app)
 - `adapters/express/vite.config.mts` — Build config (app/dev tool)
@@ -250,7 +250,7 @@ _(Note: Most code/config/docs/scripts in the main app directories are referenced
 
 ---
 
-### /home/vendure/damneddesigns/assets
+### /home/vendure/rottenhand/assets
 
 - `cache/preview/...` — Preview cache images (temp/cache)
 - `preview/...` — Preview images (app)
@@ -348,7 +348,7 @@ _(Note: Most code/config/docs/scripts in the main app directories are referenced
 - `.windsurf-server/` — Windsurf tool data (miscellaneous)
 - `.yarn/` — Yarn cache/data (dev tool)
 - `.yarnrc` — Yarn config (dev tool)
-- `damneddesigns/` — Main project dir (app)
+- `rottenhand/` — Main project dir (app)
 - `docker-stacks/` — Docker configs (app/dev tool)
 - `frontend-ecosystem.config.js` — Project config (app)
 - `node_modules/` — Node.js dependencies (app)

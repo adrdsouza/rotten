@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides comprehensive documentation for the current checkout implementation in the Damned Designs storefront. The checkout system has been completely refactored to match the behavior of the old implementation while providing robust validation and comprehensive billing address support.
+This document provides comprehensive documentation for the current checkout implementation in the Rotten Hand storefront. The checkout system has been completely refactored to match the behavior of the old implementation while providing robust validation and comprehensive billing address support.
 
 ## Architecture
 

@@ -18,7 +18,7 @@
 
 **Discovery:** 
 - Email validation function (`validateEmail`) existed and worked correctly
-- The issue was in `isActiveCustomerValid` function in `/home/vendure/damneddesigns/frontend/src/utils/index.ts`
+- The issue was in `isActiveCustomerValid` function in `/home/vendure/rottenhand/frontend/src/utils/index.ts`
 - Function only checked email presence (truthiness), not format validation
 
 **Root Cause:**
@@ -35,7 +35,7 @@ export const isActiveCustomerValid = (customer?: Customer): boolean => {
 
 ### Phase 2: Basic Email Validation Fix ✅
 **Files Modified:**
-- `/home/vendure/damneddesigns/frontend/src/utils/index.ts`
+- `/home/vendure/rottenhand/frontend/src/utils/index.ts`
 
 **Changes:**
 ```typescript
@@ -57,7 +57,7 @@ export const isActiveCustomerValid = (customer?: Customer): boolean => {
 
 ### Phase 3: Enhanced Email Validation in Shipping Component ✅
 **Files Modified:**
-- `/home/vendure/damneddesigns/frontend/src/components/shipping/Shipping.tsx`
+- `/home/vendure/rottenhand/frontend/src/components/shipping/Shipping.tsx`
 
 **Implementation:**
 1. **Added validation state signals:**
@@ -119,7 +119,7 @@ export const isActiveCustomerValid = (customer?: Customer): boolean => {
 
 ### Phase 4: Comprehensive Bogus Data Validation ✅
 **Files Modified:**
-- `/home/vendure/damneddesigns/frontend/src/utils/validation.ts`
+- `/home/vendure/rottenhand/frontend/src/utils/validation.ts`
 
 **Implementation:** Added comprehensive bogus pattern detection following real-world validation best practices:
 
@@ -349,7 +349,7 @@ export const isActiveCustomerValid = (customer?: Customer): boolean => {
 
 ### Phase 5: Address Form Integration ✅
 **Files Modified:**
-- `/home/vendure/damneddesigns/frontend/src/components/address-form/AddressForm.tsx`
+- `/home/vendure/rottenhand/frontend/src/components/address-form/AddressForm.tsx`
 
 **Changes:**
 1. **Added enhanced address validation import:**
@@ -378,7 +378,7 @@ export const isActiveCustomerValid = (customer?: Customer): boolean => {
 
 ### Phase 6: First Name and Last Name Validation ✅
 **Files Modified:**
-- `/home/vendure/damneddesigns/frontend/src/components/shipping/Shipping.tsx`
+- `/home/vendure/rottenhand/frontend/src/components/shipping/Shipping.tsx`
 
 **Implementation:**
 1. **Added name validation state signals:**
@@ -576,10 +576,10 @@ const lastNameValid = !lastNameValidationError.value;
 
 ### 📁 Files Modified
 
-1. `/home/vendure/damneddesigns/frontend/src/utils/index.ts` - Customer validation fix
-2. `/home/vendure/damneddesigns/frontend/src/utils/validation.ts` - Enhanced validation functions
-3. `/home/vendure/damneddesigns/frontend/src/components/shipping/Shipping.tsx` - Customer field validation
-4. `/home/vendure/damneddesigns/frontend/src/components/address-form/AddressForm.tsx` - Address field validation
+1. `/home/vendure/rottenhand/frontend/src/utils/index.ts` - Customer validation fix
+2. `/home/vendure/rottenhand/frontend/src/utils/validation.ts` - Enhanced validation functions
+3. `/home/vendure/rottenhand/frontend/src/components/shipping/Shipping.tsx` - Customer field validation
+4. `/home/vendure/rottenhand/frontend/src/components/address-form/AddressForm.tsx` - Address field validation
 
 ### 🧪 Testing Recommendations
 

@@ -74,7 +74,7 @@ export const ReviewsSection = component$(() => {
 
       {/* Trustpilot CTA */}
       <div class="text-center mt-4 animate-fade-initial animate-delay-400">
-        <a href="https://www.trustpilot.com/review/damneddesigns.com" target="_blank" rel="noopener noreferrer" 
+        <a href="https://www.trustpilot.com/review/rottenhand.com" target="_blank" rel="noopener noreferrer" 
           class="text-sm trustpilot-green hover:underline font-semibold">
           Read all 298 reviews →
         </a>

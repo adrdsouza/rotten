@@ -24,7 +24,7 @@ import * as os from 'os';
   imports: [PluginCommonModule],
 })
 export class UnifiedOrderSecurityPlugin {
-  private logFilePath: string = path.join('/home/vendure/damneddesigns', 'order-security-audit.log');
+  private logFilePath: string = path.join('/home/vendure/rottenhand', 'order-security-audit.log');
 
 
   

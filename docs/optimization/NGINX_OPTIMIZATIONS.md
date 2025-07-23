@@ -36,7 +36,7 @@ proxy_cache_path /tmp/nginx_cache levels=1:2 keys_zone=my_cache:100m max_size=1g
 ```nginx
 # Static assets - aggressive caching
 location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|avif|mp4|webm)$ {
-    proxy_pass http://5.78.142.235:4000;
+    proxy_pass http://5.78.82.156:4000;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -56,7 +56,7 @@ location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|avif|mp4|
 
 # Images from Vendure backend - cache aggressively
 location /assets {
-    proxy_pass http://5.78.142.235:3000/assets/;
+    proxy_pass http://5.78.82.156:3000/assets/;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -76,7 +76,7 @@ location /assets {
 
 # API responses - brief caching
 location ~* ^/(shop-api|admin-api)/ {
-    proxy_pass http://5.78.142.235:3000;
+    proxy_pass http://5.78.82.156:3000;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -132,7 +132,7 @@ add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
 ## 6. HOW TO APPLY:
 1. Go to Nginx Proxy Manager admin (port 81)
-2. Edit your damneddesigns.com proxy host
+2. Edit your rottenhand.com proxy host
 3. Go to "Advanced" tab
 4. Add the optimizations above to the "Custom Nginx Configuration" section
 5. Save and test

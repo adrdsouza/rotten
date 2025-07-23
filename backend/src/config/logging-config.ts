@@ -84,7 +84,7 @@ export function getLoggingConfig(): LoggingConfig {
     const isProduction = environment === 'production';
 
     return {
-        baseDir: process.env.LOG_BASE_PATH || '/home/vendure/damneddesigns/backend/logs',
+        baseDir: process.env.LOG_BASE_PATH || '/home/vendure/rottenhand/backend/logs',
         environment,
         // PCI DSS requires 1 year retention for audit logs in production
         // Using 365 days for production compliance, 30 days for development

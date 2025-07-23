@@ -1,4 +1,5 @@
 {
+  "name": "rottenhand",
   "license": "proprietary",
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.2",

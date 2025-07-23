@@ -1,13 +1,13 @@
 // adapters/express/vite.config.mts
-import { nodeServerAdapter } from "file:///home/vendure/damneddesigns/frontend/node_modules/.pnpm/@qwik.dev+router@2.0.0-alpha.10_acorn@8.14.1_rollup@4.41.1_typescript@5.3.3_vite@5.4.6_@types+node@20.11.17_/node_modules/@qwik.dev/router/lib/adapters/node-server/vite/index.mjs";
-import { extendConfig } from "file:///home/vendure/damneddesigns/frontend/node_modules/.pnpm/@qwik.dev+router@2.0.0-alpha.10_acorn@8.14.1_rollup@4.41.1_typescript@5.3.3_vite@5.4.6_@types+node@20.11.17_/node_modules/@qwik.dev/router/lib/vite/index.mjs";
+import { nodeServerAdapter } from "file:///home/vendure/rottenhand/frontend/node_modules/.pnpm/@qwik.dev+router@2.0.0-alpha.10_acorn@8.14.1_rollup@4.41.1_typescript@5.3.3_vite@5.4.6_@types+node@20.11.17_/node_modules/@qwik.dev/router/lib/adapters/node-server/vite/index.mjs";
+import { extendConfig } from "file:///home/vendure/rottenhand/frontend/node_modules/.pnpm/@qwik.dev+router@2.0.0-alpha.10_acorn@8.14.1_rollup@4.41.1_typescript@5.3.3_vite@5.4.6_@types+node@20.11.17_/node_modules/@qwik.dev/router/lib/vite/index.mjs";
 
 // vite.config.ts
-import { qwikRouter } from "file:///home/vendure/damneddesigns/frontend/node_modules/.pnpm/@qwik.dev+router@2.0.0-alpha.10_acorn@8.14.1_rollup@4.41.1_typescript@5.3.3_vite@5.4.6_@types+node@20.11.17_/node_modules/@qwik.dev/router/lib/vite/index.mjs";
-import { qwikVite } from "file:///home/vendure/damneddesigns/frontend/node_modules/.pnpm/@qwik.dev+core@2.0.0-alpha.10_prettier@3.2.5_vite@5.4.6_@types+node@20.11.17_/node_modules/@qwik.dev/core/dist/optimizer.mjs";
-import { defineConfig } from "file:///home/vendure/damneddesigns/frontend/node_modules/.pnpm/vite@5.4.6_@types+node@20.11.17/node_modules/vite/dist/node/index.js";
-import tsconfigPaths from "file:///home/vendure/damneddesigns/frontend/node_modules/.pnpm/vite-tsconfig-paths@4.3.1_typescript@5.3.3_vite@5.4.6_@types+node@20.11.17_/node_modules/vite-tsconfig-paths/dist/index.mjs";
-import { imagetools } from "file:///home/vendure/damneddesigns/frontend/node_modules/.pnpm/vite-imagetools@7.1.0_rollup@4.41.1/node_modules/vite-imagetools/dist/index.js";
+import { qwikRouter } from "file:///home/vendure/rottenhand/frontend/node_modules/.pnpm/@qwik.dev+router@2.0.0-alpha.10_acorn@8.14.1_rollup@4.41.1_typescript@5.3.3_vite@5.4.6_@types+node@20.11.17_/node_modules/@qwik.dev/router/lib/vite/index.mjs";
+import { qwikVite } from "file:///home/vendure/rottenhand/frontend/node_modules/.pnpm/@qwik.dev+core@2.0.0-alpha.10_prettier@3.2.5_vite@5.4.6_@types+node@20.11.17_/node_modules/@qwik.dev/core/dist/optimizer.mjs";
+import { defineConfig } from "file:///home/vendure/rottenhand/frontend/node_modules/.pnpm/vite@5.4.6_@types+node@20.11.17/node_modules/vite/dist/node/index.js";
+import tsconfigPaths from "file:///home/vendure/rottenhand/frontend/node_modules/.pnpm/vite-tsconfig-paths@4.3.1_typescript@5.3.3_vite@5.4.6_@types+node@20.11.17_/node_modules/vite-tsconfig-paths/dist/index.mjs";
+import { imagetools } from "file:///home/vendure/rottenhand/frontend/node_modules/.pnpm/vite-imagetools@7.1.0_rollup@4.41.1/node_modules/vite-imagetools/dist/index.js";
 var vite_config_default = defineConfig((config) => {
   const isDev = config.mode === "development";
   return {
@@ -73,7 +73,7 @@ var vite_config_default = defineConfig((config) => {
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: https:",
           "font-src 'self' data:",
-          "connect-src 'self' https://damneddesigns.com",
+          "connect-src 'self' https://rottenhand.com",
           "frame-ancestors 'none'"
         ].join("; ")
       }

@@ -3,7 +3,7 @@
 **Last Updated: 2025-06-01** (Reflects accordion flow and removal of Stripe/Braintree)
 
 ## Overview
-This document outlines the checkout process in the Damned Designs e-commerce application. The checkout is implemented as a multi-step process using Qwik City's file-based routing and reactive components.
+This document outlines the checkout process in the Rotten Hand e-commerce application. The checkout is implemented as a multi-step process using Qwik City's file-based routing and reactive components.
 
 ## File Structure
 ```

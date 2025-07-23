@@ -1,7 +1,7 @@
 # 🚀 Prefetch Optimization Implementation
 
 ## Overview
-This document tracks the implementation of **100% safe prefetching optimizations** for the Damned Designs checkout flow.
+This document tracks the implementation of **100% safe prefetching optimizations** for the Rotten Hand checkout flow.
 
 ## ✅ Implemented Optimizations
 
@@ -19,7 +19,7 @@ This document tracks the implementation of **100% safe prefetching optimizations
 export const head = () => {
   return createSEOHead({
     title: 'Checkout',
-    description: 'Complete your purchase at Damned Designs.',
+    description: 'Complete your purchase at Rotten Hand.',
     noindex: true,
     // 🚀 PREFETCH OPTIMIZATION: Add prefetch hints in head for even better performance
     links: [

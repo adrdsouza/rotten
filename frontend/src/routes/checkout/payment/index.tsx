@@ -91,7 +91,7 @@ export default component$(() => {
 
 export const head = () => {
   return createSEOHead({
-    title: 'Payment - Damned Designs',
+    title: 'Payment - Rotten Hand',
     description: 'Payment processing page',
     noindex: true,
   });

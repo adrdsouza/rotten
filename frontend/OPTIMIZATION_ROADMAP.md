@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines comprehensive optimization opportunities for the Damned Designs frontend, focusing on Qwik's resumability principles and implementing real-time server-push functionality.
+This document outlines comprehensive optimization opportunities for the Rotten Hand frontend, focusing on Qwik's resumability principles and implementing real-time server-push functionality.
 
 ### What is Server Push?
 
@@ -28,7 +28,7 @@ export class RealtimeStockService {
   
   static connect() {
     try {
-      this.ws = new WebSocket('wss://api.damneddesigns.com/stock-updates');
+      this.ws = new WebSocket('wss://api.rottenhand.com/stock-updates');
       
       this.ws.onopen = () => {
         console.log('📦 Stock updates connected');
@@ -177,7 +177,7 @@ export class RealtimeCartSyncService {
   }
   
   private static connect() {
-    this.ws = new WebSocket(`wss://api.damneddesigns.com/cart-sync/${this.userId}`);
+    this.ws = new WebSocket(`wss://api.rottenhand.com/cart-sync/${this.userId}`);
     
     this.ws.onmessage = (event) => {
       const cartSync = JSON.parse(event.data);

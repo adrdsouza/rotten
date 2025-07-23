@@ -5,9 +5,9 @@
 
 set -e
 
-GDRIVE_BASE="gdrive:DamnedDesigns-Backups/database"
-LOCAL_BACKUP_DIR="/home/vendure/damneddesigns/database/backups"
-LOG_FILE="/home/vendure/damneddesigns/database/logs/gdrive-backup.log"
+GDRIVE_BASE="gdrive:RottenHand-Backups/database"
+LOCAL_BACKUP_DIR="/home/vendure/rottenhand/database/backups"
+LOG_FILE="/home/vendure/rottenhand/database/logs/gdrive-backup.log"
 
 # Colors for output
 RED='\033[0;31m'
@@ -152,7 +152,7 @@ download_backup() {
                 # Show restore command
                 echo ""
                 echo -e "${YELLOW}To restore this backup:${NC}"
-                echo "   PGPASSWORD=adrdsouza pg_restore --clean --no-acl --no-owner -d vendure_db $LOCAL_BACKUP_DIR/$backup_file"
+                echo "   PGPASSWORD=adrdsouza pg_restore --clean --no-acl --no-owner -d rotten_db $LOCAL_BACKUP_DIR/$backup_file"
             else
                 echo -e "${RED}❌ Download failed${NC}"
             fi

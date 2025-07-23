@@ -7,7 +7,7 @@ import { createSEOHead } from '~/utils/seo';
 export const head = () => {
 	return createSEOHead({
 		title: 'Reset Password',
-		description: 'Set a new password for your Damned Designs account.',
+		description: 'Set a new password for your Rotten Hand account.',
 		noindex: true,
 	});
 };

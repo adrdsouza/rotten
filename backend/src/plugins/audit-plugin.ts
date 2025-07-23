@@ -27,7 +27,7 @@ import * as path from 'path';
         // Initialize logging configuration on plugin load
         try {
             // Set up logging paths with fallbacks
-            const logBasePath = process.env.LOG_BASE_PATH || '/home/vendure/damneddesigns/backend/logs';
+            const logBasePath = process.env.LOG_BASE_PATH || '/home/vendure/rottenhand/backend/logs';
             
             // Ensure base log directory exists
             if (!fs.existsSync(logBasePath)) {

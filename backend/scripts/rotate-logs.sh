@@ -1,7 +1,7 @@
 #!/bin/bash
 # Log rotation script for monitoring logs
 
-LOG_DIR="/home/vendure/damneddesigns/backend/logs"
+LOG_DIR="/home/vendure/rottenhand/backend/logs"
 MAX_SIZE="10M"
 BACKUP_COUNT=5
 

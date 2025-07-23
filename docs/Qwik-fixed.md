@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the fully functional Qwik-based e-commerce storefront for Damned Designs, now properly configured for production deployment with PM2 process management and external network access.
+This document describes the fully functional Qwik-based e-commerce storefront for Rotten Hand, now properly configured for production deployment with PM2 process management and external network access.
 
 ## Architecture
 
@@ -15,7 +15,7 @@ This document describes the fully functional Qwik-based e-commerce storefront fo
 - **Routing**: Qwik City
 
 ### Backend Integration
-- **API Endpoint**: `http://5.78.142.235:3000`
+- **API Endpoint**: `http://5.78.82.156:3000`
 - **GraphQL**: Vendure-based e-commerce backend
 - **Authentication**: JWT-based with secure cookie storage
 
@@ -32,7 +32,7 @@ module.exports = {
     name: 'frontend',
     script: 'pnpm',
     args: 'serve',
-    cwd: '/home/vendure/damneddesigns/frontend',
+    cwd: '/home/vendure/rottenhand/frontend',
     env: {
       NODE_ENV: 'production',
       PORT: 4000,
@@ -155,7 +155,7 @@ pnpm qwik add express
 
 **Step 1: Clean Build**
 ```bash
-cd /home/vendure/damneddesigns/frontend
+cd /home/vendure/rottenhand/frontend
 pnpm build
 ```
 
@@ -218,7 +218,7 @@ server/
 The frontend is accessible on multiple network interfaces:
 
 - **Local**: `http://localhost:4000/`
-- **External**: `http://5.78.142.235:4000/`
+- **External**: `http://5.78.82.156:4000/`
 - **Docker Networks**: 
   - `http://172.18.0.1:4000/`
   - `http://172.19.0.1:4000/`
@@ -274,8 +274,8 @@ export const Head = component$(() => {
 ```json
 // public/manifest.json
 {
-  "name": "Damned Designs",
-  "short_name": "Damned Designs",
+  "name": "Rotten Hand",
+  "short_name": "Rotten Hand",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
@@ -301,7 +301,7 @@ export const Head = component$(() => {
 
 ```typescript
 // src/lib/vendure.ts
-const VENDURE_API_URL = 'http://5.78.142.235:3000/shop-api';
+const VENDURE_API_URL = 'http://5.78.82.156:3000/shop-api';
 
 export const vendureClient = new GraphQLClient(VENDURE_API_URL, {
   credentials: 'include',
@@ -346,14 +346,14 @@ pm2 save
 
 ### Development Mode
 ```bash
-cd /home/vendure/damneddesigns/frontend
+cd /home/vendure/rottenhand/frontend
 pnpm dev
 # Runs on http://localhost:5173 with hot reload
 ```
 
 ### Production Build & Deploy
 ```bash
-cd /home/vendure/damneddesigns/frontend
+cd /home/vendure/rottenhand/frontend
 
 # 1. Build for production
 pnpm build
@@ -421,7 +421,7 @@ pm2 save
 4. **PM2 Process Not Starting**: 
    Check ecosystem.config.cjs configuration
    ```bash
-   pm2 start ecosystem.config.cjs --cwd /home/vendure/damneddesigns/frontend
+   pm2 start ecosystem.config.cjs --cwd /home/vendure/rottenhand/frontend
    ```
 
 5. **Missing Dependencies**:
@@ -438,7 +438,7 @@ pm2 save
 curl -I http://localhost:4000
 
 # Test external access  
-curl -I http://5.78.142.235:4000
+curl -I http://5.78.82.156:4000
 
 # Check PM2 status
 pm2 status
@@ -522,7 +522,7 @@ node server/entry.express
 
 ```bash
 # Complete deployment from scratch
-cd /home/vendure/damneddesigns/frontend
+cd /home/vendure/rottenhand/frontend
 
 # 1. Install dependencies (if needed)
 pnpm install
@@ -545,8 +545,8 @@ pm2 logs frontend
 ## Current Status
 
 ✅ **Frontend PM2 Process**: Running (Status: online, Port: 4000)  
-✅ **External Access**: `http://5.78.142.235:4000`  
-✅ **Backend Integration**: `http://5.78.142.235:3000`  
+✅ **External Access**: `http://5.78.82.156:4000`  
+✅ **Backend Integration**: `http://5.78.82.156:3000`  
 ✅ **Production Build**: Complete with Qwik Express adapter  
 ✅ **Security Configuration**: Headers and CORS properly configured  
 ✅ **PWA Features**: Manifest, service worker, and adaptive icons  

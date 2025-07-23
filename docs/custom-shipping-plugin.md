@@ -13,13 +13,13 @@ This plugin provides flexible shipping eligibility checking based on country and
 
 1. Install the plugin package:
    ```bash
-   npm install @damneddesigns/vendure-plugin-shipping
+   npm install @rottenhand/vendure-plugin-shipping
    ```
 
 2. Add the plugin to your Vendure configuration:
    ```typescript
    // vendure-config.ts
-   import { CustomShippingPlugin } from '@damneddesigns/vendure-plugin-shipping';
+   import { CustomShippingPlugin } from '@rottenhand/vendure-plugin-shipping';
 
    export const config: VendureConfig = {
      // ... other config

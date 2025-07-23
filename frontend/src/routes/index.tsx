@@ -122,7 +122,7 @@ export default component$(() => {
             />
             <img
               src={HeroImageJPEG_1024}
-              alt="Premium Knife from Damned Designs"
+              alt="Premium Knife from Rotten Hand"
               loading="eager"
               fetchPriority="high"
               width={1024}
@@ -218,7 +218,7 @@ export default component$(() => {
                 </h2>
                 <div class="text-sm sm:text-base text-gray-700 leading-relaxed mb-8 space-y-4">
                   <p>
-                    At Damned Designs, we're passionate about creating exceptional everyday carry tools
+                    At Rotten Hand, we're passionate about creating exceptional everyday carry tools
                     that combine innovative design, premium materials, and superior craftsmanship.
                   </p>
                   <p>
@@ -309,7 +309,7 @@ export default component$(() => {
           </div>
 
           <div class="text-center">
-            <a href="https://www.trustpilot.com/review/damneddesigns.com" target="_blank" rel="noopener noreferrer"
+            <a href="https://www.trustpilot.com/review/rottenhand.com" target="_blank" rel="noopener noreferrer"
               class="trustpilot-green hover:text-white font-bold text-lg uppercase tracking-wide transition-colors">
               READ ALL 298 REVIEWS →
             </a>
@@ -328,7 +328,7 @@ export default component$(() => {
 
 export const head = () => {
   return createSEOHead({
-    title: 'Damned Designs - Precision Crafted Knives',
+    title: 'Rotten Hand - Precision Crafted Knives',
     description: 'Premium handcrafted knives and tools. Shop our unique collection of custom blades, EDC gear, and more.',
     noindex: false,
     links: [

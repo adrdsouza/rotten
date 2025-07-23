@@ -10,7 +10,7 @@
 ### 2. **Empty Order Creation Issue**  
 - **Problem**: Many guest orders stuck in "AddingItems" state with 0 total and no line items
 - **Root Cause**: Automated requests with "node" user agent hitting order creation endpoints
-- **Pattern**: 34+ empty orders created by requests from IP 5.78.142.235 with "node" user agent
+- **Pattern**: 34+ empty orders created by requests from IP 5.78.82.156 with "node" user agent
 
 ## Fixes Implemented
 

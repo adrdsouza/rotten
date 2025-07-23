@@ -21,7 +21,7 @@ export default component$(() => {
 										</div>
 										<div>
 											<h3 class="font-semibold text-gray-900">Email</h3>
-											<p class="text-gray-600">info@damneddesigns.com</p>
+											<p class="text-gray-600">info@rottenhand.com</p>
 										</div>
 									</div>
 
@@ -80,7 +80,7 @@ export default component$(() => {
 								<h2 class="text-3xl font-bold text-gray-900 mb-6">Our Story</h2>
 								<div class="space-y-6 text-gray-700 leading-relaxed">
 									<p>
-										Founded with a passion for precision and innovation, Damned Designs has been creating exceptional products using state-of-the-art CNC manufacturing technology. Our journey began with a simple mission: to deliver uncompromising quality through advanced manufacturing precision.
+										Founded with a passion for precision and innovation, Rotten Hand has been creating exceptional products using state-of-the-art CNC manufacturing technology. Our journey began with a simple mission: to deliver uncompromising quality through advanced manufacturing precision.
 									</p>
 									<p>
 										Every product that leaves our facility is a testament to our commitment to excellence. Using computer-controlled precision manufacturing, we ensure consistent quality and attention to detail that meets the highest standards our customers expect.

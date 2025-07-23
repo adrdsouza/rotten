@@ -4,7 +4,7 @@ module.exports = {
       name: 'store',
       script: 'pnpm',
       args: 'serve',
-      cwd: '/home/vendure/damneddesigns/frontend',
+      cwd: '/home/vendure/rottenhand/frontend',
       env: {
         NODE_ENV: 'production',
         PORT: 4000,

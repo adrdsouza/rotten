@@ -920,7 +920,7 @@ export const head = ({ resolveValue, url }: { resolveValue: any, url: URL }) => 
 	// Create a clean description from the product description with safety checks
 	const cleanDescription = product?.description
 		? product.description.replace(/<[^>]*>/g, '').substring(0, 160)
-		: `${product?.name || 'Product'} - High quality product available at Damned Designs`;
+		: `${product?.name || 'Product'} - High quality product available at Rotten Hand`;
 	
 	// Generate preload links for critical images (for optimal LCP and UX)
 	let imagePreloadLinks: any[] = [];
@@ -953,7 +953,7 @@ export const head = ({ resolveValue, url }: { resolveValue: any, url: URL }) => 
 	
 	return createSEOHead({
 		title: product?.name || 'Product',
-		description: cleanDescription || `${product?.name || 'Product'} - Premium quality knife from Damned Designs`,
+		description: cleanDescription || `${product?.name || 'Product'} - Premium quality knife from Rotten Hand`,
 		image: product?.featuredAsset?.preview,
 		canonical: url.href,
 		links: imagePreloadLinks,

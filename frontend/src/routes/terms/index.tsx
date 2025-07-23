@@ -16,7 +16,7 @@ export default component$(() => {
   
   <h2 class="text-2xl font-bold text-black mt-8 mb-4">Introduction</h2>
   <p>
-   Welcome to Damned Designs. These Terms of Service ("Terms") govern your access to and use of our website, products, and services. By accessing or using our website, you agree to be bound by these Terms and our Privacy Policy.
+   Welcome to Rotten Hand. These Terms of Service ("Terms") govern your access to and use of our website, products, and services. By accessing or using our website, you agree to be bound by these Terms and our Privacy Policy.
   </p>
   <p>
    Please read these Terms carefully before using our website. If you do not agree to all the terms and conditions of this agreement, you may not access or use our website or services.
@@ -57,7 +57,7 @@ export default component$(() => {
   
   <h2 class="text-2xl font-bold text-black mt-8 mb-4">Intellectual Property</h2>
   <p>
-   Our website and its entire contents, features, and functionality (including but not limited to all information, software, text, displays, images, video, and audio) are owned by Damned Designs, its licensors, or other providers of such material and are protected by United States and international copyright, trademark, patent, trade secret, and other intellectual property or proprietary rights laws.
+   Our website and its entire contents, features, and functionality (including but not limited to all information, software, text, displays, images, video, and audio) are owned by Rotten Hand, its licensors, or other providers of such material and are protected by United States and international copyright, trademark, patent, trade secret, and other intellectual property or proprietary rights laws.
   </p>
   
   <h2 class="text-2xl font-bold text-black mt-8 mb-4">Disclaimer of Warranties</h2>
@@ -67,12 +67,12 @@ export default component$(() => {
   
   <h2 class="text-2xl font-bold text-black mt-8 mb-4">Limitation of Liability</h2>
   <p>
-   In no event will Damned Designs, its affiliates, or their licensors, service providers, employees, agents, officers, or directors be liable for damages of any kind, under any legal theory, arising out of or in connection with your use of our website or products, including any direct, indirect, special, incidental, consequential, or punitive damages.
+   In no event will Rotten Hand, its affiliates, or their licensors, service providers, employees, agents, officers, or directors be liable for damages of any kind, under any legal theory, arising out of or in connection with your use of our website or products, including any direct, indirect, special, incidental, consequential, or punitive damages.
   </p>
   
   <h2 class="text-2xl font-bold text-black mt-8 mb-4">Indemnification</h2>
   <p>
-   You agree to defend, indemnify, and hold harmless Damned Designs, its affiliates, licensors, and service providers, and its and their respective officers, directors, employees, contractors, agents, licensors, suppliers, successors, and assigns from and against any claims, liabilities, damages, judgments, awards, losses, costs, expenses, or fees (including reasonable attorneys' fees) arising out of or relating to your violation of these Terms or your use of our website.
+   You agree to defend, indemnify, and hold harmless Rotten Hand, its affiliates, licensors, and service providers, and its and their respective officers, directors, employees, contractors, agents, licensors, suppliers, successors, and assigns from and against any claims, liabilities, damages, judgments, awards, losses, costs, expenses, or fees (including reasonable attorneys' fees) arising out of or relating to your violation of these Terms or your use of our website.
   </p>
   
   <h2 class="text-2xl font-bold text-black mt-8 mb-4">Changes to Terms of Service</h2>
@@ -90,8 +90,8 @@ export default component$(() => {
    If you have any questions about these Terms of Service, please contact us at:
   </p>
   <div class="mt-4">
-   <p><strong>Damned Designs</strong></p>
-   <p>Email: legal@damneddesigns.com</p>
+   <p><strong>Rotten Hand</strong></p>
+   <p>Email: legal@rottenhand.com</p>
    <p>Phone: (555) 123-4567</p>
   </div>
   </div>
@@ -102,7 +102,7 @@ export default component$(() => {
 export const head = () =>
  createSEOHead({
  title: 'Terms of Service',
- description: 'Terms of Service for Damned Designs. Rules, guidelines, and agreements for using our website and purchasing our products.',
+ description: 'Terms of Service for Rotten Hand. Rules, guidelines, and agreements for using our website and purchasing our products.',
  noindex: false,
  });
 

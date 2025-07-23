@@ -8,13 +8,13 @@ set -e
 # Configuration
 DB_HOST="localhost"
 DB_PORT="5432"
-DB_NAME="vendure_db"
+DB_NAME="rotten_db"
 DB_USER="vendureuser"
 DB_PASSWORD="adrdsouza"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="/home/vendure/damneddesigns/database/backups/incremental"
-GDRIVE_DIR="gdrive:DamnedDesigns-Backups/database/incremental"
-LOG_FILE="/home/vendure/damneddesigns/database/logs/incremental-backup.log"
+BACKUP_DIR="/home/vendure/rottenhand/database/backups/incremental"
+GDRIVE_DIR="gdrive:RottenHand-Backups/database/incremental"
+LOG_FILE="/home/vendure/rottenhand/database/logs/incremental-backup.log"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
@@ -23,7 +23,7 @@ log() {
 log "🚀 Starting 6-hourly incremental backup"
 
 # Check if we have a recent full backup
-LAST_FULL_FILE="/home/vendure/damneddesigns/database/backups/last_full_backup.txt"
+LAST_FULL_FILE="/home/vendure/rottenhand/database/backups/last_full_backup.txt"
 if [ ! -f "$LAST_FULL_FILE" ]; then
     log "⚠️  No full backup marker found - running full backup first"
     ./database/full-backup-to-gdrive.sh

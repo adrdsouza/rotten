@@ -93,7 +93,7 @@ export default component$(() => {
 						<div class="flex items-center">
 							<Link href="/" class="flex items-center space-x-3">
 								<LogoImage
-									alt="Damned Designs Logo"
+									alt="Rotten Hand Logo"
 									class={`h-8 w-auto object-contain bg-transparent transition-all duration-500 ease-in-out ${
 										isHomePage && !isScrolled.value
 											? 'text-white filter brightness-0 invert'
@@ -101,7 +101,7 @@ export default component$(() => {
 									}`}
 									width="100"
 									height="32"
-									aria-label="Damned Designs - Go to homepage"
+									aria-label="Rotten Hand - Go to homepage"
 								/>
 							</Link>
 						</div>						{/* Centered Navigation - Hidden on mobile, shown on desktop */}

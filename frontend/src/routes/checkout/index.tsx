@@ -822,7 +822,7 @@ export default component$(() => {
 export const head = () => {
   return createSEOHead({
     title: 'Checkout',
-    description: 'Complete your purchase at Damned Designs.',
+    description: 'Complete your purchase at Rotten Hand.',
     noindex: true,
     // 🚀 PREFETCH OPTIMIZATION: Removed invalid prefetch for /checkout/confirmation/
     // The confirmation route requires a specific order code parameter

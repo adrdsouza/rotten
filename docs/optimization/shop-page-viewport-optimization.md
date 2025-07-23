@@ -160,4 +160,4 @@ The shop page now provides a **premium, responsive experience** that adapts to a
 
 ---
 
-*This optimization provides a foundation for world-class e-commerce performance while maintaining the premium aesthetic and user experience expected from the Damned Designs brand.*
+*This optimization provides a foundation for world-class e-commerce performance while maintaining the premium aesthetic and user experience expected from the Rotten Hand brand.*

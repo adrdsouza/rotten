@@ -2,7 +2,7 @@
 # Script to export PaymentSettled orders to a clean CSV file
 
 # Run the SQL query and save to a temporary file
-sudo -u postgres psql -d vendure_db -c "
+sudo -u postgres psql -d rotten_db -c "
 SELECT 
   o.id AS order_id,
   o.code AS order_code,

@@ -8,10 +8,10 @@ set -e  # Exit on any error
 # Database connection details
 DB_HOST="localhost"
 DB_PORT="5432"
-DB_NAME="vendure_db"
+DB_NAME="rotten_db"
 DB_USER="vendureuser"
 
-echo "🚀 Installing Performance Indexes for Damned Designs"
+echo "🚀 Installing Performance Indexes for Rotten Hand"
 echo "=================================================="
 echo ""
 echo "This will install database indexes to improve performance:"
@@ -31,7 +31,7 @@ if ! PGPASSWORD=adrdsouza psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -
     echo "❌ Cannot connect to database. Please check:"
     echo "   - PostgreSQL is running"
     echo "   - Database credentials are correct"
-    echo "   - Database 'vendure_db' exists"
+    echo "   - Database 'rotten_db' exists"
     exit 1
 fi
 echo "✅ Database connection successful"

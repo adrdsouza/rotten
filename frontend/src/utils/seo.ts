@@ -25,13 +25,13 @@ export const createSEOHead = ({
   ];
   
   return {
-    title: `${title} | Damned Designs`,
+    title: `${title} | Rotten Hand`,
     meta: [
       { name: 'description', content: description },
       { property: 'og:type', content: 'website' },
       { property: 'og:title', content: title },
       { property: 'og:description', content: description },
-      { property: 'og:site_name', content: 'Damned Designs' },
+      { property: 'og:site_name', content: 'Rotten Hand' },
       ...(optimizedImage ? [{ property: 'og:image', content: optimizedImage }] : []),
       { name: 'twitter:card', content: 'summary_large_image' },
       { name: 'twitter:title', content: title },

@@ -1,7 +1,7 @@
 {
-  "name": "@damneddesigns/vendure-plugin-shipping",
+  "name": "@rottenhand/vendure-plugin-shipping",
   "version": "1.0.0",
-  "description": "Custom shipping plugin for Damned Designs with flexible country and price range rules",
+  "description": "Custom shipping plugin for Rotten Hand with flexible country and price range rules",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
