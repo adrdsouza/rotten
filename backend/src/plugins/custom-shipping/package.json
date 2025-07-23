@@ -1,0 +1,21 @@
+{
+  "name": "@damneddesigns/vendure-plugin-shipping",
+  "version": "1.0.0",
+  "description": "Custom shipping plugin for Damned Designs with flexible country and price range rules",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rm -rf dist && tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@vendure/core": "^2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^4.9.5"
+  },
+  "files": [
+    "dist/**/*",
+    "src/**/*.ts"
+  ]
+}

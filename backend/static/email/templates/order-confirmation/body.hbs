@@ -1,0 +1,356 @@
+{{> header title="Order Confirmation" }}
+
+<mj-raw>
+    <style type="text/css">
+    /* Fix Gmail mobile app rendering */
+    * {
+        -webkit-text-size-adjust: none;
+        -ms-text-size-adjust: none;
+        text-size-adjust: none;
+    }
+    table {
+        border-collapse: collapse !important;
+        mso-table-lspace: 0pt !important;
+        mso-table-rspace: 0pt !important;
+    }
+    td {
+        vertical-align: top;
+        mso-line-height-rule: exactly;
+    }
+    .callout {
+        background-color: #e34545;
+        padding: 20px 0;
+    }
+    .callout-large > div {
+        text-align: center !important;
+        color: #fff !important;
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        padding: 0 0 5px 0 !important;
+        font-family: 'Inter', sans-serif !important;
+        margin: 0 !important;
+    }
+    .callout-small > div {
+        text-align: center !important;
+        color: #fff !important;
+        font-size: 16px !important;
+        padding: 0 !important;
+        font-family: 'Inter', sans-serif !important;
+        margin: 0 !important;
+        font-weight: 500 !important;
+    }
+    .address-block {
+        background-color: #ffffff;
+        border: 1px solid #e5e5e5;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 10px 0;
+        font-family: 'Inter', sans-serif !important;
+        color: #333333 !important;
+        line-height: 1.6 !important;
+    }
+    .address-name {
+        font-weight: 600 !important;
+        color: #000000 !important;
+        margin-bottom: 8px !important;
+        font-size: 16px !important;
+    }
+    .address-line {
+        margin: 0 0 4px 0 !important;
+        font-size: 14px !important;
+        color: #555555 !important;
+    }
+    .order-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: 'Inter', sans-serif !important;
+    }
+    .order-table th {
+        background-color: #f8f9fa;
+        padding: 12px 8px;
+        text-align: left;
+        font-weight: 600;
+        color: #333333;
+        border-bottom: 2px solid #e5e5e5;
+        font-size: 14px;
+    }
+    .order-table td {
+        padding: 12px 8px;
+        border-bottom: 1px solid #f0f0f0;
+        vertical-align: top;
+        font-size: 14px;
+        color: #333333;
+    }
+    .product-image {
+        width: 60px;
+        height: 60px;
+        border-radius: 6px;
+        object-fit: cover;
+        border: 1px solid #e5e5e5;
+    }
+    .product-name {
+        font-weight: 600;
+        color: #000000;
+        margin-bottom: 4px;
+    }
+    .product-variant {
+        color: #666666;
+        font-size: 13px;
+    }
+    .price-cell {
+        text-align: right;
+        font-weight: 600;
+        color: #000000;
+        white-space: nowrap;
+    }
+    .total-row td {
+        border-top: 2px solid #e34545;
+        font-weight: 700;
+        font-size: 16px;
+        padding: 16px 8px;
+        background-color: #fafafa;
+    }
+    .section-header {
+        font-family: 'Playfair Display', serif !important;
+        font-size: 24px !important;
+        font-weight: 700 !important;
+        color: #000000 !important;
+        margin: 0 0 15px 0 !important;
+        text-align: center !important;
+    }
+    .subsection-header {
+        font-family: 'Playfair Display', serif !important;
+        font-size: 20px !important;
+        font-weight: 700 !important;
+        color: #000000 !important;
+        margin: 20px 0 12px 0 !important;
+    }
+    .bg-light {
+        background-color: #f8f9fa;
+    }
+    .info-box {
+        background-color: #e8f4fd;
+        border-left: 4px solid #e34545;
+        padding: 16px;
+        margin: 20px 0;
+        border-radius: 0 6px 6px 0;
+    }
+    </style>
+</mj-raw>
+
+<!-- Greeting Section -->
+<mj-section css-class="bg-light" padding="20px">
+    <mj-column>
+        <mj-text color="#333333" font-family="Inter, sans-serif" font-size="16px" line-height="1.5" align="center" padding="0">
+            Dear {{ order.customer.firstName }} {{ order.customer.lastName }},<br/>
+            Thank you for your order with Damned Designs! We're processing it now.
+        </mj-text>
+    </mj-column>
+</mj-section>
+
+<!-- Order Summary Callout -->
+<mj-section css-class="callout" padding="15px 0">
+    <mj-column width="33.33%">
+        <mj-text css-class="callout-large" align="center" font-family="Inter, sans-serif" font-size="16px" font-weight="700" padding="0 0 3px 0" color="#ffffff">Order Number</mj-text>
+        <mj-text css-class="callout-small" align="center" font-family="Inter, sans-serif" font-size="14px" font-weight="500" padding="0" color="#ffffff">{{ order.code }}</mj-text>
+    </mj-column>
+    <mj-column width="33.33%">
+        <mj-text css-class="callout-large" align="center" font-family="Inter, sans-serif" font-size="16px" font-weight="700" padding="0 0 3px 0" color="#ffffff">Order Date</mj-text>
+        <mj-text css-class="callout-small" align="center" font-family="Inter, sans-serif" font-size="14px" font-weight="500" padding="0" color="#ffffff">{{ formatDate order.orderPlacedAt }}</mj-text>
+    </mj-column>
+    <mj-column width="33.33%">
+        <mj-text css-class="callout-large" align="center" font-family="Inter, sans-serif" font-size="16px" font-weight="700" padding="0 0 3px 0" color="#ffffff">Total</mj-text>
+        <mj-text css-class="callout-small" align="center" font-family="Inter, sans-serif" font-size="14px" font-weight="500" padding="0" color="#ffffff">{{ formatMoney order.totalWithTax order.currencyCode 'en' }}</mj-text>
+    </mj-column>
+</mj-section>
+
+<!-- Order Items Section -->
+<mj-section padding="25px 20px 15px 20px">
+    <mj-column>
+        <mj-text css-class="section-header" padding="0 0 10px 0">Your Order</mj-text>
+        <mj-table css-class="order-table">
+            <tr>
+                <th style="width: 50%; padding: 10px 8px; background-color: #f8f9fa; font-weight: 600; color: #333333; border-bottom: 2px solid #e5e5e5; text-align: left; font-size: 13px;">Product</th>
+                <th style="width: 15%; text-align: center; padding: 10px 8px; background-color: #f8f9fa; font-weight: 600; color: #333333; border-bottom: 2px solid #e5e5e5; font-size: 13px;">Qty</th>
+                <th style="width: 35%; text-align: right; padding: 10px 8px; background-color: #f8f9fa; font-weight: 600; color: #333333; border-bottom: 2px solid #e5e5e5; font-size: 13px;">Price</th>
+            </tr>
+            {{#each order.lines }}
+                <tr>
+                    <td style="width: 50%; padding: 10px 8px; border-bottom: 1px solid #f0f0f0; vertical-align: top; word-break: normal;">
+                        <div style="font-weight: 600; color: #000000; margin-bottom: 3px; font-size: 13px;">
+                            {{#if productVariant.product.translations.[0].name}}
+                                {{productVariant.product.translations.[0].name}}
+                                {{#if productVariant.name}}
+                                    - {{productVariant.name}}
+                                {{/if}}
+                            {{else}}
+                                {{#if productVariant.product.name}}
+                                    {{productVariant.product.name}}
+                                    {{#if productVariant.name}}
+                                        - {{productVariant.name}}
+                                    {{/if}}
+                                {{else}}
+                                    {{productVariant.name}}
+                                {{/if}}
+                            {{/if}}
+                        </div>
+                        {{#if productVariant.options}}
+                            <div style="color: #666666; font-size: 12px;">{{ productVariant.options }}</div>
+                        {{/if}}
+                    </td>
+                    <td style="width: 15%; text-align: center; padding: 10px 8px; border-bottom: 1px solid #f0f0f0; vertical-align: top;">
+                        <span style="font-weight: 600; font-size: 13px;">{{ quantity }}</span>
+                    </td>
+                    <td style="width: 35%; text-align: right; padding: 10px 8px; border-bottom: 1px solid #f0f0f0; vertical-align: top;">
+                        <span style="font-weight: 600; color: #000000; font-size: 13px; white-space: nowrap;">{{ formatMoney discountedLinePriceWithTax ../order.currencyCode 'en' }}</span>
+                    </td>
+                </tr>
+            {{/each}}
+            
+            <!-- Discounts -->
+            {{#each order.discounts }}
+                <tr>
+                    <td style="padding: 12px 8px; border-bottom: 1px solid #f0f0f0; color: #e34545; font-weight: 600;">
+                        {{ description }}
+                    </td>
+                    <td style="padding: 12px 8px; border-bottom: 1px solid #f0f0f0;"></td>
+                    <td class="price-cell" style="text-align: right; font-weight: 600; color: #e34545; padding: 12px 8px; border-bottom: 1px solid #f0f0f0; white-space: nowrap;">
+                        -{{ formatMoney amount ../order.currencyCode 'en' }}
+                    </td>
+                </tr>
+            {{/each}}
+            
+            <!-- Coupon Codes -->
+            {{#if order.couponCodes}}
+                {{#each order.couponCodes }}
+                    <tr>
+                        <td style="padding: 12px 8px; border-bottom: 1px solid #f0f0f0; color: #e34545; font-weight: 600;">
+                            Coupon: {{ this }}
+                        </td>
+                        <td style="padding: 12px 8px; border-bottom: 1px solid #f0f0f0;"></td>
+                        <td class="price-cell" style="text-align: right; font-weight: 600; color: #e34545; padding: 12px 8px; border-bottom: 1px solid #f0f0f0; white-space: nowrap;">
+                            ✓ Applied
+                        </td>
+                    </tr>
+                {{/each}}
+            {{/if}}
+            
+            <!-- Subtotal -->
+            <tr>
+                <td style="padding: 12px 8px; border-bottom: 1px solid #f0f0f0; font-weight: 600; color: #333333;">Subtotal:</td>
+                <td style="padding: 12px 8px; border-bottom: 1px solid #f0f0f0;"></td>
+                <td class="price-cell" style="text-align: right; font-weight: 600; color: #000000; padding: 12px 8px; border-bottom: 1px solid #f0f0f0; white-space: nowrap;">
+                    {{ formatMoney order.subTotalWithTax order.currencyCode 'en' }}
+                </td>
+            </tr>
+            
+            <!-- Shipping -->
+            {{#each order.shippingLines }}
+            <tr>
+                <td style="padding: 12px 8px; border-bottom: 1px solid #f0f0f0; font-weight: 600; color: #333333;">
+                    Shipping ({{ shippingMethod.name }}):
+                </td>
+                <td style="padding: 12px 8px; border-bottom: 1px solid #f0f0f0;"></td>
+                <td class="price-cell" style="text-align: right; font-weight: 600; color: #000000; padding: 12px 8px; border-bottom: 1px solid #f0f0f0; white-space: nowrap;">
+                    {{ formatMoney priceWithTax ../order.currencyCode 'en' }}
+                </td>
+            </tr>
+            {{/each}}
+            
+            <!-- Total -->
+            <tr class="total-row">
+                <td style="border-top: 2px solid #e34545; font-weight: 700; font-size: 16px; padding: 16px 8px; background-color: #fafafa;">
+                    Total:
+                </td>
+                <td style="border-top: 2px solid #e34545; padding: 16px 8px; background-color: #fafafa;"></td>
+                <td style="border-top: 2px solid #e34545; font-weight: 700; font-size: 16px; padding: 16px 8px; background-color: #fafafa; text-align: right; color: #000000; white-space: nowrap;">
+                    {{ formatMoney order.totalWithTax order.currencyCode 'en' }}
+                </td>
+            </tr>
+        </mj-table>
+    </mj-column>
+</mj-section>
+
+<!-- Shipping & Billing Information -->
+<mj-section css-class="bg-light" padding="20px">
+    <mj-column width="50%">
+        <mj-text css-class="subsection-header" padding="0 0 8px 0" margin="0">Shipping Address</mj-text>
+        <mj-text padding="0" margin="0">
+            {{#with order.shippingAddress }}
+                <div class="address-block" style="background-color: #ffffff; border: 1px solid #e5e5e5; border-radius: 6px; padding: 15px; margin: 0 5px 0 0; font-family: 'Inter', sans-serif; color: #333333; line-height: 1.5; font-size: 13px;">
+                    {{#if fullName}}<div class="address-name" style="font-weight: 600; color: #000000; margin-bottom: 5px; font-size: 14px;">{{ fullName }}</div>{{/if}}
+                    {{#if company}}<div class="address-line" style="margin: 0 0 3px 0; color: #555555;">{{ company }}</div>{{/if}}
+                    {{#if streetLine1}}<div class="address-line" style="margin: 0 0 3px 0; color: #555555;">{{ streetLine1 }}</div>{{/if}}
+                    {{#if streetLine2}}<div class="address-line" style="margin: 0 0 3px 0; color: #555555;">{{ streetLine2 }}</div>{{/if}}
+                    <div class="address-line" style="margin: 0 0 3px 0; color: #555555;">
+                        {{#if city}}{{ city }}{{/if}}{{#if province}}{{#if city}}, {{/if}}{{ province }}{{/if}}{{#if postalCode}} {{ postalCode }}{{/if}}
+                    </div>
+                    {{#if country}}<div class="address-line" style="margin: 0 0 3px 0; color: #555555; font-weight: 500;">{{ country }}</div>{{/if}}
+                    {{#if phoneNumber}}<div class="address-line" style="margin: 5px 0 0 0; color: #555555; font-weight: 500;">📞 {{ phoneNumber }}</div>{{/if}}
+                </div>
+            {{/with}}
+        </mj-text>
+    </mj-column>
+    
+    <mj-column width="50%">
+        <mj-text css-class="subsection-header" padding="0 0 8px 0" margin="0">Billing Address</mj-text>
+        <mj-text padding="0" margin="0">
+            {{#with order.billingAddress }}
+                {{#if fullName}}
+                    <div class="address-block" style="background-color: #ffffff; border: 1px solid #e5e5e5; border-radius: 6px; padding: 15px; margin: 0 0 0 5px; font-family: 'Inter', sans-serif; color: #333333; line-height: 1.5; font-size: 13px;">
+                        <div class="address-name" style="font-weight: 600; color: #000000; margin-bottom: 5px; font-size: 14px;">{{ fullName }}</div>
+                        {{#if company}}<div class="address-line" style="margin: 0 0 3px 0; color: #555555;">{{ company }}</div>{{/if}}
+                        {{#if streetLine1}}<div class="address-line" style="margin: 0 0 3px 0; color: #555555;">{{ streetLine1 }}</div>{{/if}}
+                        {{#if streetLine2}}<div class="address-line" style="margin: 0 0 3px 0; color: #555555;">{{ streetLine2 }}</div>{{/if}}
+                        <div class="address-line" style="margin: 0 0 3px 0; color: #555555;">
+                            {{#if city}}{{ city }}{{/if}}{{#if province}}{{#if city}}, {{/if}}{{ province }}{{/if}}{{#if postalCode}} {{ postalCode }}{{/if}}
+                        </div>
+                        {{#if country}}<div class="address-line" style="margin: 0 0 3px 0; color: #555555; font-weight: 500;">{{ country }}</div>{{/if}}
+                        {{#if phoneNumber}}<div class="address-line" style="margin: 5px 0 0 0; color: #555555; font-weight: 500;">📞 {{ phoneNumber }}</div>{{/if}}
+                    </div>
+                {{else}}
+                    <div class="address-block" style="background-color: #ffffff; border: 1px solid #e5e5e5; border-radius: 6px; padding: 15px; margin: 0 0 0 5px; font-family: 'Inter', sans-serif; color: #333333; line-height: 1.5; font-size: 13px;">
+                        <div style="color: #666666; font-style: italic; text-align: center;">Same as shipping address</div>
+                    </div>
+                {{/if}}
+            {{/with}}
+        </mj-text>
+    </mj-column>
+</mj-section>
+
+<!-- Order Status & Next Steps -->
+<mj-section padding="20px">
+    <mj-column>
+        <mj-text css-class="info-box" padding="0" margin="0">
+            <div style="background-color: #e8f4fd; border-left: 3px solid #e34545; padding: 12px; margin: 0; border-radius: 0 5px 5px 0; font-size: 13px;">
+                <h4 style="font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 700; color: #000000; margin: 0 0 8px 0;">Order Status: {{ order.state }}</h4>
+                <h4 style="font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 700; color: #000000; margin: 0 0 8px 0;">What happens next?</h4>
+                <ul style="margin: 0; padding-left: 18px; color: #333333; font-family: 'Inter', sans-serif; line-height: 1.5;">
+                    <li style="margin-bottom: 5px;">Processing within 1-2 business days</li>
+                    <li style="margin-bottom: 5px;">Shipping confirmation with tracking info</li>
+                    <li style="margin-bottom: 5px;">Most orders ship in 3-5 business days</li>
+                    <li>Estimated delivery: 5-10 business days</li>
+                </ul>
+            </div>
+        </mj-text>
+    </mj-column>
+</mj-section>
+
+<!-- Customer Service -->
+<mj-section css-class="bg-light" padding="20px">
+    <mj-column>
+        <mj-text css-class="subsection-header" align="center" padding="0 0 10px 0">Need Help?</mj-text>
+        <mj-text color="#333333" font-family="Inter, sans-serif" font-size="14px" line-height="1.5" align="center" padding="0 0 10px 0">
+            Questions about your order? Contact us:
+        </mj-text>
+        <mj-text color="#333333" font-family="Inter, sans-serif" font-size="14px" line-height="1.5" align="center" padding="0 0 15px 0">
+            <strong>Email:</strong> <a href="mailto:info@damneddesigns.com" style="color: #e34545; text-decoration: none;">info@damneddesigns.com</a><br/>
+            <strong>Order #:</strong> {{ order.code }}
+        </mj-text>
+        <mj-button background-color="#e34545" color="white" font-family="Inter, sans-serif" font-size="14px" font-weight="600" href="https://damneddesigns.com/order-status?orderCode={{ order.code }}" padding="10px 20px" border-radius="4px">
+            View Order Status
+        </mj-button>
+    </mj-column>
+</mj-section>
+
+{{> footer }}

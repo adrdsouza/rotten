@@ -1,0 +1,8 @@
+{
+  "license": "proprietary",
+  "dependencies": {
+    "@anthropic-ai/claude-code": "^1.0.2",
+    "@builder.io/qwik": "^1.14.1",
+    "@pinelab/vendure-plugin-admin-ui-helpers": "^1.3.0"
+  }
+}

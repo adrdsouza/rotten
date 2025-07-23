@@ -1,0 +1,27 @@
+{{> header title="Forgotten password reset" }}
+
+<mj-section background-color="#fafafa">
+    <mj-column>
+        <mj-text color="#333333" font-family="Inter, sans-serif" font-size="16px" line-height="1.6" align="center">
+            Someone requested a new password for your Damned Designs account.
+        </mj-text>
+
+        <mj-button font-family="Inter, sans-serif"
+                   background-color="#e34545"
+                   color="white"
+                   font-weight="600"
+                   border-radius="6px"
+                   padding="12px 24px"
+                   href="{{ passwordResetUrl }}?token={{ passwordResetToken }}">
+            Reset Password
+        </mj-button>
+
+        <mj-text color="#333333" font-family="Inter, sans-serif" font-size="16px" line-height="1.6" align="center">
+        If you didn't make this request then you can safely ignore this email - nothing has been changed on your account.
+        </mj-text>
+
+    </mj-column>
+</mj-section>
+
+
+{{> footer }}

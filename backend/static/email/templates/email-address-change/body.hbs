@@ -1,0 +1,23 @@
+{{> header title="Verify Your New Email Address" }}
+
+<mj-section background-color="#fafafa">
+    <mj-column>
+        <mj-text color="#333333" font-family="Inter, sans-serif" font-size="16px" line-height="1.6" align="center">
+            We received a request to change your registered email address to this one.
+            Click the button below to verify this address and complete the process:
+        </mj-text>
+
+        <mj-button font-family="Inter, sans-serif"
+                   background-color="#e34545"
+                   color="white"
+                   font-weight="600"
+                   border-radius="6px"
+                   padding="12px 24px"
+                   href="{{ changeEmailAddressUrl }}?token={{ identifierChangeToken }}">
+            Verify Email Address
+        </mj-button>
+    </mj-column>
+</mj-section>
+
+
+{{> footer }}

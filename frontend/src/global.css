@@ -1,0 +1,331 @@
+/* Font faces */
+@import 'tailwindcss';
+
+/* Font rendering improvements to fix ghosting */
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@layer utilities {
+  .btn-primary {
+    @apply w-full border border-transparent rounded py-2 px-5 flex items-center justify-center text-base font-medium text-white bg-[#e34545] hover:bg-black focus:outline-hidden focus:ring-0 shadow-none transition-all duration-300 cursor-pointer;
+    font-family: var(--font-heading);
+  }
+  .btn-secondary {
+    @apply w-full border border-black rounded py-2 px-5 flex items-center justify-center text-base font-medium text-black bg-white hover:bg-gray-100 focus:outline-hidden focus:ring-0 shadow-none transition-none cursor-pointer;
+    font-family: var(--font-heading);
+  }
+  .input-text {
+    @apply appearance-none min-w-0 w-full bg-white border border-gray-300 rounded-none py-2 px-4 text-base text-black placeholder-gray-400 focus:outline-hidden focus:ring-0 focus:border-black transition-none;
+  }
+  .card {
+    @apply bg-white rounded-none border border-gray-200 shadow-none transition-none;
+  }
+  .brand-text {
+    font-family: var(--font-heading);
+  }
+  .text-brand-red {
+    color: #e34545;
+  }
+  .text-brand-red-hover {
+    color: #c73030;
+  }
+}
+
+@layer base {
+  @font-face {
+    font-display: swap;
+    font-family: 'Playfair Display';
+    font-style: normal;
+    font-weight: 400;
+    src: url('/fonts/playfair-display/playfair-display-v37-latin-regular.woff2')
+      format('woff2');
+  }
+
+  @font-face {
+    font-display: swap;
+    font-family: 'Playfair Display';
+    font-style: normal;
+    font-weight: 700;
+    src: url('/fonts/playfair-display/playfair-display-v37-latin-700.woff2')
+      format('woff2');
+  }
+
+  @font-face {
+    font-display: swap;
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 400;
+    src: url('/fonts/inter/inter-v19-latin-regular.woff2') format('woff2');
+  }
+
+  @font-face {
+    font-display: swap;
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 500;
+    src: url('/fonts/inter/inter-v19-latin-500.woff2') format('woff2');
+  }
+
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+@layer utilities {
+  :root {
+    --font-heading: 'Playfair Display', 'Times New Roman', serif;
+    --font-body:
+      'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+  }
+  h2 {
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
+  }
+  h3 {
+    font-size: clamp(1.25rem, 3vw, 1.75rem);
+  }
+
+  body,
+  p,
+  li,
+  span,
+  div {
+    font-family: var(--font-body);
+    font-weight: 400;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  strong,
+  b {
+    font-weight: 500;
+  }
+}
+
+@layer base {
+	body {
+		font-family: var(--font-body);
+		background-color: #fff;
+		color: #111;
+	}
+}
+
+/* iOS Advanced Privacy Protection fixes */
+:root {
+	--vh: 1vh;
+	--safe-area-inset-top: 0px;
+	--safe-area-inset-bottom: 0px;
+	--safe-area-inset-left: 0px;
+	--safe-area-inset-right: 0px;
+}
+
+/* iOS viewport fixes */
+
+/* Prevent mobile zoom on input focus by ensuring min font-size 16px */
+input[type="text"], input[type="search"], input[type="email"], input[type="password"], textarea {
+  font-size: 16px !important;
+}
+
+@supports (-webkit-touch-callout: none) {
+	.min-h-screen {
+		min-height: calc(var(--vh, 1vh) * 100);
+	}
+	
+	/* Handle iOS safe areas */
+	.safe-area-top {
+		padding-top: var(--safe-area-inset-top);
+	}
+	
+	.safe-area-bottom {
+		padding-bottom: var(--safe-area-inset-bottom);
+	}
+	
+	.safe-area-left {
+		padding-left: var(--safe-area-inset-left);
+	}
+	
+	.safe-area-right {
+		padding-right: var(--safe-area-inset-right);
+	}
+}
+
+/* Prevent iOS zoom on input focus */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+	input[type="text"],
+	input[type="email"],
+	input[type="password"],
+	input[type="search"],
+	input[type="tel"],
+	input[type="url"],
+	textarea {
+		font-size: 16px !important;
+	}
+}
+
+/* Disable problematic iOS behaviors that trigger privacy warnings */
+* {
+	-webkit-touch-callout: none;
+	-webkit-tap-highlight-color: transparent;
+}
+
+/* Re-enable text selection where needed */
+input,
+textarea,
+[contenteditable],
+.selectable {
+	-webkit-user-select: text;
+	user-select: text;
+}
+
+/* iOS scroll behavior fixes */
+body {
+	-webkit-overflow-scrolling: touch;
+}
+
+/* iPad-specific fixes - ensure normal scrolling on iPad even with external keyboard */
+@supports (-webkit-touch-callout: none) {
+	/* Override full-page scrolling on iPad devices */
+	@media (min-width: 1024px) {
+		body {
+			overflow: auto !important;
+		}
+		
+		html {
+			overflow: auto !important;
+		}
+		
+		.fullpage-container {
+			height: auto !important;
+			overflow: visible !important;
+		}
+		
+		.fullpage-wrapper {
+			display: block !important;
+			width: 100vw !important;
+			transform: none !important;
+			transition: none !important;
+		}
+		
+		.fullpage-section {
+			height: auto !important;
+			min-height: 100vh !important;
+			width: 100vw !important;
+			position: relative !important;
+			flex-shrink: 1 !important;
+		}
+		
+		/* iPad-specific hero content positioning - ensure text stays at bottom */
+		.fullpage-section.hero-section {
+			display: flex !important;
+			flex-direction: column !important;
+			height: 100vh !important;
+			min-height: 100vh !important;
+		}
+		
+		.fullpage-section.hero-section > div:last-child {
+			height: 100% !important;
+			display: flex !important;
+			flex-direction: row !important;
+			align-items: flex-end !important;
+			justify-content: space-between !important;
+		}
+		
+		/* iPad-specific hero text positioning - match desktop layout */
+		.fullpage-section.hero-section .text-center {
+			text-align: left !important;
+		}
+	}
+}
+
+/* Fix iOS status bar overlap */
+@media only screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3),
+only screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2),
+only screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) {
+	.sticky {
+		top: var(--safe-area-inset-top);
+	}
+}
+
+/* Footer is now always integrated into the 3rd section - no separate footer needed */
+
+/* Custom animations for product detail enhancements */
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse-once {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out forwards;
+}
+
+.animate-pulse-once {
+  animation: pulse-once 0.6s ease-in-out;
+}

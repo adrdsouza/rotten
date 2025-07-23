@@ -1,0 +1,10 @@
+{
+	"$schema": "https://json.schemastore.org/web-manifest-combined.json",
+	"name": "Rotten Hand",
+	"short_name": "Rotten Hand",
+	"start_url": ".",
+	"display": "standalone",
+	"theme_color": "#000000",
+	"background_color": "#fff",
+	"description": "Premium quality products and exceptional service at Rotten Hand."
+}
