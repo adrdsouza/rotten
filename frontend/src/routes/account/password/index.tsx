@@ -99,7 +99,7 @@ export default component$(() => {
 										currentPassword.value = el.value;
 									}}
 									autoComplete="current-password"
-									class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#e34545] focus:border-[#e34545] sm:text-sm bg-white"
+									class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#937237] focus:border-[#937237] sm:text-sm bg-white"
 									placeholder="Enter your current password"
 								/>
 							</div>
@@ -116,7 +116,7 @@ export default component$(() => {
 										newPassword.value = el.value;
 									}}
 									autoComplete="new-password"
-									class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#e34545] focus:border-[#e34545] sm:text-sm bg-white"
+									class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#937237] focus:border-[#937237] sm:text-sm bg-white"
 									placeholder="Enter your new password"
 								/>
 							</div>
@@ -133,7 +133,7 @@ export default component$(() => {
 										confirmPassword.value = el.value;
 									}}
 									autoComplete="new-password"
-									class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#e34545] focus:border-[#e34545] sm:text-sm bg-white"
+									class="block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-[#937237] focus:border-[#937237] sm:text-sm bg-white"
 									placeholder="Confirm your new password"
 								/>
 							</div>							{/* Actions */}
@@ -145,7 +145,7 @@ export default component$(() => {
 								<button 
 									type="button"
 									onClick$={togglePasswordFields} 
-									class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#e34545] transition-colors"
+									class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#937237] transition-colors"
 									title={showPasswordAsTextSignal.value ? "Hide passwords" : "Show passwords"}
 								>
 									{showPasswordAsTextSignal.value ? (

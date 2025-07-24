@@ -140,14 +140,14 @@ export default component$(() => {
             <h1 class="font-heading tracking-wider text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white leading-none mb-4 lg:mb-6">
               PREMIUM CLOTHING,
             </h1>
-            <p class="font-body text-sm sm:text-base lg:text-lg xl:text-xl text-white lg:text-[#e34545] font-bold tracking-wider">
+            <p class="font-body text-sm sm:text-base lg:text-lg xl:text-xl text-white lg:text-[#937237] font-bold tracking-wider">
               FOR THE MODERN WARDROBE.
             </p>
           </div>
           <Link
             href="/shop"
             prefetch
-            class="bg-[#e34545] hover:bg-[#d32f2f] text-white px-6 py-3 sm:px-8 sm:py-4 text-sm sm:text-base lg:text-lg font-bold tracking-wide transition-all duration-300 hover:shadow-xl uppercase whitespace-nowrap rounded-full cursor-pointer inline-block text-center"
+            class="bg-[#937237] hover:bg-[#CD9E34] text-white px-6 py-3 sm:px-8 sm:py-4 text-sm sm:text-base lg:text-lg font-bold tracking-wide transition-all duration-300 hover:shadow-xl uppercase whitespace-nowrap rounded-full cursor-pointer inline-block text-center"
           >
             SHOP NOW →
           </Link>
@@ -165,7 +165,7 @@ export default component$(() => {
                 <div class="grid grid-cols-2 gap-8 sm:gap-10 lg:gap-12">
 
                   <div class="text-center group">
-                    <div class="w-14 h-14 sm:w-16 sm:h-16 bg-[#e34545] mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <div class="w-14 h-14 sm:w-16 sm:h-16 bg-[#937237] mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                       <svg class="w-7 h-7 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10L4 7v10l8 4" />
                       </svg>
@@ -175,7 +175,7 @@ export default component$(() => {
                   </div>
 
                   <div class="text-center group">
-                    <div class="w-14 h-14 sm:w-16 sm:h-16 bg-[#e34545] mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <div class="w-14 h-14 sm:w-16 sm:h-16 bg-[#937237] mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                       <svg class="w-7 h-7 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                       </svg>
@@ -185,7 +185,7 @@ export default component$(() => {
                   </div>
 
                   <div class="text-center group">
-                    <div class="w-14 h-14 sm:w-16 sm:h-16 bg-[#e34545] mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <div class="w-14 h-14 sm:w-16 sm:h-16 bg-[#937237] mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                       <svg class="w-7 h-7 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 10h22" />
@@ -196,7 +196,7 @@ export default component$(() => {
                   </div>
 
                   <div class="text-center group">
-                    <div class="w-14 h-14 sm:w-16 sm:h-16 bg-[#e34545] mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                    <div class="w-14 h-14 sm:w-16 sm:h-16 bg-[#937237] mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                       <svg class="w-7 h-7 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                       </svg>
@@ -214,7 +214,7 @@ export default component$(() => {
               <div class="max-w-lg">
                 <h2 class="text-3xl sm:text-4xl font-bold mb-6 leading-tight text-gray-900">
                   OUR<br/>
-                  <span class="text-[#e34545]">STORY</span>
+                  <span class="text-[#937237]">STORY</span>
                 </h2>
                 <div class="text-sm sm:text-base text-gray-700 leading-relaxed mb-8 space-y-4">
                   <p>
@@ -230,7 +230,7 @@ export default component$(() => {
                   <Link
                     href="/shop"
                     prefetch
-                    class="bg-[#e34545] hover:bg-[#d32f2f] text-white font-bold tracking-wide transition-all duration-300 transform hover:scale-105 uppercase rounded-lg shadow-lg cursor-pointer px-6 py-3 text-sm sm:text-base inline-block"
+                    class="bg-[#937237] hover:bg-[#CD9E34] text-white font-bold tracking-wide transition-all duration-300 transform hover:scale-105 uppercase rounded-lg shadow-lg cursor-pointer px-6 py-3 text-sm sm:text-base inline-block"
                   >
                     VIEW COLLECTION →
                   </Link>

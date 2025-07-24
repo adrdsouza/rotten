@@ -24,8 +24,12 @@ const config = {
 					900: '#404040',
 				},
 				brand: {
-					red: '#e34545',
-					'red-hover': '#c73030',
+					gold: '#937237',
+					'gold-hover': '#CD9E34',
+					'gold-light': '#FAC658',
+					// Legacy aliases for backward compatibility
+					red: '#937237',
+					'red-hover': '#CD9E34',
 				},
 				accent: {
 					mint: '#7dd3fc',
@@ -46,11 +50,11 @@ const config = {
 			},
 			keyframes: {
 				'glow-pulse': {
-					'0%, 100%': { 
-						boxShadow: '0 0 20px rgba(239, 68, 68, 0.3), 0 0 40px rgba(239, 68, 68, 0.1)',
+					'0%, 100%': {
+						boxShadow: '0 0 20px rgba(147, 114, 55, 0.3), 0 0 40px rgba(147, 114, 55, 0.1)',
 					},
-					'50%': { 
-						boxShadow: '0 0 30px rgba(239, 68, 68, 0.5), 0 0 60px rgba(239, 68, 68, 0.2)',
+					'50%': {
+						boxShadow: '0 0 30px rgba(147, 114, 55, 0.5), 0 0 60px rgba(147, 114, 55, 0.2)',
 					},
 				},
 			},
@@ -66,7 +70,7 @@ const config = {
 					'0 1px 3px rgba(0, 0, 0, 0.5)'
 				],
 				'glow-white': '0 0 10px rgba(255, 255, 255, 0.8)',
-				'glow-red': '0 0 15px rgba(239, 68, 68, 0.6)',
+				'glow-gold': '0 0 15px rgba(147, 114, 55, 0.6)',
 			},
 			borderRadius: {
 				'2xl': '1rem',

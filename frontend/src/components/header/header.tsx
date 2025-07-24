@@ -117,7 +117,7 @@ export default component$(() => {
 										}`
 										: `text-gray-700 hover:text-black ${
 											location.url.pathname.startsWith('/shop')
-												? 'border-[#e34545] text-[#e34545]'
+												? 'border-[#937237] text-[#937237]'
 												: 'border-transparent hover:border-gray-400'
 										}`
 								}`}
@@ -133,8 +133,8 @@ export default component$(() => {
 												: 'border-transparent hover:border-gray-300'
 										}`
 										: `text-gray-700 hover:text-black ${
-											location.url.pathname.startsWith('/contact') 
-												? 'border-[#e34545] text-[#e34545]' 
+											location.url.pathname.startsWith('/contact')
+												? 'border-[#937237] text-[#937237]'
 												: 'border-transparent hover:border-gray-400'
 										}`
 								}`}
@@ -226,7 +226,7 @@ export default component$(() => {
 					</div>
 				</div>				{/* Mobile Menu Overlay */}
 				{appState.showMenu && (					<div
-						class="fixed inset-0 z-50 w-full h-full bg-[#e34545] flex flex-col items-center justify-center px-6"
+						class="fixed inset-0 z-50 w-full h-full bg-[#937237] flex flex-col items-center justify-center px-6"
 						style="min-height: 100vh;"
 					>						<button
 							class="absolute top-4 right-4 p-2 text-white hover:text-gray-200 rounded-lg hover:bg-white/10 transition-all duration-200"

@@ -31,7 +31,7 @@ export const BrandStorySection = component$(() => {
           <Link
             href="/shop"
             prefetch
-            class="bg-[#e34545] hover:bg-[#d32f2f] text-white font-bold tracking-wide transition-all duration-300 transform hover:scale-105 uppercase rounded-lg shadow-lg cursor-pointer px-8 py-4 text-lg inline-block text-center"
+            class="bg-[#937237] hover:bg-[#CD9E34] text-white font-bold tracking-wide transition-all duration-300 transform hover:scale-105 uppercase rounded-lg shadow-lg cursor-pointer px-8 py-4 text-lg inline-block text-center"
           >
             VIEW COLLECTION →
           </Link>

@@ -93,7 +93,7 @@ export default component$(() => {
  // 🚀 VENDURE STARTER PATTERN: Initialize with server-loaded data
  const initialFacetIds = searchSignal.value.facetIds || [];
  const initialSearchTerm = searchSignal.value.searchTerm || '';
- const initialInStockOnly = searchSignal.value.inStockOnly || true;
+ const initialInStockOnly = false; // Disabled: show all products since filter is commented out
 
  // Pre-compute facet values once
  const initialFacetValues = HARDCODED_SHOP_FILTERS.map(facet => ({
@@ -133,10 +133,10 @@ export default component$(() => {
 
   let displayProducts = state.search.items;
 
-  // Apply in-stock filter if enabled
-  if (state.inStockOnly) {
-   displayProducts = displayProducts.filter(product => product.inStock);
-  }
+  // COMMENTED OUT: Apply in-stock filter if enabled (disabled since filter UI is hidden)
+  // if (state.inStockOnly) {
+  //  displayProducts = displayProducts.filter(product => product.inStock);
+  // }
 
   // Sort: in-stock first, then alphabetically
   displayProducts = displayProducts.sort((a, b) => {
@@ -275,7 +275,7 @@ export default component$(() => {
  // ✅ Compute display products on-demand (no state mutation)
  const displayData = getDisplayProducts();
  const displayProducts = displayData.products;
- const displayCount = displayData.count;
+ const _displayCount = displayData.count; // Unused since in-stock filter is commented out
 
  return (
  <div class="bg-linear-to-br from-gray-50 via-white to-gray-50 min-h-screen relative overflow-hidden">
@@ -303,7 +303,7 @@ export default component$(() => {
   </div>
   */}
 
-  {/* Combined In-Stock Toggle and Product Count */}
+  {/* COMMENTED OUT: In-stock filter not needed for clothing brand with only 2 products
   <div class="mb-4 flex items-center justify-between">
    <div class="flex items-center gap-4">
     <label class="inline-flex items-center cursor-pointer">
@@ -317,35 +317,35 @@ export default component$(() => {
       }}
      />
      <div class={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-       state.inStockOnly ? 'bg-[#e34545]' : 'bg-gray-200'
+       state.inStockOnly ? 'bg-[#937237]' : 'bg-gray-200'
      }`}>
       <div class={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-200 ${
         state.inStockOnly ? 'translate-x-5' : 'translate-x-0'
       }`}></div>
      </div>
     </label>
-    
+
     <p class="text-sm text-gray-600 font-medium">
      {state.isLoading ? (
       <span class="inline-flex items-center">
-       <div class="w-4 h-4 border-2 border-gray-300 border-t-[#e34545] rounded-full animate-spin mr-2"></div>
+       <div class="w-4 h-4 border-2 border-gray-300 border-t-[#937237] rounded-full animate-spin mr-2"></div>
        Loading premium collection...
       </span>
      ) : (
       <span>
        Showing <span class="font-bold text-gray-900">{displayCount}</span>{' '}
        {state.inStockOnly ? 'in-stock' : 'all'} {displayCount === 1 ? 'product' : 'products'}
-       {state.searchTerm && <span class="text-[#e34545] font-medium"> for "{state.searchTerm}"</span>}
+       {state.searchTerm && <span class="text-[#937237] font-medium"> for "{state.searchTerm}"</span>}
       </span>
      )}
     </p>
    </div>
-   
+
    {!state.isLoading && state.search.totalItems > 0 && (
     <div class="flex items-center text-sm text-gray-500 min-w-0">
      <span class="hidden sm:inline truncate">
       {state.facetValueIds.length > 0 ? (
-       <>Premium {state.facetValues.flatMap(facet => 
+       <>Premium {state.facetValues.flatMap(facet =>
         facet.values.filter(value => state.facetValueIds.includes(value.id))
        ).map(value => value.name).join(', ')}</>
       ) : (
@@ -353,11 +353,12 @@ export default component$(() => {
       )}
      </span>
      <div class="flex items-center ml-2 shrink-0">
-      <div class="w-1.5 h-1.5 bg-[#e34545] rounded-full"></div>
+      <div class="w-1.5 h-1.5 bg-[#937237] rounded-full"></div>
      </div>
     </div>
    )}
   </div>
+  */}
   
   <div class="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
    {state.isLoading ? (
@@ -377,7 +378,7 @@ export default component$(() => {
      </p>
      {/* COMMENTED OUT: No filters to clear for clothing brand with only 2 products
      <button
-      class="px-6 py-3 bg-[#e34545] text-white rounded-full font-bold hover:bg-[#c73333] transition-colors duration-300 shadow-lg hover:shadow-xl cursor-pointer"
+      class="px-6 py-3 bg-[#937237] text-white rounded-full font-bold hover:bg-[#CD9E34] transition-colors duration-300 shadow-lg hover:shadow-xl cursor-pointer"
       onClick$={async () => {
        // Clear all filters and search
        await onFilterChange('CLEAR_ALL');
