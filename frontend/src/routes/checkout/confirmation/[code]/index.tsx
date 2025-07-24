@@ -5,7 +5,7 @@ import CartTotals from '~/components/cart-totals/CartTotals';
 import CheckCircleIcon from '~/components/icons/CheckCircleIcon';
 import { APP_STATE } from '~/constants';
 import { Order } from '~/generated/graphql';
-import { getOrderByCodeQuery, verifySezzlePaymentMutation } from '~/providers/shop/orders/order';
+import { getOrderByCodeQuery } from '~/providers/shop/orders/order';
 import { createSEOHead } from '~/utils/seo';
 
 export default component$(() => {
@@ -17,8 +17,6 @@ export default component$(() => {
 		order?: Order;
 		loading: boolean;
 		error?: string;
-		sezzleVerificationFailed?: boolean;
-		sezzleErrorMessage?: string;
 	}>({
 		loading: true,
 	});
@@ -29,35 +27,7 @@ export default component$(() => {
 			store.order = await getOrderByCodeQuery(code);
 			// console.log(`[Confirmation] Order loaded:`, store.order);
 
-			// Check if this order has a Sezzle payment that needs verification
-			const sezzlePayment = store.order?.payments?.find(p => p.method === 'sezzle' && p.state === 'Authorized');
-			if (sezzlePayment) {
-				// console.log(`[Confirmation] Found Sezzle payment ${sezzlePayment.id}, verifying with Sezzle...`);
-				try {
-					const verificationResult = await verifySezzlePaymentMutation(code);
-					// console.log(`[Confirmation] Sezzle verification result:`, verificationResult);
-
-					if (verificationResult.success) {
-						// console.log(`[Confirmation] Sezzle payment verified and settled successfully`);
-						// Reload the order to get updated payment status
-						store.order = await getOrderByCodeQuery(code);
-					} else {
-						// console.warn(`[Confirmation] Sezzle payment verification failed: ${verificationResult.message}`);
-						// Set Sezzle verification failure state
-						store.sezzleVerificationFailed = true;
-						store.sezzleErrorMessage = verificationResult.message || 'Payment verification failed';
-						store.loading = false;
-						return; // Don't proceed with normal order completion flow
-					}
-				} catch (_verificationError) {
-					// console.error(`[Confirmation] Sezzle verification error:`, verificationError);
-					// Set Sezzle verification failure state for network/server errors
-					store.sezzleVerificationFailed = true;
-					store.sezzleErrorMessage = 'Unable to verify payment status. Please contact support if payment was deducted.';
-					store.loading = false;
-					return; // Don't proceed with normal order completion flow
-				}
-			}
+			// REMOVED: Sezzle payment verification - not available for this clothing brand
 
 			// Mark the order as complete without clearing the activeOrder entirely
 			// This ensures the cart is ready for a new order while preserving state for navigation
@@ -119,36 +89,9 @@ export default component$(() => {
 				</div>
 			)}
 
-			{store.sezzleVerificationFailed && (
-				<div class="bg-gray-50 pb-48">
-					<div class="max-w-7xl mx-auto pt-4 px-4 sm:px-6 lg:px-8">
-						<div class="text-center py-12">
-							<div class="text-yellow-500 mb-4">
-								<svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
-								</svg>
-							</div>
-							<h1 class="text-2xl font-semibold text-gray-900 mb-2">Payment Verification Error</h1>
-							<p class="text-gray-600 mb-4">{store.sezzleErrorMessage}</p>
-							<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 max-w-md mx-auto">
-								<p class="text-sm text-yellow-800">
-									<strong>Important:</strong> If payment has been deducted from your account, please contact our support team with order code <strong>#{code}</strong>
-								</p>
-							</div>
-							<div class="space-y-3">
-								<Link href="/contact" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 mr-2">
-									Contact Support
-								</Link>
-								<Link href="/checkout" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-									Try Again
-								</Link>
-							</div>
-						</div>
-					</div>
-				</div>
-			)}
+			{/* REMOVED: Sezzle verification error UI - not available for this clothing brand */}
 
-			{store.order?.id && !store.sezzleVerificationFailed && (
+			{store.order?.id && (
 				<div class="bg-gray-50 pb-48">
 						<div class="max-w-7xl mx-auto pt-4 px-4 sm:px-6 lg:px-8">
 							<h2 class="sr-only">{`Order Confirmation`}</h2>

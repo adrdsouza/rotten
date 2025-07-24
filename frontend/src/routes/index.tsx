@@ -138,10 +138,10 @@ export default component$(() => {
         <div class="relative z-10 h-full flex flex-col items-center justify-end lg:flex-row lg:items-end lg:justify-between px-6 sm:px-8 lg:px-16 xl:px-20 pb-28 sm:pb-32 lg:pb-16">
           <div class="text-center lg:text-left max-w-2xl mb-8 lg:mb-0">
             <h1 class="font-heading tracking-wider text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white leading-none mb-4 lg:mb-6">
-              PRECISION CRAFTED TOOLS,
+              PREMIUM CLOTHING,
             </h1>
             <p class="font-body text-sm sm:text-base lg:text-lg xl:text-xl text-white lg:text-[#e34545] font-bold tracking-wider">
-              FOR THE DISCERNING COLLECTOR.
+              FOR THE MODERN WARDROBE.
             </p>
           </div>
           <Link
@@ -180,8 +180,8 @@ export default component$(() => {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                       </svg>
                     </div>
-                    <h3 class="text-sm sm:text-base font-bold mb-2 text-gray-900">MILITARY DISCOUNT</h3>
-                    <p class="text-gray-600 text-xs sm:text-sm">15% off for heroes</p>
+                    <h3 class="text-sm sm:text-base font-bold mb-2 text-gray-900">PREMIUM MATERIALS</h3>
+                    <p class="text-gray-600 text-xs sm:text-sm">Finest fabrics & construction</p>
                   </div>
 
                   <div class="text-center group">
@@ -201,8 +201,8 @@ export default component$(() => {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                       </svg>
                     </div>
-                    <h3 class="text-sm sm:text-base font-bold mb-2 text-gray-900">LIFETIME WARRANTY</h3>
-                    <p class="text-gray-600 text-xs sm:text-sm">Craftsmanship guaranteed</p>
+                    <h3 class="text-sm sm:text-base font-bold mb-2 text-gray-900">QUALITY GUARANTEE</h3>
+                    <p class="text-gray-600 text-xs sm:text-sm">Satisfaction guaranteed</p>
                   </div>
 
                 </div>
@@ -218,11 +218,11 @@ export default component$(() => {
                 </h2>
                 <div class="text-sm sm:text-base text-gray-700 leading-relaxed mb-8 space-y-4">
                   <p>
-                    At Rotten Hand, we're passionate about creating exceptional everyday carry tools
-                    that combine innovative design, premium materials, and superior craftsmanship.
+                    At Rotten Hand, we're passionate about creating exceptional clothing
+                    that combines innovative design, premium materials, and superior craftsmanship.
                   </p>
                   <p>
-                    Each knife we create is a perfect balance of form and function, designed to be used
+                    Each piece we create is a perfect balance of style and comfort, designed to be worn
                     and appreciated for years to come.
                   </p>
                 </div>
@@ -328,8 +328,8 @@ export default component$(() => {
 
 export const head = () => {
   return createSEOHead({
-    title: 'Rotten Hand - Precision Crafted Knives',
-    description: 'Premium handcrafted knives and tools. Shop our unique collection of custom blades, EDC gear, and more.',
+    title: 'Rotten Hand - Premium Clothing',
+    description: 'Premium clothing collection. Shop our unique selection of shirts, pants, kimonos, dresses, and jackets.',
     noindex: false,
     links: [
       // 🚀 OPTIMIZED: Only preload hero image for optimal LCP

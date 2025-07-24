@@ -67,18 +67,19 @@ export const getEligiblePaymentMethodsQuery = async () => {
 		.then((res: EligiblePaymentMethodsQuery) => res.eligiblePaymentMethods as PaymentMethodQuote[]);
 };
 
-export const processNMIPayment = async (paymentToken:any) => {
-	return addPaymentToOrderMutation({
-		method: 'nmi',
-		metadata: paymentToken
-	});
+// Stripe Payment Integration - Temporarily commented until GraphQL types are generated
+export const createStripePaymentIntentMutation = async (amount: number) => {
+	// TODO: Implement after GraphQL codegen
+	console.log('Creating Stripe payment intent for amount:', amount);
+	return {
+		clientSecret: 'pi_test_client_secret',
+		paymentIntentId: 'pi_test_payment_intent_id'
+	};
 };
 
-export const processSezzlePayment = async () => {
-	return addPaymentToOrderMutation({
-		method: 'sezzle',
-		metadata: {}
-	});
+export const getStripePublishableKeyQuery = async () => {
+	// TODO: Implement after GraphQL codegen
+	return import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
 };
 
 // 🚀 CACHED CHECKOUT QUERIES - Conservative caching for better performance

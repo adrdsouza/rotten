@@ -14,6 +14,9 @@ importers:
       '@graphql-codegen/typescript-generic-sdk':
         specifier: ^4.0.2
         version: 4.0.2(graphql-tag@2.12.6(graphql@16.11.0))(graphql@16.11.0)
+      '@stripe/stripe-js':
+        specifier: ^7.6.1
+        version: 7.6.1
       '@types/grecaptcha':
         specifier: ^3.0.9
         version: 3.0.9
@@ -1274,6 +1277,10 @@ packages:
     resolution: {integrity: sha512-3+QZROYfJ25PDcxFF66UEk8jGWigHJeecZILvkPkyQN7oc5BvFo4YEXFkOs154j3FTMp9mn9Ky8RCOwastduEA==}
     cpu: [x64]
     os: [win32]
+
+  '@stripe/stripe-js@7.6.1':
+    resolution: {integrity: sha512-BUDj5gujbtx53/Cexws0+aPrEBsKAN8ExPf9UfuTCivVU6ug2PjqI0zUeL1jon3795eOLlyqvCDjp6VNknjE0A==}
+    engines: {node: '>=12.16'}
 
   '@tailwindcss/forms@0.5.10':
     resolution: {integrity: sha512-utI1ONF6uf/pPNO68kmN1b8rEwNXv3czukalo8VtJH8ksIkZXr3Q3VYudZLkCsDd4Wku120uF02hYK25XGPorw==}
@@ -5474,6 +5481,8 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.44.2':
     optional: true
+
+  '@stripe/stripe-js@7.6.1': {}
 
   '@tailwindcss/forms@0.5.10(tailwindcss@4.1.11)':
     dependencies:

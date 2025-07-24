@@ -75,7 +75,7 @@ export const removeCouponCodeMutation = async (couponCode: string) => {
 		.then((res: RemoveCouponCodeMutation) => res.removeCouponCode);
 };
 
-// Custom coupon validation for local cart (bypasses SDK since schema isn't introspected)
+// Custom coupon validation for local cart
 export const validateLocalCartCouponQuery = async (input: {
 	couponCode: string;
 	cartTotal: number;
@@ -125,26 +125,7 @@ export const setOrderBillingAddressMutation = async (input: CreateAddressInput) 
 		.then((res: SetOrderBillingAddressMutation) => res.setOrderBillingAddress);
 };
 
-// TODO: Fix this - verifySezzlePayment exists in backend but codegen can't find it
-// Function works at runtime even though codegen doesn't recognize the schema
-export const verifySezzlePaymentMutation = async (orderCode: string): Promise<{ success: boolean; message: string }> => {
-	const { requester } = await import('~/utils/api');
-	const { verifySezzlePayment } = await requester<
-		{ verifySezzlePayment: { success: boolean; message: string } },
-		{ orderCode: string }
-	>(
-		gql`
-			mutation verifySezzlePayment($orderCode: String!) {
-				verifySezzlePayment(orderCode: $orderCode) {
-					success
-					message
-				}
-			}
-		`,
-		{ orderCode },
-	);
-	return verifySezzlePayment;
-};
+
 
 gql`
 	mutation applyCouponCode($couponCode: String!) {
@@ -190,21 +171,20 @@ gql`
 	}
 `;
 
-// Temporarily commented out until schema is generated
-// gql`
-// 	query validateLocalCartCoupon($input: ValidateLocalCartCouponInput!) {
-// 		validateLocalCartCoupon(input: $input) {
-// 			isValid
-// 			validationErrors
-// 			appliedCouponCode
-// 			discountAmount
-// 			discountPercentage
-// 			freeShipping
-// 			promotionName
-// 			promotionDescription
-// 		}
-// 	}
-// `;
+gql`
+	query validateLocalCartCoupon($input: ValidateLocalCartCouponInput!) {
+		validateLocalCartCoupon(input: $input) {
+			isValid
+			validationErrors
+			appliedCouponCode
+			discountAmount
+			discountPercentage
+			freeShipping
+			promotionName
+			promotionDescription
+		}
+	}
+`;
 
 gql`
 	mutation setOrderBillingAddress($input: CreateAddressInput!) {

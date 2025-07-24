@@ -257,21 +257,13 @@ export const secureSetOrderBillingAddress = enhanceWithRecaptcha(
 /**
  * Secure payment processing functions
  */
-import { processNMIPayment, processSezzlePayment, addPaymentToOrderMutation } from '~/providers/shop/checkout/checkout';
+import { addPaymentToOrderMutation, createStripePaymentIntentMutation } from '~/providers/shop/checkout/checkout';
 
 /**
- * Secure NMI payment processing with reCAPTCHA protection
+ * Secure Stripe payment intent creation with reCAPTCHA protection
  */
-export const secureProcessNMIPayment = enhanceWithRecaptcha(
-  processNMIPayment,
-  'payment'
-);
-
-/**
- * Secure Sezzle payment processing with reCAPTCHA protection
- */
-export const secureProcessSezzlePayment = enhanceWithRecaptcha(
-  processSezzlePayment,
+export const secureCreateStripePaymentIntent = enhanceWithRecaptcha(
+  createStripePaymentIntentMutation,
   'payment'
 );
 

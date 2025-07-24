@@ -26,7 +26,8 @@ import { OrderDeduplicationPlugin } from './plugins/order-deduplication.plugin';
 
 
 import { CustomShippingPlugin } from './plugins/custom-shipping';
-import { SezzlePaymentPlugin } from './sezzle-payment';
+import { StripePaymentPlugin } from './plugins/stripe-payment';
+// REMOVED: SezzlePaymentPlugin - not available for this clothing brand
 import { orderFulfillmentHandler } from './email-handlers/order-fulfillment-handler';
 import { orderConfirmationHandler } from './email-handlers/order-confirmation-handler';
 import 'dotenv/config';
@@ -34,7 +35,7 @@ import path from 'path';
 import { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
-import { NmiPaymentPlugin } from './plugins/nmi-payment';
+// REMOVED: NmiPaymentPlugin - not available for this clothing brand
 import { SequentialOrderCodeStrategy } from './config/sequential-order-code-strategy';
 import { NewsletterPlugin } from './plugins/newsletter';
 import { createSecurityMiddleware } from './middleware/security-middleware';
@@ -291,8 +292,9 @@ export const config: VendureConfig = {
             minRecaptchaScore: IS_DEV ? 0.3 : 0.5
         }),
         NewsletterPlugin,
-        NmiPaymentPlugin,
-        SezzlePaymentPlugin,
+        StripePaymentPlugin,
+        // REMOVED: NmiPaymentPlugin - not available for this clothing brand
+        // REMOVED: SezzlePaymentPlugin - not available for this clothing brand
         CustomShippingPlugin,
         // Fulfillment Integration Plugin - Disabled until credentials are obtained
         // Uncomment and configure when you have VeraCore API credentials:

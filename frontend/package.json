@@ -79,6 +79,7 @@
 	"dependencies": {
 		"@angular/localize": "^20.1.2",
 		"@graphql-codegen/typescript-generic-sdk": "^4.0.2",
+		"@stripe/stripe-js": "^7.6.1",
 		"@types/grecaptcha": "^3.0.9",
 		"card-validator": "^10.0.3",
 		"graphql": "^16.11.0",

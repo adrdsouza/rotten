@@ -6,21 +6,20 @@ import { SearchResponse } from '~/generated/graphql';
 import { searchQueryWithTerm, searchOptimized } from '~/providers/shop/products/products';
 import { FacetWithValues } from '~/types';
 import { createSEOHead } from '~/utils/seo';
-import Filters from '~/components/Filters';
+// import Filters from '~/components/Filters'; // COMMENTED OUT: Not needed for clothing brand with only 2 products
 
-// Define hardcoded filters based on user-provided facet values and desired order
+// Define hardcoded filters for clothing categories
 const HARDCODED_SHOP_FILTERS: FacetWithValues[] = [
  {
  id: 'category',
  name: 'Category',
  open: true,
  values: [
-  { id: '1', name: 'folding knives', selected: false },
-  { id: '3', name: 'fixed blades', selected: false },
-  { id: '5', name: 'edc', selected: false },
-  { id: '2', name: 'osiris chef knives', selected: false },
-  { id: '6', name: 'fidget', selected: false },
-  { id: '4', name: 'apparel', selected: false },
+  { id: '1', name: 'shirts', selected: false },
+  { id: '2', name: 'pants', selected: false },
+  { id: '3', name: 'kimonos', selected: false },
+  { id: '4', name: 'dresses', selected: false },
+  { id: '5', name: 'jackets', selected: false },
  ],
  },
 ];
@@ -238,7 +237,7 @@ export default component$(() => {
 
 
 
- const onFilterChange = $(async (id: string) => {
+ const _onFilterChange = $(async (id: string) => {
  const currentActiveIds = state.facetValueIds;
  let newActiveIds: string[] = currentActiveIds;
 
@@ -265,7 +264,7 @@ export default component$(() => {
  await searchProducts(newActiveIds, state.searchTerm);
  });
 
- const onSearchChange = $(async (newTerm: string) => {
+ const _onSearchChange = $(async (newTerm: string) => {
  // Update client-side state immediately
  state.searchTerm = newTerm;
 
@@ -292,6 +291,7 @@ export default component$(() => {
    }
   }}
   >
+  {/* COMMENTED OUT: Filters not needed for clothing brand with only 2 products
   <div class="mb-3">
    <Filters
     facetsWithValues={state.facetValues}
@@ -301,6 +301,7 @@ export default component$(() => {
     onSearchChange$={onSearchChange}
    />
   </div>
+  */}
 
   {/* Combined In-Stock Toggle and Product Count */}
   <div class="mb-4 flex items-center justify-between">
@@ -372,8 +373,9 @@ export default component$(() => {
      </div>
      <h3 class="text-xl font-bold text-gray-900 mb-2">No products found</h3>
      <p class="text-gray-600 mb-6 max-w-sm">
-      {state.searchTerm ? `We couldn't find any products matching "${state.searchTerm}".` : 'No products match your current filters.'}
+      {state.searchTerm ? `We couldn't find any products matching "${state.searchTerm}".` : 'No products available at the moment.'}
      </p>
+     {/* COMMENTED OUT: No filters to clear for clothing brand with only 2 products
      <button
       class="px-6 py-3 bg-[#e34545] text-white rounded-full font-bold hover:bg-[#c73333] transition-colors duration-300 shadow-lg hover:shadow-xl cursor-pointer"
       onClick$={async () => {
@@ -385,6 +387,7 @@ export default component$(() => {
      >
       Clear all filters
      </button>
+     */}
     </div>
    ) : (
     <>
@@ -419,10 +422,10 @@ export const head = ({ url }: { url: URL }) => {
 	const searchTerm = url.searchParams.get('q') || '';
 
 	return createSEOHead({
-		title: searchTerm ? `Search results for "${searchTerm}"` : 'Shop All Premium Knives & Tools',
+		title: searchTerm ? `Search results for "${searchTerm}"` : 'Shop All Premium Clothing',
 		description: searchTerm
-			? `Find products matching "${searchTerm}" in our premium collection of handcrafted knives and tools.`
-			: 'Browse our complete collection of premium handcrafted knives and everyday carry tools. Find the perfect blade for collectors and professionals.',
+			? `Find products matching "${searchTerm}" in our premium clothing collection.`
+			: 'Browse our complete collection of premium clothing including shirts, pants, kimonos, dresses, and jackets.',
 		canonical: url.href,
 	});
 };

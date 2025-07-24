@@ -119,9 +119,8 @@ const CheckoutContent = component$(() => {
   });
 
   // Signals to trigger payment processing
-  const nmiTriggerSignal = useSignal(0);
-  const sezzleTriggerSignal = useSignal(0);
-  const selectedPaymentMethod = useSignal<string>('nmi'); // Track selected payment method
+  const stripeTriggerSignal = useSignal(0);
+  const selectedPaymentMethod = useSignal<string>('stripe'); // Track selected payment method
 
   // Loading state for initial page load
   const pageLoading = useSignal(true);
@@ -229,7 +228,7 @@ const CheckoutContent = component$(() => {
   });
 
   // Process payment after address submission
-  const _processPayment = $(async (paymentMethod: string = 'nmi') => {
+  const _processPayment = $(async (paymentMethod: string = 'stripe') => {
     try {
       // Wait a moment for the address submission to complete
       // In a production app, we would use a proper callback or signal instead
@@ -251,17 +250,9 @@ const CheckoutContent = component$(() => {
       // });
 
       // Safeguard to prevent multiple payment triggers
-      if (paymentMethod === 'nmi' && nmiTriggerSignal.value === 0) {
-        nmiTriggerSignal.value++;
-        // console.log('🚀 NMI payment processing triggered');
-
-        // 🚀 PREFETCH OPTIMIZATION: Prefetch specific order confirmation as soon as payment starts
-        if (appState.activeOrder?.code) {
-          await prefetchOrderConfirmation(appState.activeOrder?.code);
-        }
-      } else if (paymentMethod === 'sezzle' && sezzleTriggerSignal.value === 0) {
-        sezzleTriggerSignal.value++;
-        // console.log('🚀 Sezzle payment processing triggered');
+      if (paymentMethod === 'stripe' && stripeTriggerSignal.value === 0) {
+        stripeTriggerSignal.value++;
+        // console.log('🚀 Stripe payment processing triggered');
 
         // 🚀 PREFETCH OPTIMIZATION: Prefetch specific order confirmation as soon as payment starts
         if (appState.activeOrder?.code) {
@@ -524,17 +515,9 @@ const CheckoutContent = component$(() => {
             // console.log(`💳 Triggering ${selectedPaymentMethod.value} payment processing`);
 
             // Trigger the appropriate payment method based on user selection
-            if (selectedPaymentMethod.value === 'nmi' && nmiTriggerSignal.value === 0) {
-              nmiTriggerSignal.value++;
-              // console.log('🚀 NMI payment processing triggered');
-
-              // Prefetch order confirmation
-              if (appState.activeOrder?.code) {
-                await prefetchOrderConfirmation(appState.activeOrder?.code);
-              }
-            } else if (selectedPaymentMethod.value === 'sezzle' && sezzleTriggerSignal.value === 0) {
-              sezzleTriggerSignal.value++;
-              // console.log('🚀 Sezzle payment processing triggered');
+            if (selectedPaymentMethod.value === 'stripe' && stripeTriggerSignal.value === 0) {
+              stripeTriggerSignal.value++;
+              // console.log('🚀 Stripe payment processing triggered');
 
               // Prefetch order confirmation
               if (appState.activeOrder?.code) {
@@ -673,8 +656,7 @@ const CheckoutContent = component$(() => {
                   {/* Payment Section */}
                   <div class="mb-6">
                     <Payment
-                      triggerNMISignal={nmiTriggerSignal}
-                      triggerSezzleSignal={sezzleTriggerSignal}
+                      triggerStripeSignal={stripeTriggerSignal}
                       selectedPaymentMethod={selectedPaymentMethod}
                       hideButton={true}
                       onForward$={$(async (orderCode: string) => {
@@ -699,8 +681,7 @@ const CheckoutContent = component$(() => {
                         isOrderProcessing.value = false; // Reset order processing state
                         
                         // CRITICAL: Reset the payment triggers to allow retry with different payment methods
-                        nmiTriggerSignal.value = 0;
-                        sezzleTriggerSignal.value = 0;
+                        stripeTriggerSignal.value = 0;
                         // console.log('🔄 Reset payment trigger signals to allow retry');
                         
                         // Transition order back to AddingItems state to allow modifications
