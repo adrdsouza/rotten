@@ -18,7 +18,7 @@ export default component$<FiltersProps>(({ facetsWithValues, facetValueIds, onFi
  <div class="flex flex-wrap lg:flex-nowrap justify-center gap-x-2 gap-y-2 items-center w-full max-w-none min-w-0">
   <button
   type="button"
-  class={`px-4 py-2 rounded-full text-sm font-bold border whitespace-nowrap min-w-[80px] flex items-center justify-center cursor-pointer ${noFiltersActive ? 'bg-[#937237] text-white border-[#937237]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+  class={`px-4 py-2 rounded-full text-sm font-bold border whitespace-nowrap min-w-[80px] flex items-center justify-center cursor-pointer ${noFiltersActive ? 'bg-[#B09983] text-white border-[#B09983]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
   onClick$={() => {
     onFilterChange$('CLEAR_ALL');
   }}
@@ -30,7 +30,7 @@ export default component$<FiltersProps>(({ facetsWithValues, facetValueIds, onFi
    <button
    key={value.id}
    type="button"
-   class={`px-4 py-2 rounded-full text-sm font-bold border whitespace-nowrap min-w-[80px] flex items-center justify-center cursor-pointer ${value.selected ? 'bg-[#937237] text-white border-[#937237]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+   class={`px-4 py-2 rounded-full text-sm font-bold border whitespace-nowrap min-w-[80px] flex items-center justify-center cursor-pointer ${value.selected ? 'bg-[#B09983] text-white border-[#B09983]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
    onClick$={() => {
      onFilterChange$(value.id);
    }}
@@ -48,7 +48,7 @@ export default component$<FiltersProps>(({ facetsWithValues, facetValueIds, onFi
   ))
   )}
   {onSearchChange$ && (
- <div class="inline-flex rounded-full overflow-hidden border border-gray-300 bg-white focus-within:ring-2 focus-within:ring-[#937237]/20 focus-within:border-[#937237] transition-all duration-300 hover:border-gray-400 group">
+ <div class="inline-flex rounded-full overflow-hidden border border-gray-300 bg-white focus-within:ring-2 focus-within:ring-[#B09983]/20 focus-within:border-[#B09983] transition-all duration-300 hover:border-gray-400 group">
  <input
   type="text"
   value={searchTerm || ''}
@@ -62,13 +62,13 @@ export default component$<FiltersProps>(({ facetsWithValues, facetValueIds, onFi
  />
  <button
   type="button"
-  class={`flex items-center justify-center px-3 transition-all duration-300 focus:outline-hidden cursor-pointer ${searchTerm ? 'bg-[#937237] hover:bg-[#CD9E34]' : 'bg-transparent hover:bg-gray-50'}`}
+  class={`flex items-center justify-center px-3 transition-all duration-300 focus:outline-hidden cursor-pointer ${searchTerm ? 'bg-[#B09983] hover:bg-[#4F3B26]' : 'bg-transparent hover:bg-gray-50'}`}
   onClick$={() => searchTerm ? onSearchChange$('') : undefined}
   tabIndex={-1}
   aria-label={searchTerm ? 'Clear search' : 'Search'}
  >
   {!searchTerm && (
-  <svg class="h-4 w-4 text-gray-600 transition-colors duration-200 group-hover:text-[#937237]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+  <svg class="h-4 w-4 text-gray-600 transition-colors duration-200 group-hover:text-[#B09983]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
   </svg>
   )}

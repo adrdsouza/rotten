@@ -24,12 +24,12 @@ const config = {
 					900: '#404040',
 				},
 				brand: {
-					gold: '#937237',
-					'gold-hover': '#CD9E34',
-					'gold-light': '#FAC658',
+					gold: '#B09983',
+					'gold-hover': '#4F3B26',
+					'gold-light': '#B09983',
 					// Legacy aliases for backward compatibility
-					red: '#937237',
-					'red-hover': '#CD9E34',
+					red: '#B09983',
+					'red-hover': '#4F3B26',
 				},
 				accent: {
 					mint: '#7dd3fc',

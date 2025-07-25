@@ -79,28 +79,24 @@ export default component$(() => {
 		window.location.href = '/';
 	});	return (
 		<header
-			class={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ease-in-out ${
+			class={`fixed top-0 left-0 right-0 z-50 border-0 transition-all duration-500 ease-in-out ${
 				isHomePage
 					? isScrolled.value
-						? 'bg-[#F5F5F5]/95 backdrop-blur-sm shadow-sm' // Smooth fade in with blur
+						? 'bg-[#B09983]/95 backdrop-blur-sm shadow-sm' // New brand color with blur
 						: 'bg-transparent' // Fully transparent
-					: 'bg-[#F5F5F5]' // Solid background on other pages
+					: 'bg-[#B09983]' // Solid brand color background on other pages
 			}`}
 		>{/* Main Header */}
 				<div class="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 w-full">
-					<div class="flex items-center justify-between h-16">
+					<div class="flex items-center justify-between h-20">
 						{/* Logo - Always on left */}
 						<div class="flex items-center">
 							<Link href="/" class="flex items-center space-x-3">
 								<LogoImage
 									alt="Rotten Hand Logo"
-									class={`h-8 w-auto object-contain bg-transparent transition-all duration-500 ease-in-out ${
-										isHomePage && !isScrolled.value
-											? 'text-white filter brightness-0 invert'
-											: ''
-									}`}
-									width="100"
-									height="32"
+									class="h-12 w-auto object-contain bg-transparent transition-all duration-500 ease-in-out"
+									width="120"
+									height="48"
 									aria-label="Rotten Hand - Go to homepage"
 								/>
 							</Link>
@@ -115,10 +111,10 @@ export default component$(() => {
 												? 'border-white'
 												: 'border-transparent hover:border-gray-300'
 										}`
-										: `text-gray-700 hover:text-black ${
+										: `text-black hover:text-gray-700 ${
 											location.url.pathname.startsWith('/shop')
-												? 'border-[#937237] text-[#937237]'
-												: 'border-transparent hover:border-gray-400'
+												? 'border-black text-black'
+												: 'border-transparent hover:border-gray-600'
 										}`
 								}`}
 							>
@@ -128,14 +124,14 @@ export default component$(() => {
 								class={`hover:scale-105 transition-all duration-500 ease-in-out uppercase text-lg xl:text-xl 2xl:text-2xl font-bold font-heading border-b-2 ${
 									isHomePage && !isScrolled.value
 										? `text-white hover:text-gray-200 ${
-											location.url.pathname.startsWith('/contact') 
-												? 'border-white' 
+											location.url.pathname.startsWith('/contact')
+												? 'border-white'
 												: 'border-transparent hover:border-gray-300'
 										}`
-										: `text-gray-700 hover:text-black ${
+										: `text-black hover:text-gray-700 ${
 											location.url.pathname.startsWith('/contact')
-												? 'border-[#937237] text-[#937237]'
-												: 'border-transparent hover:border-gray-400'
+												? 'border-black text-black'
+												: 'border-transparent hover:border-gray-600'
 										}`
 								}`}
 							>
@@ -163,7 +159,7 @@ export default component$(() => {
 									class={`relative p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer ${
 										isHomePage && !isScrolled.value
 											? 'text-white hover:text-gray-200'
-											: 'text-gray-700 hover:text-black'
+											: 'text-black hover:text-gray-700'
 									}`}
 									aria-label={`${totalQuantity} items in cart`}
 									title="View cart"
@@ -181,7 +177,7 @@ export default component$(() => {
 									class={`p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer ${
 										isHomePage && !isScrolled.value
 											? 'text-white hover:text-gray-200'
-											: 'text-gray-700 hover:text-black'
+											: 'text-black hover:text-gray-700'
 									}`}
 									onClick$={() => {
 										if (appState.customer.id !== CUSTOMER_NOT_DEFINED_ID) {
@@ -215,7 +211,7 @@ export default component$(() => {
 								class={`md:hidden p-2 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer ${
 									isHomePage && !isScrolled.value
 										? 'text-white hover:text-gray-200'
-										: 'text-gray-700 hover:text-black'
+										: 'text-black hover:text-gray-700'
 								}`}
 								onClick$={() => (appState.showMenu = !appState.showMenu)}
 							>
@@ -226,7 +222,7 @@ export default component$(() => {
 					</div>
 				</div>				{/* Mobile Menu Overlay */}
 				{appState.showMenu && (					<div
-						class="fixed inset-0 z-50 w-full h-full bg-[#937237] flex flex-col items-center justify-center px-6"
+						class="fixed inset-0 z-50 w-full h-full bg-[#B09983] flex flex-col items-center justify-center px-6"
 						style="min-height: 100vh;"
 					>						<button
 							class="absolute top-4 right-4 p-2 text-white hover:text-gray-200 rounded-lg hover:bg-white/10 transition-all duration-200"

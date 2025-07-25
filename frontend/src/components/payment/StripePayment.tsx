@@ -143,7 +143,7 @@ export default component$<StripePaymentProps>(({ onForward$, onError$, onProcess
           class={`w-full py-3 px-4 rounded-md font-medium transition-colors ${
             isDisabled || isProcessing.value || !clientSecret.value
               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-[#937237] text-white hover:bg-[#CD9E34]'
+              : 'bg-[#B09983] text-white hover:bg-[#4F3B26]'
           }`}
         >
           {isProcessing.value ? 'Processing...' : `Pay $${(amount / 100).toFixed(2)}`}

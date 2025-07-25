@@ -141,7 +141,7 @@ export default component$(() => {
             <Link
               href="/shop"
               prefetch
-              class="inline-block bg-[#937237] text-white px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#CD9E34] hover:scale-105 hover:shadow-xl rounded-lg shadow-lg border border-[#937237]"
+              class="inline-block bg-[#B09983] text-white px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:scale-105 hover:shadow-xl rounded-lg shadow-lg border border-[#B09983]"
             >
               <div class="text-4xl font-bold uppercase tracking-widest">SHOP</div>
               <div class="text-xs uppercase tracking-wide mt-1">Our Money Back Guarantee</div>
@@ -155,7 +155,7 @@ export default component$(() => {
         <div class="max-w-6xl mx-auto px-8 lg:px-16">
           <div class="text-center mb-16">
             <h2 class="text-4xl lg:text-5xl font-light text-black mb-6">
-              Built to Last <span class="font-normal text-[#937237]">Decades</span>
+              Built to Last <span class="font-normal text-[#B09983]">Decades</span>
             </h2>
           </div>
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-16">
@@ -204,23 +204,24 @@ export default component$(() => {
             <div class="max-w-2xl">
               <h2 class="text-4xl lg:text-6xl font-light mb-8 leading-tight text-white">
                 Conscious consumption<br/>
-                <span class="font-normal text-[#FAC658]">over mindless accumulation.</span>
+                <span class="font-normal text-[#B09983]">over mindless waste.</span>
               </h2>
               <div class="text-xl text-gray-200 leading-relaxed mb-12 space-y-6">
                 <p>
-                  We're not launching a clothing line—we're challenging an industry. While fast fashion creates 52 seasons per year, we perfected two pieces built to last decades.
+                  Fast fashion dumps 92 million tons into landfills every year. Why shop trends that end up as waste?
                 </p>
                 <p>
-                  Ethically produced in India with fair wages. No child labor. No exploitation. Just honest work creating honest products.
+                  We not only make cool shit for cool people but we make to last. Ethically made in India with fair wages, no exploitation, and materials chosen for longevity, not disposability.
                 </p>
               </div>
               <div>
                 <Link
                   href="/shop"
                   prefetch
-                  class="inline-block bg-[#937237] text-white px-10 py-4 text-base font-medium tracking-wide transition-all duration-300 hover:bg-[#CD9E34] hover:scale-105 uppercase rounded-lg shadow-lg"
+                  class="inline-block bg-[#B09983] text-black px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:text-white hover:scale-105 rounded-lg shadow-lg border border-[#B09983]"
                 >
-                  Shop Consciously
+                  <div class="text-4xl font-bold uppercase tracking-widest">SHOP</div>
+                  <div class="text-xs uppercase tracking-wide mt-1">consciously</div>
                 </Link>
               </div>
             </div>

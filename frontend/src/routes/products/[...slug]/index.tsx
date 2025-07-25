@@ -509,7 +509,7 @@ export default component$(() => {
 							>
 								{/* Sold Out Badge */}
 								{allVariantsSoldOut.value && (
-									<div class="absolute top-3 left-3 z-10 bg-gray-900 text-white px-3 py-1 rounded-sm text-xs font-medium uppercase tracking-wide border border-[#937237] antialiased animate-fade-in">
+									<div class="absolute top-3 left-3 z-10 bg-gray-900 text-white px-3 py-1 rounded-sm text-xs font-medium uppercase tracking-wide border border-[#B09983] antialiased animate-fade-in">
 										Sold Out
 									</div>
 								)}
@@ -594,8 +594,8 @@ export default component$(() => {
 						<button
 							class={{
 								'border border-transparent rounded-full px-6 py-3 sm:px-8 sm:py-4 text-base font-bold font-heading tracking-wide transition-all duration-300 transform hover:scale-105 hover:shadow-xl uppercase cursor-pointer flex items-center justify-center text-white min-w-[200px] w-auto': true,
-								'bg-[#937237] hover:bg-[#CD9E34]': !isOutOfStock.value && selectedVariantIdSignal.value,
-								'bg-[#937237] hover:bg-[#937237] opacity-50': isOutOfStock.value || !selectedVariantIdSignal.value,
+								'bg-[#B09983] hover:bg-[#4F3B26]': !isOutOfStock.value && selectedVariantIdSignal.value,
+								'bg-[#B09983] hover:bg-[#B09983] opacity-50': isOutOfStock.value || !selectedVariantIdSignal.value,
 								'cursor-not-allowed': isOutOfStock.value || !selectedVariantIdSignal.value,
 								'opacity-50': isOutOfStock.value || !selectedVariantIdSignal.value,
 								'animate-pulse-once': quantitySignal.value[selectedVariantIdSignal.value] > 0 && !isAddingToCart.value,
@@ -700,7 +700,7 @@ export default component$(() => {
 									>
 										{/* Sold Out Badge */}
 										{allVariantsSoldOut.value && (
-											<div class="absolute top-3 left-3 z-10 bg-gray-900 text-white px-3 py-1 rounded-sm text-xs font-medium uppercase tracking-wide border border-[#937237] antialiased animate-fade-in">
+											<div class="absolute top-3 left-3 z-10 bg-gray-900 text-white px-3 py-1 rounded-sm text-xs font-medium uppercase tracking-wide border border-[#B09983] antialiased animate-fade-in">
 												Sold Out
 											</div>
 										)}
@@ -773,8 +773,8 @@ export default component$(() => {
 								<button
 									class={{
 										'border border-transparent rounded-full px-6 py-3 sm:px-8 sm:py-4 text-base font-bold font-heading tracking-wide transition-all duration-300 transform hover:scale-105 hover:shadow-xl uppercase cursor-pointer flex items-center justify-center text-white min-w-[200px] w-auto': true,
-										'bg-[#937237] hover:bg-[#CD9E34]': !isOutOfStock.value && selectedVariantIdSignal.value,
-										'bg-[#937237] hover:bg-[#937237] opacity-50': isOutOfStock.value || !selectedVariantIdSignal.value,
+										'bg-[#B09983] hover:bg-[#4F3B26]': !isOutOfStock.value && selectedVariantIdSignal.value,
+										'bg-[#B09983] hover:bg-[#B09983] opacity-50': isOutOfStock.value || !selectedVariantIdSignal.value,
 										'cursor-not-allowed': isOutOfStock.value || !selectedVariantIdSignal.value,
 										'opacity-50': isOutOfStock.value || !selectedVariantIdSignal.value,
 									}}

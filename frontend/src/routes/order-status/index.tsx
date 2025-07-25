@@ -29,7 +29,7 @@ export default component$(() => {
     return (
       <div class="min-h-screen bg-gray-50 flex items-center justify-center">
         <div class="text-center">
-          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#937237] mx-auto mb-4"></div>
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#B09983] mx-auto mb-4"></div>
           <p class="text-gray-600">Redirecting to your orders...</p>
         </div>
       </div>
@@ -55,7 +55,7 @@ export default component$(() => {
         <div class="mt-8 space-y-4">
           <Link
             href={`/sign-in?redirect=/account/orders`}
-            class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-[#937237] hover:bg-[#CD9E34] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#937237] transition-colors"
+            class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-[#B09983] hover:bg-[#4F3B26] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#B09983] transition-colors"
           >
             Sign In to View Order
           </Link>
@@ -64,7 +64,7 @@ export default component$(() => {
             <span class="text-sm text-gray-500">Don't have an account? </span>
             <Link
               href={`/sign-up?redirect=/account/orders`}
-              class="text-sm font-medium text-[#937237] hover:text-[#CD9E34] transition-colors"
+              class="text-sm font-medium text-[#B09983] hover:text-[#4F3B26] transition-colors"
             >
               Create one here
             </Link>
@@ -74,7 +74,7 @@ export default component$(() => {
         <div class="mt-6 border-t border-gray-200 pt-6">
           <p class="text-xs text-gray-500 text-center">
             Need help? Contact us at{' '}
-            <a href="mailto:info@rottenhand.com" target='_blank' class="text-[#937237] hover:text-[#CD9E34]">
+            <a href="mailto:info@rottenhand.com" target='_blank' class="text-[#B09983] hover:text-[#4F3B26]">
               info@rottenhand.com
             </a>
           </p>

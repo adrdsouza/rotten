@@ -95,10 +95,10 @@ export default component$<ViewportLazyProductCardProps>(
 							class="block" 
 							onClick$={handleCardClick}
 					>
-						<div class="rounded-2xl overflow-hidden bg-white shadow-soft hover:shadow-xl transition-all duration-500 transform hover:-translate-y-2 border border-gray-100 hover:border-[#937237] relative before:absolute before:inset-0 before:rounded-2xl before:bg-linear-to-r before:from-[#937237]/0 before:via-[#937237]/20 before:to-[#937237]/0 before:opacity-0 before:transition-opacity before:duration-500 hover:before:opacity-100 before:-z-10">
+						<div class="rounded-2xl overflow-hidden bg-white shadow-soft hover:shadow-xl transition-all duration-500 transform hover:-translate-y-2 border border-gray-100 hover:border-[#B09983] relative before:absolute before:inset-0 before:rounded-2xl before:bg-linear-to-r before:from-[#B09983]/0 before:via-[#B09983]/20 before:to-[#B09983]/0 before:opacity-0 before:transition-opacity before:duration-500 hover:before:opacity-100 before:-z-10">
 							{/* Sold Out Badge */}
 							{inStock === false && (
-								<div class="absolute top-3 left-3 z-10 bg-gray-900 text-white px-3 py-1 rounded-sm text-xs font-medium uppercase tracking-wide border border-[#937237] antialiased">
+								<div class="absolute top-3 left-3 z-10 bg-gray-900 text-white px-3 py-1 rounded-sm text-xs font-medium uppercase tracking-wide border border-[#B09983] antialiased">
 									Sold Out
 								</div>
 							)}
@@ -128,7 +128,7 @@ export default component$<ViewportLazyProductCardProps>(
 								{/* Product Info Overlay */}
 								<div class="absolute inset-x-0 bottom-0 p-5 flex flex-col text-center">
 									<h3
-										class="text-white font-bold text-lg tracking-wider truncate w-full drop-shadow-lg mb-2 uppercase transition-all duration-300 group-hover:text-[#937237] font-heading"
+										class="text-white font-bold text-lg tracking-wider truncate w-full drop-shadow-lg mb-2 uppercase transition-all duration-300 group-hover:text-[#B09983] font-heading"
 										title={productName}
 									>
 										{productName}
