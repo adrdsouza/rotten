@@ -37,6 +37,7 @@ export type Product = {
 	featuredAsset: FeaturedAsset;
 	assets: Asset[];
 	variants: Variant[];
+	optionGroups: ProductOptionGroup[];
 };
 
 type Breadcrumb = {
@@ -78,6 +79,20 @@ type Asset = {
 	preview: string;
 };
 
+export type ProductOptionGroup = {
+	id: string;
+	code: string;
+	name: string;
+	options: ProductOption[];
+};
+
+export type ProductOption = {
+	id: string;
+	code: string;
+	name: string;
+	group?: ProductOptionGroup;
+};
+
 export type Variant = {
 	id: string;
 	name: string;
@@ -85,7 +100,9 @@ export type Variant = {
 	currencyCode: CurrencyCode;
 	sku: string;
 	stockLevel: string;
+	trackInventory?: string | boolean;
 	featuredAsset?: any;
+	options: ProductOption[];
 };
 
 // activeOrder

@@ -77,10 +77,8 @@ export const Head = component$(() => {
 			<link rel="preload" href="/fonts/inter/inter-v19-latin-regular.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
 			<link rel="preload" href="/fonts/playfair-display/playfair-display-v37-latin-700.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
 
-			{/* Favicon setup with dark/light mode support */}
+			{/* Favicon setup */}
 			<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-			<link rel="icon" href="/favicon-dark.svg" type="image/svg+xml" media="(prefers-color-scheme: light)" />
-			<link rel="icon" href="/favicon-light.svg" type="image/svg+xml" media="(prefers-color-scheme: dark)" />
 			{/* Apple touch icon for iOS */}
 			<link rel="apple-touch-icon" href="/favicon.svg" />
 			

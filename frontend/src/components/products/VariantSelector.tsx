@@ -1,0 +1,252 @@
+import { component$, useComputed$, $, useSignal } from '@qwik.dev/core';
+import { Signal } from '@qwik.dev/core';
+import { Product, ProductOptionGroup, ProductOption } from '~/types';
+import Price from './Price';
+
+interface VariantSelectorProps {
+	product: Product;
+	selectedVariantIdSignal: Signal<string>;
+}
+
+export default component$<VariantSelectorProps>(({ product, selectedVariantIdSignal }) => {
+	// Track user's option selections - use separate signals for each group
+	const selectedSize = useSignal<ProductOption | null>(null);
+	const selectedColor = useSignal<ProductOption | null>(null);
+
+	// Group options by their option group
+	const optionGroups = useComputed$(() => {
+		const groups: Record<string, { group: ProductOptionGroup; availableOptions: ProductOption[] }> = {};
+
+		// Safety check: ensure product and variants are loaded
+		if (!product || !product.variants || product.variants.length === 0) {
+			return groups;
+		}
+
+		// Get all unique option groups from variants
+		product.variants.forEach(variant => {
+			// Check if variant has options and they're defined
+			if (variant.options && Array.isArray(variant.options)) {
+				variant.options.forEach(option => {
+					if (option.group) {
+						if (!groups[option.group.code]) {
+							groups[option.group.code] = {
+								group: option.group,
+								availableOptions: []
+							};
+						}
+
+						// Add option if not already present
+						const exists = groups[option.group.code].availableOptions.some(opt => opt.id === option.id);
+						if (!exists) {
+							groups[option.group.code].availableOptions.push(option);
+						}
+					}
+				});
+			}
+		});
+
+		return groups;
+	});
+
+// Compute available sizes
+const availableSizes = useComputed$(() => {
+	if (!product?.variants) return [];
+
+	const sizeGroup = optionGroups.value['size'];
+	if (!sizeGroup) return [];
+
+	return sizeGroup.availableOptions.filter(sizeOption => {
+		return product.variants.some(variant => {
+			if (!variant.options || !Array.isArray(variant.options)) return false;
+			const hasThisSize = variant.options.some(opt => opt.id === sizeOption.id);
+
+			// Check if variant is available (inline the helper function)
+			if (!variant) return false;
+			if (variant.trackInventory === 'FALSE' || variant.trackInventory === false) {
+				return hasThisSize;
+			}
+			return hasThisSize && variant.stockLevel !== '0';
+		});
+	});
+});
+
+// Compute available colors for selected size
+const availableColors = useComputed$(() => {
+	if (!product?.variants || !selectedSize.value) return [];
+
+	const colorGroup = optionGroups.value['color'];
+	if (!colorGroup) return [];
+
+	return colorGroup.availableOptions.filter(colorOption => {
+		return product.variants.some(variant => {
+			if (!variant.options || !Array.isArray(variant.options)) return false;
+			const hasSelectedSize = variant.options.some(opt => opt.id === selectedSize.value!.id);
+			const hasThisColor = variant.options.some(opt => opt.id === colorOption.id);
+
+			// Check if variant is available (inline the helper function)
+			if (!variant) return false;
+			if (variant.trackInventory === 'FALSE' || variant.trackInventory === false) {
+				return hasSelectedSize && hasThisColor;
+			}
+			return hasSelectedSize && hasThisColor && variant.stockLevel !== '0';
+		});
+	});
+});
+
+// Update variant selection based on current size and color
+const updateVariantSelection = $(() => {
+	if (!selectedSize.value || !selectedColor.value) {
+		selectedVariantIdSignal.value = '';
+		return;
+	}
+
+	const matchingVariant = product.variants.find(variant => {
+		if (!variant.options || !Array.isArray(variant.options)) return false;
+
+		const hasSelectedSize = variant.options.some(opt => opt.id === selectedSize.value!.id);
+		const hasSelectedColor = variant.options.some(opt => opt.id === selectedColor.value!.id);
+
+		return hasSelectedSize && hasSelectedColor;
+	});
+
+	selectedVariantIdSignal.value = matchingVariant?.id || '';
+});
+
+// Handle option selection
+const handleSizeSelect = $((sizeOption: ProductOption) => {
+	if (selectedSize.value?.id === sizeOption.id) {
+		// Unselect size
+		selectedSize.value = null;
+		selectedColor.value = null;
+		selectedVariantIdSignal.value = '';
+	} else {
+		// Select new size
+		selectedSize.value = sizeOption;
+
+		// Check if current color is still available with new size
+		if (selectedColor.value) {
+			const colorStillAvailable = availableColors.value.some(c => c.id === selectedColor.value!.id);
+			if (!colorStillAvailable) {
+				selectedColor.value = null;
+			}
+		}
+
+		// Update variant selection
+		updateVariantSelection();
+	}
+});
+
+const handleColorSelect = $((colorOption: ProductOption) => {
+	if (selectedColor.value?.id === colorOption.id) {
+		// Unselect color
+		selectedColor.value = null;
+		selectedVariantIdSignal.value = '';
+	} else {
+		// Select new color
+		selectedColor.value = colorOption;
+		updateVariantSelection();
+	}
+});
+
+	const selectedVariant = useComputed$(() =>
+		selectedVariantIdSignal.value ? product.variants.find(v => v.id === selectedVariantIdSignal.value) : null
+	);
+
+	if (product.variants.length <= 1) {
+		return null;
+	}
+
+	// If no option groups found, show debug info and fallback
+	if (Object.keys(optionGroups.value).length === 0) {
+		return (
+			<div class="mt-6 mb-6">
+				<div class="p-4 bg-yellow-100 border border-yellow-400 rounded">
+					<p class="text-sm text-yellow-800">
+						Debug: VariantSelector found no option groups. Variants: {product.variants.length}
+					</p>
+					<div class="mt-2 text-xs text-yellow-700">
+						{product.variants.map((variant, i) => (
+							<div key={variant.id}>
+								Variant {i}: {variant.name} - Options: {variant.options?.length || 0}
+							</div>
+						))}
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	return (
+		<div class="mt-6 mb-6">
+			{/* Display price for selected variant */}
+			{selectedVariant.value && (
+				<div class="mb-4">
+					<Price
+						priceWithTax={selectedVariant.value.priceWithTax}
+						currencyCode={selectedVariant.value.currencyCode}
+						forcedClass="text-xl font-semibold text-gray-800"
+					/>
+				</div>
+			)}
+
+			{/* Size Selection */}
+			{availableSizes.value.length > 0 && (
+				<div class="mb-6">
+					<h3 class="text-sm font-medium text-gray-900 mb-3">Size</h3>
+					<div class="flex flex-wrap gap-2">
+						{availableSizes.value.map((sizeOption) => {
+							const isSelected = selectedSize.value?.id === sizeOption.id;
+
+							return (
+								<button
+									key={sizeOption.id}
+									onClick$={() => handleSizeSelect(sizeOption)}
+									class={{
+										'px-4 py-2 text-sm font-medium rounded-md border transition-all duration-200': true,
+										'bg-[#937237] text-white border-[#937237]': isSelected,
+										'bg-white text-gray-900 border-gray-300 hover:bg-[#FAC658] hover:border-[#CD9E34]': !isSelected,
+									}}
+								>
+									{sizeOption.name}
+								</button>
+							);
+						})}
+					</div>
+				</div>
+			)}
+
+			{/* Color Selection */}
+			{selectedSize.value && (
+				<div class="mb-6">
+					<h3 class="text-sm font-medium text-gray-900 mb-3">Color</h3>
+					<div class="flex flex-wrap gap-2">
+						{availableColors.value.map((colorOption) => {
+							const isSelected = selectedColor.value?.id === colorOption.id;
+
+							return (
+								<button
+									key={colorOption.id}
+									onClick$={() => handleColorSelect(colorOption)}
+									class={{
+										'px-4 py-2 text-sm font-medium rounded-md border transition-all duration-200': true,
+										'bg-[#937237] text-white border-[#937237]': isSelected,
+										'bg-white text-gray-900 border-gray-300 hover:bg-[#FAC658] hover:border-[#CD9E34]': !isSelected,
+									}}
+								>
+									{colorOption.name}
+								</button>
+							);
+						})}
+					</div>
+				</div>
+			)}
+
+			{/* Show out of stock message only if a complete variant is selected and is truly out of stock */}
+			{selectedVariant.value && selectedVariant.value.trackInventory !== 'FALSE' && selectedVariant.value.trackInventory !== false && selectedVariant.value.stockLevel === '0' && (
+				<div class="mt-2 text-sm text-red-600">
+					This combination is currently out of stock
+				</div>
+			)}
+		</div>
+	);
+});

@@ -62,11 +62,12 @@ export const getProductBySlugLightweight = async (slug: string) => {
 
 // 🚀 OPTIMIZED: Product page fragment - removed unused heavy fields
 export const detailedProductFragment = gql`
-	fragment DetailedProduct on Product {
+	fragment OptimizedDetailedProduct on Product {
 		id
 		name
 		slug
 		description
+
 		facetValues {
 			facet {
 				id
@@ -92,6 +93,17 @@ export const detailedProductFragment = gql`
 			currencyCode
 			sku
 			stockLevel
+			trackInventory
+			options {
+				id
+				code
+				name
+				group {
+					id
+					code
+					name
+				}
+			}
 		}
 	}
 `;
@@ -104,9 +116,10 @@ export const detailedProductFragment = gql`
 gql`
 	query product($slug: String, $id: ID) {
 		product(slug: $slug, id: $id) {
-			...DetailedProduct
+			...OptimizedDetailedProduct
 		}
 	}
+	${detailedProductFragment}
 `;
 
 export const listedProductFragment = gql`

@@ -5,6 +5,7 @@ import { OptimizedImage, generateImagePreloadLinks } from '~/components/ui';
 import Alert from '~/components/alert/Alert';
 import CheckIcon from '~/components/icons/CheckIcon';
 import Price from '~/components/products/Price';
+import VariantSelector from '~/components/products/VariantSelector';
 import { APP_STATE } from '~/constants';
 import { OrderLine } from '~/generated/graphql';
 import { getProductBySlug } from '~/providers/shop/products/products';
@@ -101,7 +102,7 @@ export default component$(() => {
 
 	// Country detection now handled via SSR
 
-	const selectedVariantIdSignal = useSignal(product.variants[0].id);
+	const selectedVariantIdSignal = useSignal('');
 	
 	// Modal state for image enlargement
 	const showImageModal = useSignal(false);
@@ -310,6 +311,45 @@ export default component$(() => {
 	const isAddingToCart = useSignal(false);
 	// 🚀 OPTIMIZED: Lightweight quantity display using direct localStorage check
 	const quantitySignal = useSignal<Record<string, number>>({});
+
+	// Smart button text based on selection state
+	const buttonText = useComputed$(() => {
+		if (!selectedVariantIdSignal.value) {
+			// Check if we have multiple option groups
+			const hasMultipleOptions = product.variants.length > 1;
+			if (!hasMultipleOptions) {
+				return 'Add to cart';
+			}
+
+			// Check what's missing
+			const hasSize = product.variants.some(v =>
+				v.options?.some(opt => opt.group?.code === 'size')
+			);
+			const hasColor = product.variants.some(v =>
+				v.options?.some(opt => opt.group?.code === 'color')
+			);
+
+			if (hasSize && hasColor) {
+				return 'Select size & color';
+			} else if (hasSize) {
+				return 'Select size';
+			} else if (hasColor) {
+				return 'Select color';
+			} else {
+				return 'Select options';
+			}
+		}
+
+		if (isOutOfStock.value) {
+			return 'Sold Out';
+		}
+
+		if (quantitySignal.value[selectedVariantIdSignal.value] > 0) {
+			return `${quantitySignal.value[selectedVariantIdSignal.value]} in cart - Add more`;
+		}
+
+		return 'Add to cart';
+	});
 
 	// 🚀 EXTRACTED: Shared add to cart handler (eliminates 65 lines of duplication)
 	const handleAddToCart = $(async () => {
@@ -525,58 +565,26 @@ export default component$(() => {
 					/>
 
 					{/* Variant Selection */}
-					{1 < product.variants.length && (
-						<div class="mt-6 mb-6">
-							<div class="flex flex-col gap-y-2">
-								{product.variants.map((variant) => (
-									<label key={variant.id} class="flex items-center gap-x-2 cursor-pointer">
-										<input
-											type="radio"
-											name="variant-mobile"
-											value={variant.id}
-											checked={selectedVariantIdSignal.value === variant.id}
-											onChange$={(_, el) => (selectedVariantIdSignal.value = el.value)}
-											class="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 focus:ring-red-500 focus:ring-2"
-										/>
-										<span class="text-base text-gray-900 flex items-center gap-x-2">
-											{variant.name}
-											<Price
-												priceWithTax={variant.priceWithTax}
-												currencyCode={variant.currencyCode}
-												forcedClass="font-semibold"
-											/>
-											{variant.stockLevel === '0' && (
-												<span class="ml-1" title="Out of stock">
-													<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 32 32" class="inline-block">
-														<path d="M7,7 L25,25" stroke="#d42938" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
-														<path d="M7,25 L25,7" stroke="#d42938" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
-													</svg>
-												</span>
-											)}
-										</span>
-									</label>
-								))}
-							</div>
-						</div>
-					)}
+					<VariantSelector
+						product={product}
+						selectedVariantIdSignal={selectedVariantIdSignal}
+					/>
 
 					{/* Add to Cart Button */}
 					<div class={{ 'mb-8': true, 'mt-12': product.variants.length <= 1 }}>
 						<button
 							class={{
 								'border border-transparent rounded-full px-6 py-3 sm:px-8 sm:py-4 text-base font-bold font-heading tracking-wide transition-all duration-300 transform hover:scale-105 hover:shadow-xl uppercase cursor-pointer flex items-center justify-center text-white min-w-[200px] w-auto': true,
-								'bg-[#937237] hover:bg-[#CD9E34]': !isOutOfStock.value,
-								'bg-[#937237] hover:bg-[#937237] opacity-50': isOutOfStock.value,
-								'cursor-not-allowed': isOutOfStock.value, // 🚀 REMOVED: Limit of 7 - cursor only changes when out of stock
-								'opacity-50': isOutOfStock.value, // 🚀 REMOVED: Limit of 7 - opacity only changes when out of stock
+								'bg-[#937237] hover:bg-[#CD9E34]': !isOutOfStock.value && selectedVariantIdSignal.value,
+								'bg-[#937237] hover:bg-[#937237] opacity-50': isOutOfStock.value || !selectedVariantIdSignal.value,
+								'cursor-not-allowed': isOutOfStock.value || !selectedVariantIdSignal.value,
+								'opacity-50': isOutOfStock.value || !selectedVariantIdSignal.value,
 								'animate-pulse-once': quantitySignal.value[selectedVariantIdSignal.value] > 0 && !isAddingToCart.value,
 							}}
-							disabled={isOutOfStock.value} // 🚀 REMOVED: Limit of 7 - button now only disabled when out of stock
+							disabled={isOutOfStock.value || !selectedVariantIdSignal.value}
 							onClick$={handleAddToCart}
 						>
-							{isOutOfStock.value ? (
-								'Sold Out'
-							) : isAddingToCart.value ? (
+							{isAddingToCart.value ? (
 								<span class="flex items-center justify-center">
 									<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
 										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -588,11 +596,11 @@ export default component$(() => {
 								<span class="flex items-center justify-center">
 									<CheckIcon />
 									<span class="ml-2">
-										{quantitySignal.value[selectedVariantIdSignal.value]} in cart - Add more
+										{buttonText.value}
 									</span>
 								</span>
 							) : (
-								'Add to cart'
+								buttonText.value
 							)}
 						</button>
 					</div>
@@ -734,57 +742,25 @@ export default component$(() => {
 
 
 							{/* Variant Selection */}
-							{1 < product.variants.length && (
-								<div class="mt-6 mb-6"> {/* Reduced bottom spacing */}
-									<div class="flex flex-col gap-y-2">
-										{product.variants.map((variant) => (
-											<label key={variant.id} class="flex items-center gap-x-2 cursor-pointer">
-												<input
-													type="radio"
-													name="variant-desktop"
-													value={variant.id}
-													checked={selectedVariantIdSignal.value === variant.id}
-													onChange$={(_, el) => (selectedVariantIdSignal.value = el.value)}
-													class="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 focus:ring-red-500 focus:ring-2"
-												/>
-												<span class="text-base text-gray-900 flex items-center gap-x-2">
-										{variant.name}
-										<Price
-											priceWithTax={variant.priceWithTax}
-											currencyCode={variant.currencyCode}
-											forcedClass="font-semibold"
-										/>
-										{variant.stockLevel === '0' && (
-											<span class="ml-1" title="Out of stock">
-												<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 32 32" class="inline-block">
-													<path d="M7,7 L25,25" stroke="#d42938" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
-													<path d="M7,25 L25,7" stroke="#d42938" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
-												</svg>
-											</span>
-										)}
-									</span>
-											</label>
-										))}
-									</div>
-								</div>
-							)}
+							<VariantSelector
+								product={product}
+								selectedVariantIdSignal={selectedVariantIdSignal}
+							/>
 
 							{/* Add to Cart Button */}
 							<div class={{ 'mb-8': true, 'mt-12': product.variants.length <= 1 }}> {/* Added conditional top margin */}
 								<button
 									class={{
 										'border border-transparent rounded-full px-6 py-3 sm:px-8 sm:py-4 text-base font-bold font-heading tracking-wide transition-all duration-300 transform hover:scale-105 hover:shadow-xl uppercase cursor-pointer flex items-center justify-center text-white min-w-[200px] w-auto': true,
-										'bg-[#937237] hover:bg-[#CD9E34]': !isOutOfStock.value,
-										'bg-[#937237] hover:bg-[#937237] opacity-50': isOutOfStock.value,
-										'cursor-not-allowed': isOutOfStock.value || quantitySignal.value[selectedVariantIdSignal.value] > 7,
-										'opacity-50': isOutOfStock.value, // 🚀 REMOVED: Limit of 7 - opacity only changes when out of stock
+										'bg-[#937237] hover:bg-[#CD9E34]': !isOutOfStock.value && selectedVariantIdSignal.value,
+										'bg-[#937237] hover:bg-[#937237] opacity-50': isOutOfStock.value || !selectedVariantIdSignal.value,
+										'cursor-not-allowed': isOutOfStock.value || !selectedVariantIdSignal.value,
+										'opacity-50': isOutOfStock.value || !selectedVariantIdSignal.value,
 									}}
-									disabled={isOutOfStock.value} // 🚀 REMOVED: Limit of 7 - button now only disabled when out of stock
+									disabled={isOutOfStock.value || !selectedVariantIdSignal.value}
 									onClick$={handleAddToCart}
 								>
-									{isOutOfStock.value ? (
-										'Sold Out'
-									) : isAddingToCart.value ? (
+									{isAddingToCart.value ? (
 										<span class="flex items-center justify-center">
 											<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
 												<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -796,11 +772,11 @@ export default component$(() => {
 										<span class="flex items-center justify-center">
 											<CheckIcon />
 											<span class="ml-2">
-												{quantitySignal.value[selectedVariantIdSignal.value]} in cart - Add more
+												{buttonText.value}
 											</span>
 										</span>
 									) : (
-										'Add to cart'
+										buttonText.value
 									)}
 								</button>
 							</div>

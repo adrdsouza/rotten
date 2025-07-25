@@ -33,40 +33,33 @@ The storefront has been rebranded from "Vendure Qwik Starter" to "Rotten Hand" a
   - Short name: `"Rotten Hand"`
   - Description: `"Premium quality products and exceptional service at Rotten Hand."`
 
-### 2. Favicon System with Dark/Light Mode Support
+### 2. Favicon Configuration
 
-Implemented an adaptive favicon system that responds to browser theme preferences.
+Simplified favicon setup using a single SVG favicon file.
 
-#### Configuration Added:
+#### Configuration:
 
 **HTML Head Configuration**
 - **File**: [`frontend/src/components/head/head.tsx`](frontend/src/components/head/head.tsx:21)
 - **Implementation**:
 ```tsx
-{/* Modern favicon support with dark/light mode */}
-<link rel="icon" href="/favicon-light.svg" type="image/svg+xml" media="(prefers-color-scheme: light)" />
-<link rel="icon" href="/favicon-dark.svg" type="image/svg+xml" media="(prefers-color-scheme: dark)" />
+{/* Favicon setup */}
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-<link rel="icon" href="/favicon.ico" type="image/x-icon" />
-<link rel="apple-touch-icon" href="/logo-192-192.png" />
+{/* Apple touch icon for iOS */}
+<link rel="apple-touch-icon" href="/favicon.svg" />
 ```
 
 #### Favicon File Structure:
 
-Place favicon files in [`frontend/public/`](frontend/public/):
+Place favicon file in [`frontend/public/`](frontend/public/):
 ```
-├── favicon.ico              # Fallback for older browsers
-├── favicon.svg              # Default SVG favicon
-├── favicon-light.svg        # Dark logo for light browser themes
-├── favicon-dark.svg         # Light logo for dark browser themes
+├── favicon.svg              # SVG favicon
 └── logo-192-192.png        # Apple touch icon (existing)
 ```
 
 #### How It Works:
-- **Light Browser Theme**: Uses `favicon-light.svg` (should contain dark logo)
-- **Dark Browser Theme**: Uses `favicon-dark.svg` (should contain light logo)
-- **Fallback**: Uses `favicon.svg` for browsers without media query support
-- **Legacy**: Uses `favicon.ico` for older browsers
+- Uses a single `favicon.svg` file for all browsers and themes
+- Apple devices use the same SVG file for touch icons
 
 #### Browser Support:
 - ✅ **Chrome/Edge**: Full support for adaptive favicons
