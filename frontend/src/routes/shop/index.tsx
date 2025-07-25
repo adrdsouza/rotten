@@ -1,4 +1,4 @@
-import { component$, useSignal, useComputed$, $, useContext } from '@qwik.dev/core';
+import { component$, useSignal, useComputed$, $, useContext, useVisibleTask$ } from '@qwik.dev/core';
 import { routeLoader$, Link } from '@qwik.dev/router';
 import { OptimizedImage } from '~/components/ui';
 import Price from '~/components/products/Price';
@@ -7,6 +7,8 @@ import { Product, ProductOption } from '~/types';
 import { createSEOHead } from '~/utils/seo';
 import { useLocalCart, addToLocalCart } from '~/contexts/CartContext';
 import { APP_STATE } from '~/constants';
+import { loadCountryOnDemand } from '~/utils/addressStorage';
+import { LocalCartService } from '~/services/LocalCartService';
 
 // Helper functions moved outside component to avoid lexical scope issues
 const getAvailableOptions = (product: Product | null) => {
@@ -196,6 +198,9 @@ export default component$(() => {
   const selectedVariantId = useSignal<string>('');
   const isAddingToCart = useSignal(false);
 
+  // Cart quantity tracking for all variants
+  const quantitySignal = useSignal<Record<string, number>>({});
+
 
 
   // Update variant selection when size and color are both selected
@@ -307,6 +312,12 @@ export default component$(() => {
       // Add to cart using the correct function signature
       await addToLocalCart(localCart, localCartItem);
 
+      // 🚀 DEMAND-BASED GEOLOCATION: Load country when user shows purchase intent
+      await loadCountryOnDemand(appState);
+
+      // Trigger cart update event to refresh quantities
+      window.dispatchEvent(new CustomEvent('cart-updated'));
+
       // Show cart if successful
       if (!localCart.lastError) {
         appState.showCart = true;
@@ -326,6 +337,80 @@ export default component$(() => {
     if (!selectedProduct.value) return null;
     return selectedProduct.value.featuredAsset ||
            (selectedProduct.value.assets?.length > 0 ? selectedProduct.value.assets[0] : null);
+  });
+
+  // Get current variant quantity in cart
+  const currentVariantQuantity = useComputed$(() => {
+    if (!selectedVariantId.value) return 0;
+    return quantitySignal.value[selectedVariantId.value] || 0;
+  });
+
+  // Smart button text based on cart quantity
+  const buttonText = useComputed$(() => {
+    const quantity = currentVariantQuantity.value;
+    if (quantity > 0) {
+      return `${quantity} in cart - Add more`;
+    }
+    return 'Claim Your Perfect Shirt';
+  });
+
+  // Load cart quantities for all variants when products are available
+  useVisibleTask$(() => {
+    const loadQuantities = () => {
+      const allVariants: string[] = [];
+
+      // Collect all variant IDs from both products
+      if (productsData.value.shortSleeve?.variants && Array.isArray(productsData.value.shortSleeve.variants)) {
+        allVariants.push(...productsData.value.shortSleeve.variants.map((v: any) => v.id).filter(Boolean));
+      }
+      if (productsData.value.longSleeve?.variants && Array.isArray(productsData.value.longSleeve.variants)) {
+        allVariants.push(...productsData.value.longSleeve.variants.map((v: any) => v.id).filter(Boolean));
+      }
+
+      if (allVariants.length === 0) return;
+
+      // Check if we're in local cart mode or have loaded cart context
+      if (localCart.isLocalMode && localCart.hasLoadedOnce) {
+        // Use loaded cart context data
+        const result: Record<string, number> = {};
+        allVariants.forEach((variantId) => {
+          const localItem = localCart.localCart.items.find(
+            (item: any) => item.productVariantId === variantId
+          );
+          result[variantId] = localItem?.quantity || 0;
+        });
+        quantitySignal.value = result;
+      } else if (localCart.isLocalMode) {
+        // Use lightweight localStorage check (no context loading)
+        quantitySignal.value = LocalCartService.getItemQuantitiesFromStorage(allVariants);
+      } else {
+        // Fallback to Vendure order (checkout mode)
+        const result: Record<string, number> = {};
+        allVariants.forEach((variantId) => {
+          const orderLine = (appState.activeOrder?.lines || []).find(
+            (l: any) => l.productVariant.id === variantId
+          );
+          result[variantId] = orderLine?.quantity || 0;
+        });
+        quantitySignal.value = result;
+      }
+    };
+
+    // Load quantities initially
+    loadQuantities();
+
+    // Listen for cart updates to sync quantities
+    const handleCartUpdate = () => {
+      if (localCart.hasLoadedOnce) {
+        loadQuantities();
+      }
+    };
+
+    window.addEventListener('cart-updated', handleCartUpdate);
+
+    return () => {
+      window.removeEventListener('cart-updated', handleCartUpdate);
+    };
   });
 
   return (
@@ -621,8 +706,15 @@ export default component$(() => {
                       <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
                       Adding to Cart...
                     </span>
+                  ) : currentVariantQuantity.value > 0 ? (
+                    <span class="flex items-center justify-center">
+                      <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                      </svg>
+                      {buttonText.value}
+                    </span>
                   ) : (
-                    'Claim Your Perfect Shirt'
+                    buttonText.value
                   )}
                 </button>
 
