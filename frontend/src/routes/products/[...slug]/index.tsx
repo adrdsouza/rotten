@@ -312,43 +312,55 @@ export default component$(() => {
 	// 🚀 OPTIMIZED: Lightweight quantity display using direct localStorage check
 	const quantitySignal = useSignal<Record<string, number>>({});
 
-	// Smart button text based on selection state
+	// Track selection state for conditional button text
+	const hasSizeSelected = useSignal(false);
+	const hasColorSelected = useSignal(false);
+
+	// Smart button text based on current selection state
 	const buttonText = useComputed$(() => {
-		if (!selectedVariantIdSignal.value) {
-			// Check if we have multiple option groups
-			const hasMultipleOptions = product.variants.length > 1;
-			if (!hasMultipleOptions) {
-				return 'Add to cart';
+		// If we have a complete variant selection
+		if (selectedVariantIdSignal.value) {
+			if (isOutOfStock.value) {
+				return 'Sold Out';
 			}
 
-			// Check what's missing
-			const hasSize = product.variants.some(v =>
-				v.options?.some(opt => opt.group?.code === 'size')
-			);
-			const hasColor = product.variants.some(v =>
-				v.options?.some(opt => opt.group?.code === 'color')
-			);
+			if (quantitySignal.value[selectedVariantIdSignal.value] > 0) {
+				return `${quantitySignal.value[selectedVariantIdSignal.value]} in cart - Add more`;
+			}
 
-			if (hasSize && hasColor) {
-				return 'Select size & color';
-			} else if (hasSize) {
+			return 'Add to cart';
+		}
+
+		// Check if we have multiple option groups
+		const hasMultipleOptions = product.variants.length > 1;
+		if (!hasMultipleOptions) {
+			return 'Add to cart';
+		}
+
+		// Check what options exist
+		const hasSize = product.variants.some(v =>
+			v.options?.some(opt => opt.group?.code === 'size')
+		);
+		const hasColor = product.variants.some(v =>
+			v.options?.some(opt => opt.group?.code === 'color')
+		);
+
+		// Progressive selection logic
+		if (hasSize && hasColor) {
+			if (!hasSizeSelected.value) {
 				return 'Select size';
-			} else if (hasColor) {
+			} else if (!hasColorSelected.value) {
 				return 'Select color';
 			} else {
-				return 'Select options';
+				return 'Add to cart'; // This shouldn't happen if selectedVariantIdSignal is working
 			}
+		} else if (hasSize) {
+			return hasSizeSelected.value ? 'Add to cart' : 'Select size';
+		} else if (hasColor) {
+			return hasColorSelected.value ? 'Add to cart' : 'Select color';
+		} else {
+			return 'Select options';
 		}
-
-		if (isOutOfStock.value) {
-			return 'Sold Out';
-		}
-
-		if (quantitySignal.value[selectedVariantIdSignal.value] > 0) {
-			return `${quantitySignal.value[selectedVariantIdSignal.value]} in cart - Add more`;
-		}
-
-		return 'Add to cart';
 	});
 
 	// 🚀 EXTRACTED: Shared add to cart handler (eliminates 65 lines of duplication)
@@ -568,6 +580,8 @@ export default component$(() => {
 					<VariantSelector
 						product={product}
 						selectedVariantIdSignal={selectedVariantIdSignal}
+						hasSizeSelected={hasSizeSelected}
+						hasColorSelected={hasColorSelected}
 					/>
 
 					{/* Add to Cart Button */}
@@ -745,6 +759,8 @@ export default component$(() => {
 							<VariantSelector
 								product={product}
 								selectedVariantIdSignal={selectedVariantIdSignal}
+								hasSizeSelected={hasSizeSelected}
+								hasColorSelected={hasColorSelected}
 							/>
 
 							{/* Add to Cart Button */}

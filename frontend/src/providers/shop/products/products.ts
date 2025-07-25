@@ -93,7 +93,6 @@ export const detailedProductFragment = gql`
 			currencyCode
 			sku
 			stockLevel
-			trackInventory
 			options {
 				id
 				code

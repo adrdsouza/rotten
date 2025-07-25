@@ -6,9 +6,11 @@ import Price from './Price';
 interface VariantSelectorProps {
 	product: Product;
 	selectedVariantIdSignal: Signal<string>;
+	hasSizeSelected: Signal<boolean>;
+	hasColorSelected: Signal<boolean>;
 }
 
-export default component$<VariantSelectorProps>(({ product, selectedVariantIdSignal }) => {
+export default component$<VariantSelectorProps>(({ product, selectedVariantIdSignal, hasSizeSelected, hasColorSelected }) => {
 	// Track user's option selections - use separate signals for each group
 	const selectedSize = useSignal<ProductOption | null>(null);
 	const selectedColor = useSignal<ProductOption | null>(null);
@@ -60,37 +62,40 @@ const availableSizes = useComputed$(() => {
 			if (!variant.options || !Array.isArray(variant.options)) return false;
 			const hasThisSize = variant.options.some(opt => opt.id === sizeOption.id);
 
-			// Check if variant is available (inline the helper function)
+			// Check if variant is available - inventory tracking is disabled, so all variants are available
 			if (!variant) return false;
-			if (variant.trackInventory === 'FALSE' || variant.trackInventory === false) {
-				return hasThisSize;
-			}
-			return hasThisSize && variant.stockLevel !== '0';
+			// Since inventory tracking is disabled, all variants with this size are available
+			return hasThisSize;
 		});
 	});
 });
 
-// Compute available colors for selected size
-const availableColors = useComputed$(() => {
-	if (!product?.variants || !selectedSize.value) return [];
+// Get all colors (always visible)
+const allColors = useComputed$(() => {
+	if (!product?.variants) return [];
 
 	const colorGroup = optionGroups.value['color'];
 	if (!colorGroup) return [];
 
-	return colorGroup.availableOptions.filter(colorOption => {
+	return colorGroup.availableOptions;
+});
+
+// Check if a color is available for the selected size
+const isColorAvailable = useComputed$(() => {
+	return (colorOption: ProductOption) => {
+		if (!selectedSize.value || !product?.variants) return false;
+
 		return product.variants.some(variant => {
 			if (!variant.options || !Array.isArray(variant.options)) return false;
 			const hasSelectedSize = variant.options.some(opt => opt.id === selectedSize.value!.id);
 			const hasThisColor = variant.options.some(opt => opt.id === colorOption.id);
 
-			// Check if variant is available (inline the helper function)
+			// Check if variant is available - inventory tracking is disabled, so all variants are available
 			if (!variant) return false;
-			if (variant.trackInventory === 'FALSE' || variant.trackInventory === false) {
-				return hasSelectedSize && hasThisColor;
-			}
-			return hasSelectedSize && hasThisColor && variant.stockLevel !== '0';
+			// Since inventory tracking is disabled, all variants with this combination are available
+			return hasSelectedSize && hasThisColor;
 		});
-	});
+	};
 });
 
 // Update variant selection based on current size and color
@@ -119,15 +124,19 @@ const handleSizeSelect = $((sizeOption: ProductOption) => {
 		selectedSize.value = null;
 		selectedColor.value = null;
 		selectedVariantIdSignal.value = '';
+		hasSizeSelected.value = false;
+		hasColorSelected.value = false;
 	} else {
 		// Select new size
 		selectedSize.value = sizeOption;
+		hasSizeSelected.value = true;
 
 		// Check if current color is still available with new size
 		if (selectedColor.value) {
-			const colorStillAvailable = availableColors.value.some(c => c.id === selectedColor.value!.id);
+			const colorStillAvailable = isColorAvailable.value(selectedColor.value);
 			if (!colorStillAvailable) {
 				selectedColor.value = null;
+				hasColorSelected.value = false;
 			}
 		}
 
@@ -137,20 +146,25 @@ const handleSizeSelect = $((sizeOption: ProductOption) => {
 });
 
 const handleColorSelect = $((colorOption: ProductOption) => {
+	// Only allow selection if color is available for selected size
+	if (!isColorAvailable.value(colorOption)) {
+		return;
+	}
+
 	if (selectedColor.value?.id === colorOption.id) {
 		// Unselect color
 		selectedColor.value = null;
 		selectedVariantIdSignal.value = '';
+		hasColorSelected.value = false;
 	} else {
 		// Select new color
 		selectedColor.value = colorOption;
+		hasColorSelected.value = true;
 		updateVariantSelection();
 	}
 });
 
-	const selectedVariant = useComputed$(() =>
-		selectedVariantIdSignal.value ? product.variants.find(v => v.id === selectedVariantIdSignal.value) : null
-	);
+	// selectedVariant removed since inventory tracking is disabled
 
 	if (product.variants.length <= 1) {
 		return null;
@@ -178,12 +192,12 @@ const handleColorSelect = $((colorOption: ProductOption) => {
 
 	return (
 		<div class="mt-6 mb-6">
-			{/* Display price for selected variant */}
-			{selectedVariant.value && (
+			{/* Display price - always show since all variants have same price */}
+			{product.variants.length > 0 && (
 				<div class="mb-4">
 					<Price
-						priceWithTax={selectedVariant.value.priceWithTax}
-						currencyCode={selectedVariant.value.currencyCode}
+						priceWithTax={product.variants[0].priceWithTax}
+						currencyCode={product.variants[0].currencyCode}
 						forcedClass="text-xl font-semibold text-gray-800"
 					/>
 				</div>
@@ -215,22 +229,25 @@ const handleColorSelect = $((colorOption: ProductOption) => {
 				</div>
 			)}
 
-			{/* Color Selection */}
-			{selectedSize.value && (
+			{/* Color Selection - Always visible */}
+			{allColors.value.length > 0 && (
 				<div class="mb-6">
 					<h3 class="text-sm font-medium text-gray-900 mb-3">Color</h3>
 					<div class="flex flex-wrap gap-2">
-						{availableColors.value.map((colorOption) => {
+						{allColors.value.map((colorOption) => {
 							const isSelected = selectedColor.value?.id === colorOption.id;
+							const isAvailable = selectedSize.value ? isColorAvailable.value(colorOption) : false;
 
 							return (
 								<button
 									key={colorOption.id}
 									onClick$={() => handleColorSelect(colorOption)}
+									disabled={!isAvailable}
 									class={{
 										'px-4 py-2 text-sm font-medium rounded-md border transition-all duration-200': true,
 										'bg-[#937237] text-white border-[#937237]': isSelected,
-										'bg-white text-gray-900 border-gray-300 hover:bg-[#FAC658] hover:border-[#CD9E34]': !isSelected,
+										'bg-white text-gray-900 border-gray-300 hover:bg-[#FAC658] hover:border-[#CD9E34]': !isSelected && isAvailable,
+										'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed': !isAvailable,
 									}}
 								>
 									{colorOption.name}
@@ -241,12 +258,7 @@ const handleColorSelect = $((colorOption: ProductOption) => {
 				</div>
 			)}
 
-			{/* Show out of stock message only if a complete variant is selected and is truly out of stock */}
-			{selectedVariant.value && selectedVariant.value.trackInventory !== 'FALSE' && selectedVariant.value.trackInventory !== false && selectedVariant.value.stockLevel === '0' && (
-				<div class="mt-2 text-sm text-red-600">
-					This combination is currently out of stock
-				</div>
-			)}
+			{/* Out of stock message removed since inventory tracking is disabled */}
 		</div>
 	);
 });
