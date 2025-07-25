@@ -50,24 +50,39 @@ export default component$<VariantSelectorProps>(({ product, selectedVariantIdSig
 		return groups;
 	});
 
-// Compute available sizes
-const availableSizes = useComputed$(() => {
+// Get all sizes (always visible, but may be disabled)
+const allSizes = useComputed$(() => {
 	if (!product?.variants) return [];
 
 	const sizeGroup = optionGroups.value['size'];
 	if (!sizeGroup) return [];
 
-	return sizeGroup.availableOptions.filter(sizeOption => {
+	return sizeGroup.availableOptions;
+});
+
+// Check if a size has any available variants
+const isSizeAvailable = useComputed$(() => {
+	return (sizeOption: ProductOption) => {
+		if (!product?.variants) return false;
+
 		return product.variants.some(variant => {
 			if (!variant.options || !Array.isArray(variant.options)) return false;
 			const hasThisSize = variant.options.some(opt => opt.id === sizeOption.id);
 
-			// Check if variant is available - inventory tracking is disabled, so all variants are available
-			if (!variant) return false;
-			// Since inventory tracking is disabled, all variants with this size are available
-			return hasThisSize;
+			// Check if this variant has the right size
+			if (!hasThisSize) return false;
+
+			// Check if variant is in stock: either has inventory OR tracking is disabled
+			const stockLevel = parseInt(variant.stockLevel || '0');
+			const trackInventory = variant.trackInventory;
+
+			// In stock if: has stock > 0 OR inventory tracking is disabled for this variant
+			// trackInventory can be 'FALSE', 'TRUE', or 'INHERIT' (inherits from global/channel settings)
+			const isInStock = stockLevel > 0 || trackInventory === 'FALSE';
+
+			return isInStock;
 		});
-	});
+	};
 });
 
 // Get all colors (always visible)
@@ -90,10 +105,18 @@ const isColorAvailable = useComputed$(() => {
 			const hasSelectedSize = variant.options.some(opt => opt.id === selectedSize.value!.id);
 			const hasThisColor = variant.options.some(opt => opt.id === colorOption.id);
 
-			// Check if variant is available - inventory tracking is disabled, so all variants are available
-			if (!variant) return false;
-			// Since inventory tracking is disabled, all variants with this combination are available
-			return hasSelectedSize && hasThisColor;
+			// Check if this variant has the right size/color combination
+			if (!hasSelectedSize || !hasThisColor) return false;
+
+			// Check if variant is in stock: either has inventory OR tracking is disabled
+			const stockLevel = parseInt(variant.stockLevel || '0');
+			const trackInventory = variant.trackInventory;
+
+			// In stock if: has stock > 0 OR inventory tracking is disabled for this variant
+			// trackInventory can be 'FALSE', 'TRUE', or 'INHERIT' (inherits from global/channel settings)
+			const isInStock = stockLevel > 0 || trackInventory === 'FALSE';
+
+			return isInStock;
 		});
 	};
 });
@@ -204,21 +227,24 @@ const handleColorSelect = $((colorOption: ProductOption) => {
 			)}
 
 			{/* Size Selection */}
-			{availableSizes.value.length > 0 && (
+			{allSizes.value.length > 0 && (
 				<div class="mb-6">
 					<h3 class="text-sm font-medium text-gray-900 mb-3">Size</h3>
 					<div class="flex flex-wrap gap-2">
-						{availableSizes.value.map((sizeOption) => {
+						{allSizes.value.map((sizeOption) => {
 							const isSelected = selectedSize.value?.id === sizeOption.id;
+							const isAvailable = isSizeAvailable.value(sizeOption);
 
 							return (
 								<button
 									key={sizeOption.id}
 									onClick$={() => handleSizeSelect(sizeOption)}
+									disabled={!isAvailable}
 									class={{
 										'px-4 py-2 text-sm font-medium rounded-md border transition-all duration-200': true,
 										'bg-[#937237] text-white border-[#937237]': isSelected,
-										'bg-white text-gray-900 border-gray-300 hover:bg-[#FAC658] hover:border-[#CD9E34]': !isSelected,
+										'bg-white text-gray-900 border-gray-300 hover:bg-[#FAC658] hover:border-[#CD9E34]': !isSelected && isAvailable,
+										'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed': !isAvailable,
 									}}
 								>
 									{sizeOption.name}

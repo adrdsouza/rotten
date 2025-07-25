@@ -79,6 +79,33 @@ module.exports = {
       out_file: 'logs/pm2-worker-out.log',
       error_file: 'logs/pm2-worker-error.log',
       merge_logs: true,
+    },
+    {
+      name: "redis-monitor",
+      script: "redis-monitor.js",
+
+      // Single instance monitoring process
+      instances: 1,
+      exec_mode: "fork",
+
+      env: {
+        NODE_ENV: "production",
+        APP_ENV: "prod"
+      },
+
+      // Monitor restart policies
+      max_memory_restart: "100M",
+      autorestart: true,
+      restart_delay: 10000, // Wait 10s before restart
+      max_restarts: 10,
+      min_uptime: '30s',
+
+      // Redis monitor logging
+      log_file: 'logs/pm2-redis-monitor.log',
+      out_file: 'logs/pm2-redis-monitor-out.log',
+      error_file: 'logs/pm2-redis-monitor-error.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
     }
   ]
 };

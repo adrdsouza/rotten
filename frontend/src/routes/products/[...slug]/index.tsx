@@ -289,22 +289,27 @@ export default component$(() => {
 	
 	// Check if ALL variants are sold out for product-level badge
 	const allVariantsSoldOut = useComputed$(() => {
-		return product.variants.every(variant => 
-			variant.stockLevel !== undefined && 
-			variant.stockLevel !== null && 
-			variant.stockLevel === '0'
-		);
+		return product.variants.every(variant => {
+			const stockLevel = parseInt(variant.stockLevel || '0');
+			const trackInventory = variant.trackInventory;
+
+			// Variant is out of stock if: stockLevel is 0 AND inventory tracking is enabled
+			// If trackInventory is 'FALSE', the variant is always available regardless of stockLevel
+			const isOutOfStock = stockLevel === 0 && trackInventory !== 'FALSE';
+
+			return isOutOfStock;
+		});
 	});
 	
 	const isOutOfStock = useComputed$(() => {
-		const stockLevel = selectedVariant.value?.stockLevel;
-		// console.log('[isOutOfStock DEBUG]', {
-		// 	variantId: selectedVariant.value?.id,
-		// 	stockLevel,
-		// 	type: typeof stockLevel,
-		// 	allVariants: product.variants.map(v => ({ id: v.id, stockLevel: v.stockLevel }))
-		// });
-		return stockLevel !== undefined && stockLevel !== null && stockLevel === '0';
+		if (!selectedVariant.value) return false;
+
+		const stockLevel = parseInt(selectedVariant.value.stockLevel || '0');
+		const trackInventory = selectedVariant.value.trackInventory;
+
+		// Variant is out of stock if: stockLevel is 0 AND inventory tracking is enabled
+		// If trackInventory is 'FALSE', the variant is always available regardless of stockLevel
+		return stockLevel === 0 && trackInventory !== 'FALSE';
 	});
 
 	const addItemToOrderErrorSignal = useSignal('');

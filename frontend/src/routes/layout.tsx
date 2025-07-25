@@ -22,9 +22,17 @@ import Header from '../components/header/header';
 import Footer from '../components/footer/footer';
 import { CartProvider } from '~/contexts/CartContext';
 
-export const onGet: RequestHandler = async ({ cacheControl }) => {
-	// For pages: short cache with stale-while-revalidate for fresh content
-	cacheControl({ staleWhileRevalidate: 60 * 60 * 24 * 7, maxAge: 60 * 5 }); // 5 minutes fresh, 7 days stale
+export const onGet: RequestHandler = async ({ cacheControl, url }) => {
+	// Different caching strategies based on page type
+	const pathname = url.pathname;
+
+	if (pathname.startsWith('/products/') || pathname.startsWith('/shop')) {
+		// Product and shop pages: minimal cache for real-time inventory
+		cacheControl({ maxAge: 0, sMaxAge: 30 }); // No browser cache, 30s CDN cache
+	} else {
+		// Other pages: longer cache for static content
+		cacheControl({ staleWhileRevalidate: 60 * 60 * 24 * 7, maxAge: 60 * 5 }); // 5 minutes fresh, 7 days stale
+	}
 };
 
 export const useCollectionsLoader = routeLoader$(async () => {
