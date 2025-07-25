@@ -21,6 +21,7 @@ import HeroImageJPEG_768 from '~/media/hero.png?format=jpeg&width=768&quality=95
 import HeroImageJPEG_1024 from '~/media/hero.png?format=jpeg&width=1024&quality=95&url';
 import HeroImageJPEG_1600 from '~/media/hero.png?format=jpeg&width=1600&quality=95&url';
 import HeroImageJPEG_2000 from '~/media/hero.png?format=jpeg&width=2000&quality=95&url';
+// Video is now in public folder
 
 // 🚀 MODERN STYLES: Clean, performance-focused design
 const MODERN_STYLES = `
@@ -85,14 +86,7 @@ const MODERN_STYLES = `
     box-shadow: 0 20px 40px rgba(0,0,0,0.1);
   }
 
-  /* Trustpilot colors */
-  .trustpilot-green {
-    color: #00b67a;
-  }
 
-  .trustpilot-star {
-    color: #00b67a;
-  }
 ` as const;
 
 export default component$(() => {
@@ -134,188 +128,107 @@ export default component$(() => {
           <div class="absolute inset-0 hero-overlay"></div>
         </div>
 
-        {/* Hero Content */}
-        <div class="relative z-10 h-full flex flex-col items-center justify-end lg:flex-row lg:items-end lg:justify-between px-6 sm:px-8 lg:px-16 xl:px-20 pb-28 sm:pb-32 lg:pb-16">
-          <div class="text-center lg:text-left max-w-2xl mb-8 lg:mb-0">
-            <h1 class="font-heading tracking-wider text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white leading-none mb-4 lg:mb-6">
-              PREMIUM CLOTHING,
+        {/* Hero Content - Clean, Premium Design */}
+        <div class="relative z-10 h-full flex items-end justify-center px-6 sm:px-8 lg:px-16 pb-16 sm:pb-20 lg:pb-24">
+          <div class="text-center max-w-3xl">
+            <h1 class="font-heading text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-light text-white leading-tight mb-6 tracking-tight">
+              One Shirt. 18 Options.<br/>
+              <span class="font-normal">Zero Bullshit.</span>
             </h1>
-            <p class="font-body text-sm sm:text-base lg:text-lg xl:text-xl text-white lg:text-[#937237] font-bold tracking-wider">
-              FOR THE MODERN WARDROBE.
+            <p class="font-body text-base sm:text-lg lg:text-xl text-white/90 font-light leading-relaxed mb-8 max-w-xl mx-auto">
+              If it's not the softest shirt you've ever felt, we'll pay you back
             </p>
+            <Link
+              href="/shop"
+              prefetch
+              class="inline-block bg-[#937237] text-white px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#CD9E34] hover:scale-105 hover:shadow-xl rounded-lg shadow-lg border border-[#937237]"
+            >
+              <div class="text-4xl font-bold uppercase tracking-widest">SHOP</div>
+              <div class="text-xs uppercase tracking-wide mt-1">Our Money Back Guarantee</div>
+            </Link>
           </div>
-          <Link
-            href="/shop"
-            prefetch
-            class="bg-[#937237] hover:bg-[#CD9E34] text-white px-6 py-3 sm:px-8 sm:py-4 text-sm sm:text-base lg:text-lg font-bold tracking-wide transition-all duration-300 hover:shadow-xl uppercase whitespace-nowrap rounded-full cursor-pointer inline-block text-center"
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section class="py-20 lg:py-32 bg-gray-50">
+        <div class="max-w-6xl mx-auto px-8 lg:px-16">
+          <div class="text-center mb-16">
+            <h2 class="text-4xl lg:text-5xl font-light text-black mb-6">
+              Built to Last <span class="font-normal text-[#937237]">Decades</span>
+            </h2>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-16">
+            <div class="text-center">
+              <h3 class="text-xl font-medium text-black mb-4">Ethically Made</h3>
+              <p class="text-gray-600 leading-relaxed">
+                Fair wages and safe working conditions in our Indian production facilities.
+              </p>
+            </div>
+            <div class="text-center">
+              <h3 class="text-xl font-medium text-black mb-4">Built to Last</h3>
+              <p class="text-gray-600 leading-relaxed">
+                Premium materials and construction techniques for decades of wear.
+              </p>
+            </div>
+            <div class="text-center">
+              <h3 class="text-xl font-medium text-black mb-4">Sustainable</h3>
+              <p class="text-gray-600 leading-relaxed">
+                Tagua nut buttons and packaging made from waste materials.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Conscious Consumption Section - Brand Story with Background Video/Image */}
+      <section class="relative min-h-[70vh] overflow-hidden">
+        {/* Background Video */}
+        <div class="absolute inset-0">
+          <video
+            autoplay
+            muted
+            loop
+            playsInline
+            class="w-full h-full object-cover"
           >
-            SHOP NOW →
-          </Link>
+            <source src="/homepage.mp4" type="video/mp4" />
+          </video>
+          {/* Video overlay for better text readability */}
+          <div class="absolute inset-0 bg-black/40"></div>
         </div>
-      </section>
 
-      {/* Features + Brand Story Section - Clean 50/50 split */}
-      <section class="bg-[#F5F5F5]">
-        <div class="max-w-full">
-          <div class="grid lg:grid-cols-2 gap-0">
-
-            {/* Left: 2x2 Features Grid */}
-            <div class="bg-[#F5F5F5] py-12 px-6 sm:px-8 lg:px-12 xl:px-16 flex flex-col justify-center">
-              <div class="w-full max-w-lg mx-auto">
-                <div class="grid grid-cols-2 gap-8 sm:gap-10 lg:gap-12">
-
-                  <div class="text-center group">
-                    <div class="w-14 h-14 sm:w-16 sm:h-16 bg-[#937237] mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <svg class="w-7 h-7 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10L4 7v10l8 4" />
-                      </svg>
-                    </div>
-                    <h3 class="text-sm sm:text-base font-bold mb-2 text-gray-900">FREE SHIPPING</h3>
-                    <p class="text-gray-600 text-xs sm:text-sm">Orders over $100</p>
-                  </div>
-
-                  <div class="text-center group">
-                    <div class="w-14 h-14 sm:w-16 sm:h-16 bg-[#937237] mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <svg class="w-7 h-7 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                      </svg>
-                    </div>
-                    <h3 class="text-sm sm:text-base font-bold mb-2 text-gray-900">PREMIUM MATERIALS</h3>
-                    <p class="text-gray-600 text-xs sm:text-sm">Finest fabrics & construction</p>
-                  </div>
-
-                  <div class="text-center group">
-                    <div class="w-14 h-14 sm:w-16 sm:h-16 bg-[#937237] mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <svg class="w-7 h-7 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 10h22" />
-                      </svg>
-                    </div>
-                    <h3 class="text-sm sm:text-base font-bold mb-2 text-gray-900">BUY NOW, PAY LATER</h3>
-                    <p class="text-gray-600 text-xs sm:text-sm">4 interest-free payments</p>
-                  </div>
-
-                  <div class="text-center group">
-                    <div class="w-14 h-14 sm:w-16 sm:h-16 bg-[#937237] mx-auto mb-4 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <svg class="w-7 h-7 sm:w-8 sm:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                      </svg>
-                    </div>
-                    <h3 class="text-sm sm:text-base font-bold mb-2 text-gray-900">QUALITY GUARANTEE</h3>
-                    <p class="text-gray-600 text-xs sm:text-sm">Satisfaction guaranteed</p>
-                  </div>
-
-                </div>
+        {/* Content - Positioned on the left */}
+        <div class="relative z-10 h-full flex items-center">
+          <div class="w-full px-8 lg:px-16 py-20">
+            <div class="max-w-2xl">
+              <h2 class="text-4xl lg:text-6xl font-light mb-8 leading-tight text-white">
+                Conscious consumption<br/>
+                <span class="font-normal text-[#FAC658]">over mindless accumulation.</span>
+              </h2>
+              <div class="text-xl text-gray-200 leading-relaxed mb-12 space-y-6">
+                <p>
+                  We're not launching a clothing line—we're challenging an industry. While fast fashion creates 52 seasons per year, we perfected two pieces built to last decades.
+                </p>
+                <p>
+                  Ethically produced in India with fair wages. No child labor. No exploitation. Just honest work creating honest products.
+                </p>
+              </div>
+              <div>
+                <Link
+                  href="/shop"
+                  prefetch
+                  class="inline-block bg-[#937237] text-white px-10 py-4 text-base font-medium tracking-wide transition-all duration-300 hover:bg-[#CD9E34] hover:scale-105 uppercase rounded-lg shadow-lg"
+                >
+                  Shop Consciously
+                </Link>
               </div>
             </div>
-
-            {/* Right: Brand Story */}
-            <div class="bg-white py-12 px-6 sm:px-8 lg:px-12 xl:px-16 flex flex-col justify-center">
-              <div class="max-w-lg">
-                <h2 class="text-3xl sm:text-4xl font-bold mb-6 leading-tight text-gray-900">
-                  OUR<br/>
-                  <span class="text-[#937237]">STORY</span>
-                </h2>
-                <div class="text-sm sm:text-base text-gray-700 leading-relaxed mb-8 space-y-4">
-                  <p>
-                    At Rotten Hand, we're passionate about creating exceptional clothing
-                    that combines innovative design, premium materials, and superior craftsmanship.
-                  </p>
-                  <p>
-                    Each piece we create is a perfect balance of style and comfort, designed to be worn
-                    and appreciated for years to come.
-                  </p>
-                </div>
-                <div>
-                  <Link
-                    href="/shop"
-                    prefetch
-                    class="bg-[#937237] hover:bg-[#CD9E34] text-white font-bold tracking-wide transition-all duration-300 transform hover:scale-105 uppercase rounded-lg shadow-lg cursor-pointer px-6 py-3 text-sm sm:text-base inline-block"
-                  >
-                    VIEW COLLECTION →
-                  </Link>
-                </div>
-              </div>
-            </div>
-
           </div>
         </div>
       </section>
 
-      {/* Trustpilot Section - Cleaned up and compact */}
-      <section class="py-16 bg-gray-900 text-white">
-        <div class="max-w-7xl mx-auto px-6">
-          <div class="text-center mb-12">
-            <div class="flex items-center justify-center mb-6">
-              <svg class="w-10 h-10 trustpilot-green mr-3" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-              </svg>
-              <h2 class="text-4xl font-bold text-white">TRUSTED BY <span class="trustpilot-green">COLLECTORS</span></h2>
-            </div>
-            <div class="flex items-center justify-center mb-4">
-              {[...Array(5)].map((_, i) => (
-                <svg key={i} class="w-8 h-8 trustpilot-star fill-current mr-1" viewBox="0 0 24 24">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                </svg>
-              ))}
-            </div>
-            <p class="text-xl text-gray-300">
-              <span class="font-bold text-white">4.7 out of 5</span> • <span class="font-bold text-white">298 reviews</span>
-            </p>
-          </div>
 
-          <div class="grid md:grid-cols-3 gap-6 mb-12">
-            <div class="bg-[#F5F5F5] p-6 rounded-lg">
-              <div class="flex mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <svg key={i} class="w-4 h-4 trustpilot-star fill-current mr-1" viewBox="0 0 24 24">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                  </svg>
-                ))}
-              </div>
-              <p class="text-gray-700 mb-4 leading-relaxed">
-                "Absolutely amazing company with phenomenal customer service, fast shipping, and out of this world designs and products."
-              </p>
-              <p class="text-sm text-gray-600 font-semibold uppercase tracking-wide">— JONATHAN RIVERA</p>
-            </div>
-
-            <div class="bg-[#F5F5F5] p-6 rounded-lg">
-              <div class="flex mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <svg key={i} class="w-4 h-4 trustpilot-star fill-current mr-1" viewBox="0 0 24 24">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                  </svg>
-                ))}
-              </div>
-              <p class="text-gray-700 mb-4 leading-relaxed">
-                "Quick shipping to the UK. Great quality knife. The Cerberus is great for gardening and food prep."
-              </p>
-              <p class="text-sm text-gray-600 font-semibold uppercase tracking-wide">— MODGE</p>
-            </div>
-
-            <div class="bg-[#F5F5F5] p-6 rounded-lg">
-              <div class="flex mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <svg key={i} class="w-4 h-4 trustpilot-star fill-current mr-1" viewBox="0 0 24 24">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                  </svg>
-                ))}
-              </div>
-              <p class="text-gray-700 mb-4 leading-relaxed">
-                "Great lil knives! Comfy and compact designs with great front flipper action. Shipping was quick."
-              </p>
-              <p class="text-sm text-gray-600 font-semibold uppercase tracking-wide">— MICHAEL SHARP</p>
-            </div>
-          </div>
-
-          <div class="text-center">
-            <a href="https://www.trustpilot.com/review/rottenhand.com" target="_blank" rel="noopener noreferrer"
-              class="trustpilot-green hover:text-white font-bold text-lg uppercase tracking-wide transition-colors">
-              READ ALL 298 REVIEWS →
-            </a>
-          </div>
-        </div>
-      </section>
 
 
 
@@ -328,8 +241,8 @@ export default component$(() => {
 
 export const head = () => {
   return createSEOHead({
-    title: 'Rotten Hand - Premium Clothing',
-    description: 'Premium clothing collection. Shop our unique selection of shirts, pants, kimonos, dresses, and jackets.',
+    title: 'Rotten Hand - Conscious Fashion, Two Perfect Shirts',
+    description: 'Two shirts. Zero compromise. Ethically made in India with fair wages. Built to last decades, not seasons. Why buy garbage when you can buy forever?',
     noindex: false,
     links: [
       // 🚀 OPTIMIZED: Only preload hero image for optimal LCP
