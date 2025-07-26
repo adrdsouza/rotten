@@ -13,27 +13,40 @@ export const Head = component$(() => {
 		<head>
 			<meta charSet="utf-8" />
 			<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-			<meta name="theme-color" content="#000000" />
+			<meta name="theme-color" content="#1a1a1a" />
+			<meta name="theme-color" content="#2a2a2a" media="(prefers-color-scheme: light)" />
+			<meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)" />
+			<meta name="color-scheme" content="dark light" />
 			<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-			
+
+			{/* Inline style to ensure dark background for Safari status bar detection */}
+			<style>{`
+				html {
+					background-color: #1a1a1a;
+				}
+				body {
+					background-color: transparent;
+					margin: 0;
+					padding: 0;
+				}
+			`}</style>
+
 			{/* iPhone Advanced Privacy Protection compatibility */}
 			<meta name="apple-mobile-web-app-capable" content="yes" />
 			<meta name="apple-mobile-web-app-title" content="Rotten Hand" />
 			<meta name="format-detection" content="telephone=no" />
 			<meta name="msapplication-tap-highlight" content="no" />
-			
+
 			{/* Privacy-friendly tracking prevention */}
 			<meta name="referrer" content="strict-origin-when-cross-origin" />
 			<meta httpEquiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https://demo.vendure.io;" />
-			
+
 			{/* Disable problematic features that trigger privacy warnings */}
 			<meta name="apple-touch-fullscreen" content="yes" />
 			<meta name="mobile-web-app-capable" content="yes" />
-			
+
 			{/* Additional iOS privacy-friendly settings */}
 			<meta name="apple-mobile-web-app-orientations" content="portrait" />
-			<meta name="apple-mobile-web-app-status-bar-style" content="default" />
-			<meta name="format-detection" content="telephone=no" />
 			<meta name="msapplication-TileColor" content="#000000" />
 			<meta name="msapplication-config" content="none" />
 			

@@ -26,8 +26,8 @@ export const onGet: RequestHandler = async ({ cacheControl, url }) => {
 	// Different caching strategies based on page type
 	const pathname = url.pathname;
 
-	if (pathname.startsWith('/products/') || pathname.startsWith('/shop')) {
-		// Product and shop pages: minimal cache for real-time inventory
+	if (pathname.startsWith('/shop')) {
+		// Shop page: minimal cache for real-time inventory
 		cacheControl({ maxAge: 0, sMaxAge: 30 }); // No browser cache, 30s CDN cache
 	} else {
 		// Other pages: longer cache for static content

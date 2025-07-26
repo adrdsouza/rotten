@@ -25,9 +25,16 @@ import HeroImageJPEG_2000 from '~/media/hero.png?format=jpeg&width=2000&quality=
 
 // 🚀 MODERN STYLES: Clean, performance-focused design
 const MODERN_STYLES = `
-  /* Prevent horizontal scroll */
-  html, body {
+  /* Prevent horizontal scroll and Safari iOS viewport fixes */
+  html {
     overflow-x: hidden;
+    height: -webkit-fill-available;
+  }
+
+  body {
+    overflow-x: hidden;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
   }
 
   /* Hero image optimization */
@@ -55,23 +62,54 @@ const MODERN_STYLES = `
 
   /* Hero section */
   .hero-section {
-    height: 70vh;
+    height: 100vh;
+    width: 100%;
     min-height: 500px;
+    /* Safari iOS fix */
+    height: calc(var(--vh, 1vh) * 100);
   }
 
-  @media (min-width: 1024px) {
+  /* Modern viewport units - svh prevents shifting when Safari URL bar appears/disappears */
+  @supports (height: 100svh) {
     .hero-section {
-      height: 100vh;
+      height: 100svh;
     }
   }
 
-  @supports (height: 100dvh) {
+  /* Fallback for browsers that support dvh but not svh */
+  @supports (height: 100dvh) and (not (height: 100svh)) {
     .hero-section {
-      height: 70dvh;
+      height: 100dvh;
     }
-    @media (min-width: 1024px) {
+  }
+
+  /* Safari-specific fixes */
+  @supports (-webkit-touch-callout: none) {
+    .hero-section {
+      height: -webkit-fill-available;
+      min-height: -webkit-fill-available;
+    }
+  }
+
+  /* Mobile-specific fixes */
+  @media screen and (max-width: 768px) {
+    .hero-section {
+      width: 100vw;
+      height: var(--actual-height, 100vh);
+      min-height: var(--actual-height, 100vh);
+    }
+
+    /* Modern viewport units for mobile */
+    @supports (height: 100svh) {
       .hero-section {
-        height: 100dvh;
+        height: 100svh;
+        min-height: 100svh;
+      }
+    }
+
+    @supports (width: 100dvw) {
+      .hero-section {
+        width: 100dvw;
       }
     }
   }

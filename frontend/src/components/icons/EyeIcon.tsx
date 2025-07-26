@@ -1,6 +1,6 @@
 import { component$ } from '@qwik.dev/core';
 
-export default component$<{ forcedClass?: string }>(({ forcedClass }) => {
+export default component$(() => {
 	return (
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
@@ -8,7 +8,7 @@ export default component$<{ forcedClass?: string }>(({ forcedClass }) => {
 			viewBox="0 0 24 24"
 			stroke-width="1.5"
 			stroke="currentColor"
-			class={forcedClass || 'w-6 h-6'}
+			class="w-5 h-5"
 		>
 			<path
 				stroke-linecap="round"

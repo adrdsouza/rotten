@@ -1,40 +1,9 @@
 import gql from 'graphql-tag';
-import { SearchInput, SearchResponse } from '~/generated/graphql';
 import { shopSdk } from '~/graphql-wrapper';
 // Collections imports removed - no longer using cached versions
 
 // ❌ REMOVED: GraphQL caching removed for real-time stock accuracy
 // Stock information must always be fresh for ecommerce
-
-export const search = async (searchInput: SearchInput) => {
-	return await shopSdk
-		.search({ input: { groupByProduct: true, ...searchInput } })
-		.then((res) => res.search as SearchResponse);
-};
-
-export const searchQueryWithCollectionSlug = async (collectionSlug: string) =>
-	search({ collectionSlug });
-
-export const searchQueryWithTerm = async (
-	collectionSlug: string,
-	term: string,
-	facetValueIds: string[],
-	skip: number = 0,
-	take: number = 10
-) => search({ collectionSlug, term, facetValueFilters: [{ or: facetValueIds }], skip, take });
-
-// 🚀 OPTIMIZED SEARCH - Use existing search with optimized parameters
-export const searchOptimized = async (searchInput: SearchInput) => {
-	// Use existing search method but with optimized input parameters
-	const optimizedInput = {
-		...searchInput,
-		groupByProduct: true,
-		// Only request facets when needed (reduces payload size)
-		facetValueFilters: searchInput.facetValueFilters || undefined,
-	};
-
-	return search(optimizedInput);
-};
 
 // ❌ REMOVED: Collections caching removed for data freshness
 // Use direct getCollections() and getCollectionBySlug() calls
@@ -121,37 +90,4 @@ gql`
 	${detailedProductFragment}
 `;
 
-export const listedProductFragment = gql`
-	fragment ListedProduct on SearchResult {
-		productId
-		productName
-		slug
-		productAsset {
-			id
-			preview
-		}
-		currencyCode
-		inStock
-		priceWithTax {
-			... on PriceRange {
-				min
-				max
-			}
-			... on SinglePrice {
-				value
-			}
-		}
-	}
-`;
 
-gql`
-	query search($input: SearchInput!) {
-		search(input: $input) {
-			totalItems
-			items {
-				...ListedProduct
-			}
-		}
-	}
-	${listedProductFragment}
-`;

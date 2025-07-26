@@ -9,6 +9,7 @@ import { useLocalCart, addToLocalCart } from '~/contexts/CartContext';
 import { APP_STATE } from '~/constants';
 import { loadCountryOnDemand } from '~/utils/addressStorage';
 import { LocalCartService } from '~/services/LocalCartService';
+import ShopImageUrl from '~/media/shop.jpg?url';
 
 
 // Helper functions moved outside component to avoid lexical scope issues
@@ -296,8 +297,15 @@ export default component$(() => {
   // Update current product image when selectedProduct changes
   useVisibleTask$(({ track }) => {
     track(() => selectedProduct.value);
-    if (selectedProduct.value?.featuredAsset) {
-      currentProductImage.value = selectedProduct.value.featuredAsset;
+    if (selectedProduct.value) {
+      // Prioritize featuredAsset, then first asset, then placeholder
+      if (selectedProduct.value.featuredAsset) {
+        currentProductImage.value = selectedProduct.value.featuredAsset;
+      } else if (selectedProduct.value.assets && selectedProduct.value.assets.length > 0) {
+        currentProductImage.value = selectedProduct.value.assets[0];
+      } else {
+        currentProductImage.value = { id: 'placeholder', preview: '/asset_placeholder.webp' };
+      }
     }
   });
 
@@ -372,35 +380,108 @@ export default component$(() => {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
 
           {/* Product Image */}
-          <div class="order-2 lg:order-1 pt-6">
+          <div class="order-1 lg:order-1 pt-6">
             <div class="sticky top-24">
-              {currentProductImage.value ? (
-                <OptimizedImage
-                  key={selectedProduct.value?.id || 'no-product'}
-                  src={currentProductImage.value.preview}
-                  alt={selectedProduct.value?.name || 'Product'}
-                  width={600}
-                  height={600}
-                  class="w-full h-auto rounded-lg shadow-lg"
-                />
-              ) : (
-                <OptimizedImage
-                  key="shop-default"
-                  src="/shop.jpg"
-                  alt="Choose your perfect shirt style"
-                  width={600}
-                  height={600}
-                  class="w-full h-auto rounded-lg shadow-lg"
-                />
-              )}
+              <div class="flex gap-4">
+                {/* Thumbnail Images - Left Side - Always show to prevent layout shift */}
+                <div class="flex flex-col gap-2 w-[22%] max-w-[180px] min-w-[80px]">
+                  {selectedProduct.value ? (
+                    (() => {
+                      // Create a combined array of all available assets
+                      const allAssets = [];
+
+                      // Add featured asset first if it exists
+                      if (selectedProduct.value.featuredAsset) {
+                        allAssets.push(selectedProduct.value.featuredAsset);
+                      }
+
+                      // Add other assets, avoiding duplicates
+                      if (selectedProduct.value?.assets && selectedProduct.value.assets.length > 0) {
+                        selectedProduct.value.assets.forEach((asset: any) => {
+                          if (!selectedProduct.value?.featuredAsset || asset.id !== selectedProduct.value.featuredAsset.id) {
+                            allAssets.push(asset);
+                          }
+                        });
+                      }
+
+                      // If no assets at all, show placeholder
+                      if (allAssets.length === 0) {
+                        allAssets.push({ id: 'placeholder', preview: '/asset_placeholder.webp' });
+                      }
+
+                      return allAssets.map((asset: any, index: number) => (
+                        <div
+                          key={asset.id}
+                          class={{
+                            'border-2 cursor-pointer rounded-lg overflow-hidden aspect-4/5 transition-all duration-200 transform hover:scale-105 hover:shadow-md': true,
+                            'border-black scale-105': currentProductImage.value?.id === asset.id,
+                            'border-gray-200': currentProductImage.value?.id !== asset.id,
+                          }}
+                          onClick$={() => {
+                            currentProductImage.value = asset;
+                          }}
+                        >
+                          <OptimizedImage
+                            src={asset.preview}
+                            class="w-full h-full object-cover transition-all duration-200 hover:opacity-80"
+                            width={360}
+                            height={450}
+                            responsive="thumbnail"
+                            alt={`Thumbnail ${index + 1} of ${selectedProduct.value?.name || 'Product'}`}
+                            loading="lazy"
+                          />
+                        </div>
+                      ));
+                    })()
+                  ) : (
+                    // Default thumbnail when no product is selected - show the shop.jpg image
+                    <div class="border-2 border-gray-200 rounded-lg overflow-hidden aspect-4/5">
+                      <OptimizedImage
+                        src={ShopImageUrl}
+                        class="w-full h-full object-cover"
+                        width={360}
+                        height={450}
+                        responsive="thumbnail"
+                        alt="Choose your perfect shirt style"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Main Image */}
+                <div class="flex-1">
+                  {selectedProduct.value ? (
+                    <OptimizedImage
+                      key={selectedProduct.value?.id || 'no-product'}
+                      src={currentProductImage.value?.preview || selectedProduct.value.featuredAsset?.preview || '/asset_placeholder.webp'}
+                      alt={selectedProduct.value?.name || 'Product'}
+                      width={600}
+                      height={750}
+                      class="w-full h-auto rounded-lg shadow-lg aspect-4/5 object-cover"
+                      responsive="productMain"
+                    />
+                  ) : (
+                    <OptimizedImage
+                      key="shop-default"
+                      src={ShopImageUrl}
+                      alt="Choose your perfect shirt style"
+                      width={600}
+                      height={750}
+                      class="w-full h-auto rounded-lg shadow-lg aspect-4/5 object-cover"
+                      responsive="productMain"
+                    />
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Customization Steps */}
-          <div class="order-1 lg:order-2 lg:pt-8 pt-6">
+          <div class="order-2 lg:order-2 lg:pt-8 pt-6">
 
             {/* New Product Selector */}
-            <div class="bg-white rounded-2xl px-8 pb-8 pt-4 shadow-lg">
+            <div class="bg-[#f5f5f5] rounded-2xl px-8 pb-8 pt-4 shadow-lg">
 
               {/* Sizing Note */}
               <div class="bg-gray-50 border border-gray-200 rounded-lg p-2 mb-2 text-sm text-gray-600 text-center">
@@ -409,7 +490,7 @@ export default component$(() => {
 
               {/* Style Selection */}
               <div class={{
-                'mb-4 p-3 rounded-lg border-2 transition-all duration-300': true,
+                'p-3 rounded-t-lg border-2 transition-all duration-300': true,
                 'border-[#B09983] bg-[#B09983]/5': !selectedStyle.value, // Active when no style selected
                 'border-gray-200 bg-gray-50': selectedStyle.value // Completed state
               }}>
@@ -426,7 +507,7 @@ export default component$(() => {
                   {productsData.value.shortSleeve && (
                     <div
                       class={{
-                        'flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 text-center': true,
+                        'flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 text-center bg-white': true,
                         'border-[#B09983] bg-gray-50': selectedStyle.value === 'short',
                         'border-gray-200 hover:border-[#B09983]': selectedStyle.value !== 'short'
                       }}
@@ -447,7 +528,7 @@ export default component$(() => {
                   {productsData.value.longSleeve && (
                     <div
                       class={{
-                        'flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 text-center': true,
+                        'flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 text-center bg-white': true,
                         'border-[#B09983] bg-gray-50': selectedStyle.value === 'long',
                         'border-gray-200 hover:border-[#B09983]': selectedStyle.value !== 'long'
                       }}
@@ -469,7 +550,8 @@ export default component$(() => {
               </div>
               {/* Size Selection */}
               <div class={{
-                'mb-4 p-3 rounded-lg border-2 transition-all duration-300': true,
+                'p-3 border-2 transition-all duration-300': true,
+                'border-t-0': !(selectedStyle.value && !selectedSize.value), // Remove top border unless active
                 'border-[#B09983] bg-[#B09983]/5': selectedStyle.value && !selectedSize.value, // Active when style selected but no size
                 'border-gray-200 bg-gray-50': !!selectedSize.value, // Completed state
                 'border-gray-200 bg-gray-100 opacity-60 cursor-not-allowed': !selectedStyle.value // Inactive state
@@ -494,7 +576,7 @@ export default component$(() => {
                         <div
                           key={sizeOption.id}
                           class={{
-                            'flex-1 p-3 border-2 rounded-lg transition-all duration-200 text-center': true,
+                            'flex-1 p-3 border-2 rounded-lg transition-all duration-200 text-center bg-white': true,
                             'border-[#B09983] bg-gray-50 cursor-pointer': isSelected,
                             'border-gray-200 hover:border-[#B09983] cursor-pointer': !isSelected && isAvailable,
                             'border-gray-200 cursor-not-allowed opacity-50': !isAvailable
@@ -516,7 +598,7 @@ export default component$(() => {
                     ['Small', 'Medium', 'Large'].map((size) => (
                       <div
                         key={size}
-                        class="flex-1 p-3 border-2 border-gray-200 rounded-lg text-center cursor-not-allowed opacity-50"
+                        class="flex-1 p-3 border-2 border-gray-200 rounded-lg text-center cursor-not-allowed opacity-50 bg-white"
                       >
                         <div class="font-semibold text-base mb-1">{size}</div>
                         <div class="text-gray-600 text-xs leading-tight">
@@ -533,7 +615,8 @@ export default component$(() => {
 
               {/* Color Selection */}
               <div class={{
-                'mb-4 p-3 rounded-lg border-2 transition-all duration-300': true,
+                'p-3 border-2 transition-all duration-300': true,
+                'border-t-0': !(selectedSize.value && !selectedColor.value), // Remove top border unless active
                 'border-[#B09983] bg-[#B09983]/5': selectedSize.value && !selectedColor.value, // Active when size selected but no color
                 'border-gray-200 bg-gray-50': !!selectedColor.value, // Completed state
                 'border-gray-200 bg-gray-100 opacity-60 cursor-not-allowed': !selectedSize.value // Inactive state
@@ -576,7 +659,7 @@ export default component$(() => {
                             [`p-3 border-2 rounded-lg transition-all duration-200 text-center text-xs font-semibold ${getColorStyle(colorOption.name)}`]: true,
                             'border-[#B09983] border-4 cursor-pointer': isSelected,
                             'border-gray-300 hover:border-[#B09983] hover:-translate-y-0.5 cursor-pointer': !isSelected && isAvailable,
-                            'cursor-not-allowed opacity-50': !isAvailable
+                            'cursor-not-allowed opacity-30': !isAvailable
                           }}
                           onClick$={() => {
                             if (isAvailable) {
@@ -592,7 +675,7 @@ export default component$(() => {
                     ['Midnight black', 'Cloud white', 'Storm grey', 'Deep purple', 'Blood red', 'Electric blue', 'Hot pink', 'Desert yellow', 'Forest green'].map((color) => (
                       <div
                         key={color}
-                        class="p-3 border-2 border-gray-200 rounded-lg text-center text-xs font-semibold cursor-not-allowed opacity-50 bg-gray-100 text-gray-400"
+                        class="p-3 border-2 border-gray-200 rounded-lg text-center text-xs font-semibold cursor-not-allowed opacity-30 bg-white text-gray-400"
                       >
                         {color}
                       </div>
@@ -601,7 +684,7 @@ export default component$(() => {
                 </div>
               </div>
               {/* Selection Summary */}
-              <div class="bg-[#B09983] text-white p-4 rounded-xl">
+              <div class="bg-black text-white p-4 rounded-b-xl border-t-0">
                 <div class="grid grid-cols-3 gap-4 mb-4">
                   <div class="text-center">
                     <div class="text-sm opacity-80 mb-1">Style</div>
@@ -621,8 +704,8 @@ export default component$(() => {
                   disabled={isAddingToCart.value || !selectedVariantId.value}
                   class={{
                     'w-full py-3 px-6 rounded-lg font-semibold transition-all duration-200': true,
-                    'bg-white text-gray-800 hover:bg-gray-100 cursor-pointer': !isAddingToCart.value && selectedVariantId.value,
-                    'bg-gray-300 text-gray-500 cursor-not-allowed': isAddingToCart.value || !selectedVariantId.value,
+                    'bg-[#B09983] text-white hover:bg-[#4F3B26] cursor-pointer': !isAddingToCart.value && selectedVariantId.value,
+                    'bg-[#B09983] text-white cursor-not-allowed': isAddingToCart.value || !selectedVariantId.value,
                   }}
                 >
                   {isAddingToCart.value ? (
@@ -630,6 +713,12 @@ export default component$(() => {
                       <div class="w-5 h-5 border-2 border-gray-500 border-t-transparent rounded-full animate-spin mr-2"></div>
                       Adding to Cart...
                     </span>
+                  ) : !selectedStyle.value ? (
+                    'Select style'
+                  ) : !selectedSize.value ? (
+                    'Select size'
+                  ) : !selectedColor.value ? (
+                    'Select color'
                   ) : selectedProduct.value ? (
                     <span class="flex items-center justify-center">
                       Add to Cart - <Price
@@ -639,7 +728,7 @@ export default component$(() => {
                       />
                     </span>
                   ) : (
-                    'Select options above'
+                    'Select style'
                   )}
                 </button>
               </div>

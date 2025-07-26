@@ -213,16 +213,7 @@ export type Search = {
 	facetValues: FilterFacetValue[];
 };
 
-export type FacetWithValues = {
-	id: string;
-	name: string;
-	open: boolean;
-	values: Array<{
-		id: string;
-		name: string;
-		selected: boolean;
-	}>;
-};
+
 
 export type Review = {
 	id: number;

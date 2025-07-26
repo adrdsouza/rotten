@@ -5,8 +5,7 @@ import {
 	DEFAULT_METADATA_URL,
 } from '~/constants';
 import { ENV_VARIABLES } from '~/env';
-import { SearchResponse } from '~/generated/graphql';
-import { ActiveCustomer, FacetWithValues, ShippingAddress } from '~/types';
+import { ActiveCustomer, ShippingAddress } from '~/types';
 import { validatePostalCode, validateName, validateEmail, validateAddress, validateStateProvince } from '~/utils/cached-validation';
 
 export const getRandomInt = (max: number) => Math.floor(Math.random() * max);
@@ -18,71 +17,7 @@ export function formatPrice(value = 0, currency: any) {
 	}).format(value / 100);
 }
 
-export const groupFacetValues = (
-	search: SearchResponse,
-	activeFacetValueIds: string[]
-): FacetWithValues[] => {
-	if (!search) {
-		return [];
-	}
-	const facetMap = new Map<string, FacetWithValues>();
-	for (const {
-		facetValue: { id, name, facet },
-		count,
-	} of search.facetValues) {
-		if (count === search.totalItems) {
-			continue;
-		}
-		const facetFromMap = facetMap.get(facet.id);
-		const selected = (activeFacetValueIds || []).includes(id);
-		if (facetFromMap) {
-			facetFromMap.values.push({ id, name, selected });
-		} else {
-			facetMap.set(facet.id, {
-				id: facet.id,
-				name: facet.name,
-				open: true,
-				values: [{ id, name, selected }],
-			});
-		}
-	}
-	return Array.from(facetMap.values());
-};
 
-export const enableDisableFacetValues = (_facetValues: FacetWithValues[], ids: string[]) => {
-	const facetValueIds: string[] = [];
-	const facetValues = _facetValues.map((facet) => {
-		facet.values = facet.values.map((value) => {
-			if (ids.includes(value.id)) {
-				facetValueIds.push(value.id);
-				value.selected = true;
-			} else {
-				value.selected = false;
-			}
-			return value;
-		});
-		return facet;
-	});
-	return { facetValues, facetValueIds };
-};
-
-export const changeUrlParamsWithoutRefresh = (collectionSlug: string, facetValueIds: string[], term: string) => {
-  const params = new URLSearchParams();
-  if (term) {
-    params.set('q', term);
-  }
-  if (facetValueIds && facetValueIds.length > 0) {
-    params.set('f', facetValueIds.join('-'));
-  }
-  if (collectionSlug) {
-    params.set('c', collectionSlug);
-  }
-
-  const queryString = params.toString();
-  const newUrl = `${window.location.origin}${window.location.pathname}${queryString ? `?${queryString}` : ''}`;
-
-  return window.history.pushState('', '', newUrl);
-};
 
 export const setCookie = (name: string, value: string, days: number) => {
 	let expires = '';

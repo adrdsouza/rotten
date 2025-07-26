@@ -1,9 +1,9 @@
 import { Slot, component$ } from '@qwik.dev/core';
 import { useLocation } from '@qwik.dev/router';
-import HashtagIcon from '../icons/HashtagIcon';
+import LockClosedIcon from '../icons/LockClosedIcon';
 import MapPinIcon from '../icons/MapPinIcon';
 import ShoppingBagIcon from '../icons/ShoppingBagIcon';
-import UserCircleIcon from '../icons/UserCircleIcon';
+import UserIcon from '../icons/UserIcon';
 import { Tab } from './Tab';
 
 export const TabsContainer = component$(() => {
@@ -13,7 +13,7 @@ export const TabsContainer = component$(() => {
 			<div class="border-b border-gray-200 mt-4">
 				<ul class="flex justify-center sm:grid-0 sm:flex sm:flex-wrap -mb-px text-sm font-medium text-center text-gray-500">
 					<Tab
-						Icon={UserCircleIcon}
+						Icon={UserIcon}
 						text="Account details"
 						href="/account"
 						isActive={location.url.pathname === '/account/'}
@@ -34,7 +34,7 @@ export const TabsContainer = component$(() => {
 					/>
 
 					<Tab
-						Icon={HashtagIcon}
+						Icon={LockClosedIcon}
 						text="Password change"
 						href="/account/password"
 						isActive={location.url.pathname.indexOf('password') >= 0}
