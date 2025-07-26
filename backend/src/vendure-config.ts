@@ -426,7 +426,7 @@ export const config: VendureConfig = {
                 hideVendureBranding: true,
                 defaultLanguage: LanguageCode.en,
                 availableLanguages: [LanguageCode.en],
-                loginImageUrl: 'https://rottenhand.com/assets/preview/13/damned-mascot__preview.png',
+                loginImageUrl: 'https://rottenhand.com/assets/preview/91/mascot__preview.png?preset=large',
             },
         }),
         ...(IS_DEV ? [GraphiqlPlugin.init()] : []),
