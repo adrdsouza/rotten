@@ -1,4 +1,4 @@
-import { component$, useSignal, useComputed$, $, useContext, useVisibleTask$ } from '@qwik.dev/core';
+import { component$, useSignal, $, useContext, useVisibleTask$ } from '@qwik.dev/core';
 import { routeLoader$, Link } from '@qwik.dev/router';
 import { OptimizedImage } from '~/components/ui';
 import Price from '~/components/products/Price';
@@ -9,6 +9,7 @@ import { useLocalCart, addToLocalCart } from '~/contexts/CartContext';
 import { APP_STATE } from '~/constants';
 import { loadCountryOnDemand } from '~/utils/addressStorage';
 import { LocalCartService } from '~/services/LocalCartService';
+
 
 // Helper functions moved outside component to avoid lexical scope issues
 const getAvailableOptions = (product: Product | null) => {
@@ -85,23 +86,7 @@ const checkColorAvailable = (colorOption: ProductOption, selectedSize: ProductOp
   });
 };
 
-const checkProductAvailable = (product: Product | null) => {
-  if (!product?.variants || !Array.isArray(product.variants)) return false;
 
-  return product.variants.some(variant => {
-    // Defensive checks for variant data
-    if (!variant || typeof variant !== 'object') return false;
-
-    const stockLevel = parseInt(String(variant.stockLevel || '0'));
-    const trackInventory = variant.trackInventory;
-
-    // Variant is available if: stockLevel > 0 OR inventory tracking is disabled
-    // If trackInventory is 'FALSE', the variant is always available regardless of stockLevel
-    const isAvailable = stockLevel > 0 || trackInventory === 'FALSE';
-
-    return isAvailable;
-  });
-};
 
 // Load both shirt products for the customization experience
 export const useShirtProductsLoader = routeLoader$(async () => {
@@ -197,6 +182,9 @@ export default component$(() => {
   const selectedVariantId = useSignal<string>('');
   const isAddingToCart = useSignal(false);
 
+  // New selector state
+  const selectedStyle = useSignal<'short' | 'long' | null>(null);
+
   // Cart quantity tracking for all variants
   const quantitySignal = useSignal<Record<string, number>>({});
 
@@ -222,28 +210,7 @@ export default component$(() => {
   });
 
 
-  // Handle step navigation
-  const handleSleeveSelect = $((product: Product) => {
-    // Check if product has any available variants (inline check with defensive programming)
-    const hasAvailableVariants = product?.variants && Array.isArray(product.variants) &&
-      product.variants.some(variant => {
-        if (!variant || typeof variant !== 'object') return false;
-        const stockLevel = parseInt(String(variant.stockLevel || '0'));
-        const trackInventory = variant.trackInventory;
-        return stockLevel > 0 || trackInventory === 'FALSE';
-      });
 
-    // Only allow selection if product has available variants
-    if (!hasAvailableVariants) {
-      return;
-    }
-
-    selectedProduct.value = product;
-    selectedSize.value = null;
-    selectedColor.value = null;
-    selectedVariantId.value = '';
-    // No need to change currentStep since all options are visible
-  });
 
   const handleSizeSelect = $((sizeOption: ProductOption) => {
     // Only allow selection if size is available
@@ -323,27 +290,20 @@ export default component$(() => {
 
 
 
-  // Get current product image
-  const currentProductImage = useComputed$(() => {
-    if (!selectedProduct.value) return null;
-    return selectedProduct.value.featuredAsset ||
-           (selectedProduct.value.assets?.length > 0 ? selectedProduct.value.assets[0] : null);
-  });
+  // Get current product image - using signal instead of computed for better reactivity
+  const currentProductImage = useSignal<any>(null);
 
-  // Get current variant quantity in cart
-  const currentVariantQuantity = useComputed$(() => {
-    if (!selectedVariantId.value) return 0;
-    return quantitySignal.value[selectedVariantId.value] || 0;
-  });
-
-  // Smart button text based on cart quantity
-  const buttonText = useComputed$(() => {
-    const quantity = currentVariantQuantity.value;
-    if (quantity > 0) {
-      return `${quantity} in cart - Add more`;
+  // Update current product image when selectedProduct changes
+  useVisibleTask$(({ track }) => {
+    track(() => selectedProduct.value);
+    if (selectedProduct.value?.featuredAsset) {
+      currentProductImage.value = selectedProduct.value.featuredAsset;
     }
-    return 'Claim Your Perfect Shirt';
   });
+
+
+
+
 
   // Load cart quantities for all variants when products are available
   useVisibleTask$(() => {
@@ -408,14 +368,15 @@ export default component$(() => {
     <div class="min-h-screen bg-gray-50">
 
       {/* Main Content */}
-      <div class="max-w-6xl mx-auto px-4 py-8">
+      <div class="max-w-content-wide mx-auto px-8 sm:px-12 lg:px-16 pb-8">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
 
           {/* Product Image */}
-          <div class="order-2 lg:order-1">
+          <div class="order-2 lg:order-1 pt-6">
             <div class="sticky top-24">
               {currentProductImage.value ? (
                 <OptimizedImage
+                  key={selectedProduct.value?.id || 'no-product'}
                   src={currentProductImage.value.preview}
                   alt={selectedProduct.value?.name || 'Product'}
                   width={600}
@@ -423,293 +384,266 @@ export default component$(() => {
                   class="w-full h-auto rounded-lg shadow-lg"
                 />
               ) : (
-                <div class="w-full aspect-square bg-gray-200 rounded-lg flex items-center justify-center">
-                  <span class="text-gray-400 text-lg">Select your style</span>
-                </div>
+                <OptimizedImage
+                  key="shop-default"
+                  src="/shop.jpg"
+                  alt="Choose your perfect shirt style"
+                  width={600}
+                  height={600}
+                  class="w-full h-auto rounded-lg shadow-lg"
+                />
               )}
             </div>
           </div>
 
           {/* Customization Steps */}
-          <div class="order-1 lg:order-2">
+          <div class="order-1 lg:order-2 lg:pt-8 pt-6">
 
-            {/* Step 1: Choose Sleeve Length - Always visible */}
-            <div class="space-y-6">
-              <div>
-                <h1 class="text-3xl font-bold text-gray-900 mb-2">Build Your Perfect Shirt</h1>
-                <p class="text-lg text-gray-600">One shirt, perfected. Now make it yours.</p>
-                <p class="text-sm text-[#B09983] font-medium mt-2">If it's not the softest shirt you've ever felt, we'll pay you back</p>
+            {/* New Product Selector */}
+            <div class="bg-white rounded-2xl px-8 pb-8 pt-4 shadow-lg">
+
+              {/* Sizing Note */}
+              <div class="bg-gray-50 border border-gray-200 rounded-lg p-2 mb-2 text-sm text-gray-600 text-center">
+                💡 These shirts are designed with an oversized, relaxed fit for comfort and style
               </div>
 
-              <div>
-                <h2 class="text-xl font-semibold text-gray-900 mb-4">Choose Your Style</h2>
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-                    {/* Short Sleeve Option */}
-                    {productsData.value.shortSleeve && (
-                      <div class="relative">
-                        <button
-                          onClick$={() => handleSleeveSelect(productsData.value.shortSleeve!)}
-                          disabled={!checkProductAvailable(productsData.value.shortSleeve)}
-                          class={{
-                            'p-6 border-2 rounded-lg transition-all duration-200 text-left group w-full': true,
-                            'border-gray-200 hover:border-[#B09983]': checkProductAvailable(productsData.value.shortSleeve),
-                            'border-gray-100 cursor-not-allowed opacity-50': !checkProductAvailable(productsData.value.shortSleeve),
-                          }}
-                        >
-                          <div class="text-center">
-                            <h3 class={{
-                              'text-lg font-semibold mb-2': true,
-                              'text-gray-900': checkProductAvailable(productsData.value.shortSleeve),
-                              'text-gray-400': !checkProductAvailable(productsData.value.shortSleeve),
-                            }}>Short Sleeve</h3>
-                            <Price
-                              priceWithTax={productsData.value.shortSleeve.variants[0]?.priceWithTax || 0}
-                              currencyCode={productsData.value.shortSleeve.variants[0]?.currencyCode || 'USD'}
-                              forcedClass={checkProductAvailable(productsData.value.shortSleeve)
-                                ? "text-xl font-bold text-[#B09983]"
-                                : "text-xl font-bold text-gray-400"}
-                            />
-                            <p class={{
-                              'text-sm mt-2': true,
-                              'text-gray-600': checkProductAvailable(productsData.value.shortSleeve),
-                              'text-gray-400': !checkProductAvailable(productsData.value.shortSleeve),
-                            }}>Summer confidence</p>
-                          </div>
-                        </button>
-
-                        {/* Sold Out Badge */}
-                        {!checkProductAvailable(productsData.value.shortSleeve) && (
-                          <div class="absolute top-3 left-3 z-10 bg-gray-900 text-white px-3 py-1 rounded-sm text-xs font-medium uppercase tracking-wide border border-[#B09983] antialiased">
-                            Sold Out
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Long Sleeve Option */}
-                    {productsData.value.longSleeve && (
-                      <div class="relative">
-                        <button
-                          onClick$={() => handleSleeveSelect(productsData.value.longSleeve!)}
-                          disabled={!checkProductAvailable(productsData.value.longSleeve)}
-                          class={{
-                            'p-6 border-2 rounded-lg transition-all duration-200 text-left group w-full': true,
-                            'border-gray-200 hover:border-[#B09983]': checkProductAvailable(productsData.value.longSleeve),
-                            'border-gray-100 cursor-not-allowed opacity-50': !checkProductAvailable(productsData.value.longSleeve),
-                          }}
-                        >
-                          <div class="text-center">
-                            <h3 class={{
-                              'text-lg font-semibold mb-2': true,
-                              'text-gray-900': checkProductAvailable(productsData.value.longSleeve),
-                              'text-gray-400': !checkProductAvailable(productsData.value.longSleeve),
-                            }}>Long Sleeve</h3>
-                            <Price
-                              priceWithTax={productsData.value.longSleeve.variants[0]?.priceWithTax || 0}
-                              currencyCode={productsData.value.longSleeve.variants[0]?.currencyCode || 'USD'}
-                              forcedClass={checkProductAvailable(productsData.value.longSleeve)
-                                ? "text-xl font-bold text-[#B09983]"
-                                : "text-xl font-bold text-gray-400"}
-                            />
-                            <p class={{
-                              'text-sm mt-2': true,
-                              'text-gray-600': checkProductAvailable(productsData.value.longSleeve),
-                              'text-gray-400': !checkProductAvailable(productsData.value.longSleeve),
-                            }}>Year-round essential</p>
-                          </div>
-                        </button>
-
-                        {/* Sold Out Badge */}
-                        {!checkProductAvailable(productsData.value.longSleeve) && (
-                          <div class="absolute top-3 left-3 z-10 bg-gray-900 text-white px-3 py-1 rounded-sm text-xs font-medium uppercase tracking-wide border border-[#B09983] antialiased">
-                            Sold Out
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+              {/* Style Selection */}
+              <div class={{
+                'mb-4 p-3 rounded-lg border-2 transition-all duration-300': true,
+                'border-[#B09983] bg-[#B09983]/5': !selectedStyle.value, // Active when no style selected
+                'border-gray-200 bg-gray-50': selectedStyle.value // Completed state
+              }}>
+                <div class={{
+                  'flex items-center justify-center gap-2 mb-3 text-lg font-semibold transition-colors duration-300': true,
+                  'text-[#B09983]': !selectedStyle.value, // Active styling
+                  'text-gray-600': selectedStyle.value // Completed styling
+                }}>
+                  <span class="text-xl">👕</span>
+                  <span>Style</span>
+                  {selectedStyle.value && <span class="text-green-600 ml-2">✓</span>}
+                </div>
+                <div class="flex gap-3">
+                  {productsData.value.shortSleeve && (
+                    <div
+                      class={{
+                        'flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 text-center': true,
+                        'border-[#B09983] bg-gray-50': selectedStyle.value === 'short',
+                        'border-gray-200 hover:border-[#B09983]': selectedStyle.value !== 'short'
+                      }}
+                      onClick$={() => {
+                        selectedStyle.value = 'short';
+                        selectedProduct.value = productsData.value.shortSleeve;
+                      }}
+                    >
+                      <div class="font-semibold text-base mb-1">Short Sleeve</div>
+                      <Price
+                        priceWithTax={productsData.value.shortSleeve.variants[0]?.priceWithTax || 0}
+                        currencyCode={productsData.value.shortSleeve.variants[0]?.currencyCode || 'USD'}
+                        forcedClass="text-xl font-bold text-black mb-1"
+                      />
+                      <div class="text-gray-600 text-xs">Summer confidence</div>
+                    </div>
+                  )}
+                  {productsData.value.longSleeve && (
+                    <div
+                      class={{
+                        'flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 text-center': true,
+                        'border-[#B09983] bg-gray-50': selectedStyle.value === 'long',
+                        'border-gray-200 hover:border-[#B09983]': selectedStyle.value !== 'long'
+                      }}
+                      onClick$={() => {
+                        selectedStyle.value = 'long';
+                        selectedProduct.value = productsData.value.longSleeve;
+                      }}
+                    >
+                      <div class="font-semibold text-base mb-1">Long Sleeve</div>
+                      <Price
+                        priceWithTax={productsData.value.longSleeve.variants[0]?.priceWithTax || 0}
+                        currencyCode={productsData.value.longSleeve.variants[0]?.currencyCode || 'USD'}
+                        forcedClass="text-xl font-bold text-black mb-1"
+                      />
+                      <div class="text-gray-600 text-xs">Year-round essential</div>
+                    </div>
+                  )}
                 </div>
               </div>
-            {/* Step 2: Size Selection - Always visible like product page */}
-            <div class="space-y-6">
-              <div>
-                <h2 class="text-xl font-semibold text-gray-900 mb-4">Size</h2>
-                <div class="flex flex-wrap gap-2">
+              {/* Size Selection */}
+              <div class={{
+                'mb-4 p-3 rounded-lg border-2 transition-all duration-300': true,
+                'border-[#B09983] bg-[#B09983]/5': selectedStyle.value && !selectedSize.value, // Active when style selected but no size
+                'border-gray-200 bg-gray-50': !!selectedSize.value, // Completed state
+                'border-gray-200 bg-gray-100 opacity-60 cursor-not-allowed': !selectedStyle.value // Inactive state
+              }}>
+                <div class={{
+                  'flex items-center justify-center gap-2 mb-3 text-lg font-semibold transition-colors duration-300': true,
+                  'text-[#B09983]': selectedStyle.value && !selectedSize.value, // Active styling
+                  'text-gray-600': !!selectedSize.value, // Completed styling
+                  'text-gray-400': !selectedStyle.value // Inactive styling
+                }}>
+                  <span class="text-xl">📏</span>
+                  <span>Size</span>
+                  {selectedSize.value && <span class="text-green-600 ml-2">✓</span>}
+                </div>
+                <div class="flex gap-3">
                   {selectedProduct.value ? (
                     getAvailableOptions(selectedProduct.value).sizes.map((sizeOption) => {
                       const isSelected = selectedSize.value?.id === sizeOption.id;
                       const isAvailable = checkSizeAvailable(sizeOption, selectedProduct.value);
 
                       return (
-                        <button
+                        <div
                           key={sizeOption.id}
-                          onClick$={() => handleSizeSelect(sizeOption)}
-                          disabled={!isAvailable}
                           class={{
-                            'px-4 py-2 text-sm font-medium rounded-md border transition-all duration-200': true,
-                            'bg-[#B09983] text-white border-[#B09983]': isSelected,
-                            'bg-white text-gray-900 border-gray-300 hover:bg-[#B09983] hover:border-[#4F3B26]': !isSelected && isAvailable,
-                            'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed': !isAvailable,
+                            'flex-1 p-3 border-2 rounded-lg transition-all duration-200 text-center': true,
+                            'border-[#B09983] bg-gray-50 cursor-pointer': isSelected,
+                            'border-gray-200 hover:border-[#B09983] cursor-pointer': !isSelected && isAvailable,
+                            'border-gray-200 cursor-not-allowed opacity-50': !isAvailable
+                          }}
+                          onClick$={() => {
+                            if (isAvailable) {
+                              handleSizeSelect(sizeOption);
+                            }
                           }}
                         >
-                          {sizeOption.name}
-                        </button>
+                          <div class="font-semibold text-base mb-1">{sizeOption.name}</div>
+                          <div class="text-gray-600 text-xs leading-tight">
+                            Chest: 52"<br/>Length: 29"
+                          </div>
+                        </div>
                       );
                     })
                   ) : (
-                    // Show actual sizes from database
                     ['Small', 'Medium', 'Large'].map((size) => (
-                      <button
+                      <div
                         key={size}
-                        disabled={true}
-                        class="px-4 py-2 text-sm font-medium rounded-md border bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                        class="flex-1 p-3 border-2 border-gray-200 rounded-lg text-center cursor-not-allowed opacity-50"
                       >
-                        {size}
-                      </button>
+                        <div class="font-semibold text-base mb-1">{size}</div>
+                        <div class="text-gray-600 text-xs leading-tight">
+                          Select style first
+                        </div>
+                      </div>
                     ))
                   )}
                 </div>
-
-                <div class="mt-4">
-                  <button class="text-sm text-[#B09983] hover:text-[#4F3B26] font-medium">
-                    Size Chart →
-                  </button>
+                <div class="text-center mt-4">
+                  <a href="#" class="text-sm text-[#B09983] hover:underline">View detailed size chart</a>
                 </div>
               </div>
-            </div>
 
-            {/* Step 3: Color Selection - Always visible like product page */}
-            <div class="space-y-6">
-              <div>
-                <h2 class="text-xl font-semibold text-gray-900 mb-4">Color</h2>
-                <div class="flex flex-wrap gap-2">
+              {/* Color Selection */}
+              <div class={{
+                'mb-4 p-3 rounded-lg border-2 transition-all duration-300': true,
+                'border-[#B09983] bg-[#B09983]/5': selectedSize.value && !selectedColor.value, // Active when size selected but no color
+                'border-gray-200 bg-gray-50': !!selectedColor.value, // Completed state
+                'border-gray-200 bg-gray-100 opacity-60 cursor-not-allowed': !selectedSize.value // Inactive state
+              }}>
+                <div class={{
+                  'flex items-center justify-center gap-2 mb-3 text-lg font-semibold transition-colors duration-300': true,
+                  'text-[#B09983]': selectedSize.value && !selectedColor.value, // Active styling
+                  'text-gray-600': !!selectedColor.value, // Completed styling
+                  'text-gray-400': !selectedSize.value // Inactive styling
+                }}>
+                  <span class="text-xl">🎨</span>
+                  <span>Color</span>
+                  {selectedColor.value && <span class="text-green-600 ml-2">✓</span>}
+                </div>
+                <div class="grid grid-cols-3 gap-2">
                   {selectedProduct.value ? (
                     getAvailableOptions(selectedProduct.value).colors.map((colorOption) => {
                       const isSelected = selectedColor.value?.id === colorOption.id;
                       const isAvailable = selectedSize.value ? checkColorAvailable(colorOption, selectedSize.value, selectedProduct.value) : false;
 
+                      // Map color names to background styles
+                      const getColorStyle = (name: string) => {
+                        const colorName = name.toLowerCase();
+                        if (colorName.includes('black') || colorName.includes('midnight')) return 'bg-black text-white';
+                        if (colorName.includes('white') || colorName.includes('cloud')) return 'bg-gray-100 text-gray-800 border-gray-300';
+                        if (colorName.includes('grey') || colorName.includes('gray') || colorName.includes('storm')) return 'bg-gray-500 text-white';
+                        if (colorName.includes('purple') || colorName.includes('deep')) return 'bg-purple-600 text-white';
+                        if (colorName.includes('red') || colorName.includes('blood')) return 'bg-red-600 text-white';
+                        if (colorName.includes('blue') || colorName.includes('electric')) return 'bg-blue-600 text-white';
+                        if (colorName.includes('pink') || colorName.includes('hot')) return 'bg-pink-500 text-white';
+                        if (colorName.includes('yellow') || colorName.includes('desert')) return 'bg-yellow-400 text-gray-800';
+                        if (colorName.includes('green') || colorName.includes('forest')) return 'bg-green-600 text-white';
+                        return 'bg-gray-200 text-gray-800';
+                      };
+
                       return (
-                        <button
+                        <div
                           key={colorOption.id}
-                          onClick$={() => handleColorSelect(colorOption)}
-                          disabled={!isAvailable}
                           class={{
-                            'px-4 py-2 text-sm font-medium rounded-md border transition-all duration-200': true,
-                            'bg-[#B09983] text-white border-[#B09983]': isSelected,
-                            'bg-white text-gray-900 border-gray-300 hover:bg-[#B09983] hover:border-[#4F3B26]': !isSelected && isAvailable,
-                            'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed': !isAvailable,
+                            [`p-3 border-2 rounded-lg transition-all duration-200 text-center text-xs font-semibold ${getColorStyle(colorOption.name)}`]: true,
+                            'border-[#B09983] border-4 cursor-pointer': isSelected,
+                            'border-gray-300 hover:border-[#B09983] hover:-translate-y-0.5 cursor-pointer': !isSelected && isAvailable,
+                            'cursor-not-allowed opacity-50': !isAvailable
+                          }}
+                          onClick$={() => {
+                            if (isAvailable) {
+                              handleColorSelect(colorOption);
+                            }
                           }}
                         >
                           {colorOption.name}
-                        </button>
+                        </div>
                       );
                     })
                   ) : (
-                    // Show actual colors from database
-                    ['Blood red', 'Cloud white', 'Deep purple', 'Desert yellow', 'Electric blue', 'Forest green', 'Hot pink', 'Midnight black', 'Storm grey'].map((color) => (
-                      <button
+                    ['Midnight black', 'Cloud white', 'Storm grey', 'Deep purple', 'Blood red', 'Electric blue', 'Hot pink', 'Desert yellow', 'Forest green'].map((color) => (
+                      <div
                         key={color}
-                        disabled={true}
-                        class="px-4 py-2 text-sm font-medium rounded-md border bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                        class="p-3 border-2 border-gray-200 rounded-lg text-center text-xs font-semibold cursor-not-allowed opacity-50 bg-gray-100 text-gray-400"
                       >
                         {color}
-                      </button>
+                      </div>
                     ))
                   )}
                 </div>
               </div>
-            </div>
-            {/* Step 4: Add to Cart - Always visible */}
-            <div class="space-y-6 mt-8">
-              <div>
-                <h2 class="text-xl font-semibold text-gray-900 mb-4">Your Perfect Shirt</h2>
-                <p class="text-sm text-gray-600">Ready to experience the softest shirt you've ever felt?</p>
-              </div>
-
-                {/* Selection Summary */}
-                <div class="bg-gray-50 rounded-lg p-6">
-                  <h3 class="font-semibold text-gray-900 mb-4">Your Selection</h3>
-                  <div class="space-y-2 text-sm">
-                    <div class="flex justify-between">
-                      <span class="text-gray-600">Style:</span>
-                      <span class="font-medium">{selectedProduct.value?.name || '—'}</span>
-                    </div>
-                    <div class="flex justify-between">
-                      <span class="text-gray-600">Size:</span>
-                      <span class="font-medium">{selectedSize.value?.name || '—'}</span>
-                    </div>
-                    <div class="flex justify-between">
-                      <span class="text-gray-600">Color:</span>
-                      <span class="font-medium">{selectedColor.value?.name || '—'}</span>
-                    </div>
-                    <div class="border-t border-gray-200 pt-2 mt-4">
-                      <div class="flex justify-between">
-                        <span class="font-semibold">Total:</span>
-                        {selectedProduct.value ? (
-                          <Price
-                            priceWithTax={selectedProduct.value.variants[0]?.priceWithTax || 0}
-                            currencyCode={selectedProduct.value.variants[0]?.currencyCode || 'USD'}
-                            forcedClass="font-bold text-lg"
-                          />
-                        ) : (
-                          <span class="font-bold text-lg text-gray-400">—</span>
-                        )}
-                      </div>
-                    </div>
+              {/* Selection Summary */}
+              <div class="bg-[#B09983] text-white p-4 rounded-xl">
+                <div class="grid grid-cols-3 gap-4 mb-4">
+                  <div class="text-center">
+                    <div class="text-sm opacity-80 mb-1">Style</div>
+                    <div class="font-semibold">{selectedProduct.value?.name?.replace(' Shirt', '') || '—'}</div>
+                  </div>
+                  <div class="text-center">
+                    <div class="text-sm opacity-80 mb-1">Size</div>
+                    <div class="font-semibold">{selectedSize.value?.name || '—'}</div>
+                  </div>
+                  <div class="text-center">
+                    <div class="text-sm opacity-80 mb-1">Color</div>
+                    <div class="font-semibold">{selectedColor.value?.name || '—'}</div>
                   </div>
                 </div>
-
-                {/* Guarantee Reminder */}
-                <div class="bg-[#B09983]/10 border border-[#B09983]/20 rounded-lg p-4">
-                  <div class="flex items-start space-x-3">
-                    <svg class="w-5 h-5 text-[#B09983] mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                    </svg>
-                    <div>
-                      <p class="text-sm font-medium text-gray-900">Our Money Back Guarantee</p>
-                      <p class="text-sm text-gray-600">If this isn't the softest shirt you've ever felt, send it back within 30 days. We'll refund your money and pay return shipping.</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Add to Cart Button */}
                 <button
                   onClick$={handleAddToCart}
                   disabled={isAddingToCart.value || !selectedVariantId.value}
                   class={{
-                    'w-full py-4 px-6 rounded-lg font-semibold text-lg transition-all duration-200': true,
-                    'bg-[#B09983] text-white hover:bg-[#4F3B26] hover:scale-105 shadow-lg hover:shadow-xl': !isAddingToCart.value && selectedVariantId.value,
+                    'w-full py-3 px-6 rounded-lg font-semibold transition-all duration-200': true,
+                    'bg-white text-gray-800 hover:bg-gray-100 cursor-pointer': !isAddingToCart.value && selectedVariantId.value,
                     'bg-gray-300 text-gray-500 cursor-not-allowed': isAddingToCart.value || !selectedVariantId.value,
                   }}
                 >
                   {isAddingToCart.value ? (
                     <span class="flex items-center justify-center">
-                      <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      <div class="w-5 h-5 border-2 border-gray-500 border-t-transparent rounded-full animate-spin mr-2"></div>
                       Adding to Cart...
                     </span>
-                  ) : currentVariantQuantity.value > 0 ? (
+                  ) : selectedProduct.value ? (
                     <span class="flex items-center justify-center">
-                      <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                      </svg>
-                      {buttonText.value}
+                      Add to Cart - <Price
+                        priceWithTax={selectedProduct.value.variants[0]?.priceWithTax || 0}
+                        currencyCode={selectedProduct.value.variants[0]?.currencyCode || 'USD'}
+                        forcedClass="ml-1 font-bold"
+                      />
                     </span>
                   ) : (
-                    buttonText.value
+                    'Select options above'
                   )}
                 </button>
-
-                {/* Continue Shopping */}
-                <div class="text-center">
-                  <Link
-                    href="/"
-                    class="text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                  >
-                    ← Continue Shopping
-                  </Link>
-                </div>
               </div>
+            </div>
 
           </div>
         </div>
@@ -720,8 +654,8 @@ export default component$(() => {
 
 export const head = () => {
   return createSEOHead({
-    title: 'Build Your Perfect Shirt - Rotten Hand',
-    description: 'One shirt, 18 options. Choose your style, size, and color to build the perfect shirt. Ethically made with our money-back guarantee.',
+    title: 'Shop - Rotten Hand',
+    description: 'One shirt, 18 options. Choose your style, size, and color. Ethically made with our money-back guarantee.',
     noindex: false,
   });
 };

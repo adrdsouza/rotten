@@ -87,7 +87,7 @@ export default component$(() => {
 					: 'bg-[#B09983]' // Solid brand color background on other pages
 			}`}
 		>{/* Main Header */}
-				<div class="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 w-full">
+				<div class="max-w-content-wide mx-auto px-4 sm:px-6 lg:px-8 w-full">
 					<div class="flex items-center justify-between h-20">
 						{/* Logo - Always on left */}
 						<div class="flex items-center">
