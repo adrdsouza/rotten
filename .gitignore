@@ -10,3 +10,4 @@ backend/node_modules
 *.csv
 *.log
 *.logs
+database/backups
