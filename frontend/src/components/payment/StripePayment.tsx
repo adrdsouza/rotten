@@ -43,7 +43,7 @@ export default component$(() => {
 			store.resolvedStripe = noSerialize(stripe as Stripe);
 			store.stripeElements = noSerialize(stripe?.elements({
 				clientSecret: store.clientSecret,
-				locale: 'pt',
+				locale: 'en',
 				// Configure which payment methods to show
 				appearance: {
 					theme: 'stripe',
