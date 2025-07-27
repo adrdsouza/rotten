@@ -205,11 +205,19 @@ export default component$(() => {
 							return;
 						}
 
+						// Store order code for redirect-based payment methods
+						const activeOrder = await getActiveOrderQuery();
+						if (activeOrder?.code) {
+							sessionStorage.setItem('pendingOrderCode', activeOrder.code);
+						}
+
 						// Step 2: Confirm payment with Stripe to get payment method
 						const confirmResult = await store.resolvedStripe?.confirmPayment({
 							elements: store.stripeElements,
 							clientSecret: store.clientSecret,
-							redirect: 'if_required', // Don't redirect, handle in code
+							confirmParams: {
+								return_url: `${baseUrl}/checkout/confirmation`, // Required for redirect-based payment methods (Alipay, WeChat, SEPA, etc.)
+							},
 						});
 
 						if (confirmResult?.error) {
@@ -222,8 +230,8 @@ export default component$(() => {
 
 						// The Stripe webhook will automatically add the payment to the Vendure order
 						// We need to poll the order status until it transitions to PaymentSettled
-						const paymentIntentId = confirmResult?.paymentIntent?.id;
-						const paymentIntent = confirmResult?.paymentIntent;
+						const paymentIntentId = (confirmResult as any)?.paymentIntent?.id;
+						const paymentIntent = (confirmResult as any)?.paymentIntent;
 						console.log('[StripePayment] Payment Intent ID:', paymentIntentId);
 						console.log('[StripePayment] Full Payment Intent:', paymentIntent);
 
