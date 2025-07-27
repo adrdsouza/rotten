@@ -11,3 +11,9 @@ backend/node_modules
 *.log
 *.logs
 database/backups
+*.sql
+*.png
+*.jpeg
+*.jpg
+*.mp4
+*.dump
