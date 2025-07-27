@@ -307,7 +307,7 @@ export default component$(() => {
 													<h3 class="text-lg font-medium text-slate-900 mb-2">Your cart is empty</h3>
 													<p class="text-slate-500 mb-6">Add some items to get started</p>
 													<button
-														class="bg-[#ddd7c0] hover:bg-[#4F3B26] text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg hover:shadow-xl flex items-center justify-center uppercase font-heading text-sm cursor-pointer"
+														class="bg-[#8a6d4a] hover:bg-[#4F3B26] text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg hover:shadow-xl flex items-center justify-center uppercase font-heading text-sm cursor-pointer"
 														onClick$={async () => {
 															appState.showCart = false;
 															await navigate('/shop');
@@ -501,7 +501,7 @@ export default component$(() => {
 														!appState.shippingAddress.countryCode || 
 														(!localCart.isLocalMode && !appState.activeOrder?.id) ||
 														(localCart.isLocalMode && localCart.localCart.items.length === 0)}
-													class="w-full bg-[#ddd7c0] hover:bg-[#4F3B26] text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg hover:shadow-xl flex items-center justify-center uppercase font-heading text-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+													class="w-full bg-[#8a6d4a] hover:bg-[#4F3B26] text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg hover:shadow-xl flex items-center justify-center uppercase font-heading text-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
 												>
 													{isNavigatingToCheckout.value ? (
 														<>

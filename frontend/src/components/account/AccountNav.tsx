@@ -52,7 +52,7 @@ export const AccountNav = component$(() => {
 							href={link.href}
 							class={`flex flex-col items-center justify-center px-2 py-3 min-h-[80px] transition-all duration-200 cursor-pointer ${
 								isActive 
-									? 'bg-[#ddd7c0] text-white'
+									? 'bg-[#8a6d4a] text-white'
 									: 'hover:bg-gray-50 text-gray-700'
 							}`}
 						>

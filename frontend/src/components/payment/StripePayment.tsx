@@ -48,7 +48,7 @@ export default component$(() => {
 				appearance: {
 					theme: 'stripe',
 					variables: {
-						colorPrimary: '#ddd7c0',
+						colorPrimary: '#8a6d4a',
 						colorBackground: '#ffffff',
 						colorText: '#374151',
 						colorDanger: '#ef4444',
@@ -87,13 +87,13 @@ export default component$(() => {
 						},
 						'.Tab:hover': {
 							backgroundColor: '#f3f4f6',
-							borderColor: '#ddd7c0',
+							borderColor: '#8a6d4a',
 						},
 						'.Tab--selected': {
 							backgroundColor: '#ffffff',
-							borderColor: '#ddd7c0',
+							borderColor: '#8a6d4a',
 							borderBottomColor: '#ffffff',
-							color: '#ddd7c0',
+							color: '#8a6d4a',
 							fontWeight: '600',
 							position: 'relative',
 							zIndex: '10',
@@ -103,7 +103,7 @@ export default component$(() => {
 						},
 						'.TabContent': {
 							backgroundColor: '#ffffff',
-							border: '1px solid #ddd7c0',
+							border: '1px solid #8a6d4a',
 							borderTop: 'none',
 							borderRadius: '0 8px 8px 8px',
 							padding: '20px',
@@ -124,7 +124,7 @@ export default component$(() => {
 							borderColor: '#9ca3af',
 						},
 						'.Input:focus': {
-							borderColor: '#ddd7c0',
+							borderColor: '#8a6d4a',
 							boxShadow: '0 0 0 2px rgba(176, 153, 131, 0.2)',
 							outline: 'none',
 						},
@@ -192,7 +192,7 @@ export default component$(() => {
 			)}
 
 			<button
-				class="w-full flex px-6 bg-[#ddd7c0] hover:bg-[#4F3B26] items-center justify-center space-x-2 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#ddd7c0] disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+				class="w-full flex px-6 bg-[#8a6d4a] hover:bg-[#4F3B26] items-center justify-center space-x-2 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8a6d4a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
 				disabled={!store.clientSecret || !!store.error}
 				onClick$={$(async () => {
 					try {

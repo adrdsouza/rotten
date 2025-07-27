@@ -15,7 +15,7 @@ export const Tab = component$(({ Icon, text, href, isActive }: IProps) => {
 				href={href}
 				class={`group w-full gap-x-2 max-w-48 inline-flex items-center justify-around p-4 rounded-t-lg border-b-2 ${
 					isActive
-						? 'bg-black text-white border-black'
+						? 'bg-[#8a6d4a] text-white border-[#8a6d4a]'
 						: 'border-transparent hover:text-gray-600 hover:border-gray-300'
 				}`}
 			>

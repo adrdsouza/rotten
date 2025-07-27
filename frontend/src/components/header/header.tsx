@@ -82,9 +82,9 @@ export default component$(() => {
 			class={`fixed top-0 left-0 right-0 z-50 border-0 transition-all duration-500 ease-in-out ${
 				isHomePage
 					? isScrolled.value
-						? 'bg-[#ddd7c0]/95 backdrop-blur-sm shadow-sm' // New brand color with blur
+						? 'bg-[#8a6d4a]/95 backdrop-blur-sm shadow-sm' // New brand color with blur
 						: 'bg-transparent' // Fully transparent
-					: 'bg-[#ddd7c0]' // Solid brand color background on other pages
+					: 'bg-[#8a6d4a]' // Solid brand color background on other pages
 			}`}
 		>{/* Main Header */}
 				<div class="max-w-content-wide mx-auto px-4 sm:px-6 lg:px-8 w-full">
@@ -104,35 +104,19 @@ export default component$(() => {
 						<nav class="hidden md:flex flex-1 justify-center items-center space-x-8">							<Link
 								href="/shop"
 								prefetch
-								class={`hover:scale-105 transition-all duration-500 ease-in-out uppercase text-lg xl:text-xl 2xl:text-2xl font-bold font-heading border-b-2 ${
-									isHomePage && !isScrolled.value
-										? `text-white hover:text-gray-200 ${
-											location.url.pathname.startsWith('/shop')
-												? 'border-white'
-												: 'border-transparent hover:border-gray-300'
-										}`
-										: `text-black hover:text-gray-700 ${
-											location.url.pathname.startsWith('/shop')
-												? 'border-black text-black'
-												: 'border-transparent hover:border-gray-600'
-										}`
+								class={`hover:scale-105 transition-all duration-500 ease-in-out uppercase text-lg xl:text-xl 2xl:text-2xl font-bold font-heading border-b-2 text-white hover:text-gray-200 ${
+									location.url.pathname.startsWith('/shop')
+										? 'border-white'
+										: 'border-transparent hover:border-gray-300'
 								}`}
 							>
 								Shop
 							</Link>							<Link
 								href="/contact"
-								class={`hover:scale-105 transition-all duration-500 ease-in-out uppercase text-lg xl:text-xl 2xl:text-2xl font-bold font-heading border-b-2 ${
-									isHomePage && !isScrolled.value
-										? `text-white hover:text-gray-200 ${
-											location.url.pathname.startsWith('/contact')
-												? 'border-white'
-												: 'border-transparent hover:border-gray-300'
-										}`
-										: `text-black hover:text-gray-700 ${
-											location.url.pathname.startsWith('/contact')
-												? 'border-black text-black'
-												: 'border-transparent hover:border-gray-600'
-										}`
+								class={`hover:scale-105 transition-all duration-500 ease-in-out uppercase text-lg xl:text-xl 2xl:text-2xl font-bold font-heading border-b-2 text-white hover:text-gray-200 ${
+									location.url.pathname.startsWith('/contact')
+										? 'border-white'
+										: 'border-transparent hover:border-gray-300'
 								}`}
 							>
 								Contact
@@ -156,11 +140,7 @@ export default component$(() => {
 											cartQuantitySignal.value = localCart.localCart.totalQuantity;
 										}
 									})}
-									class={`relative p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer ${
-										isHomePage && !isScrolled.value
-											? 'text-white hover:text-gray-200'
-											: 'text-black hover:text-gray-700'
-									}`}
+									class="relative p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer text-white hover:text-gray-200"
 									aria-label={`${totalQuantity} items in cart`}
 									title="View cart"
 								>
@@ -174,11 +154,7 @@ export default component$(() => {
 							)}
 									{/* User Icon - Hidden on mobile, shown on desktop */}							<div class="relative hidden md:block">
 								<button
-									class={`p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer ${
-										isHomePage && !isScrolled.value
-											? 'text-white hover:text-gray-200'
-											: 'text-black hover:text-gray-700'
-									}`}
+									class="p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer text-white hover:text-gray-200"
 									onClick$={() => {
 										if (appState.customer.id !== CUSTOMER_NOT_DEFINED_ID) {
 											appState.showUserMenu = !appState.showUserMenu;
@@ -208,11 +184,7 @@ export default component$(() => {
 								)}
 							</div>							{/* Mobile Menu Button - On right side next to cart */}
 							<button
-								class={`md:hidden p-2 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer ${
-									isHomePage && !isScrolled.value
-										? 'text-white hover:text-gray-200'
-										: 'text-black hover:text-gray-700'
-								}`}
+								class="md:hidden p-2 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer text-white hover:text-gray-200"
 								onClick$={() => (appState.showMenu = !appState.showMenu)}
 							>
 								<span class="sr-only">Menu</span>
@@ -222,7 +194,7 @@ export default component$(() => {
 					</div>
 				</div>				{/* Mobile Menu Overlay */}
 				{appState.showMenu && (					<div
-						class="fixed inset-0 z-50 w-full h-full bg-[#ddd7c0] flex flex-col items-center justify-center px-6"
+						class="fixed inset-0 z-50 w-full h-full bg-[#8a6d4a] flex flex-col items-center justify-center px-6"
 						style="min-height: 100vh;"
 					>						<button
 							class="absolute top-4 right-4 p-2 text-white hover:text-gray-200 rounded-lg hover:bg-white/10 transition-all duration-200"

@@ -753,7 +753,7 @@ const CheckoutContent = component$(() => {
                           type="button"
                           onClick$={proceedToPayment$}
                           disabled={state.loading || !checkoutValidation.isAllValid}
-                          class="w-full flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-[#ddd7c0] hover:bg-[#4F3B26] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#ddd7c0] disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                          class="w-full flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-[#8a6d4a] hover:bg-[#4F3B26] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8a6d4a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
                         >
                           {state.loading ? (
                             <>

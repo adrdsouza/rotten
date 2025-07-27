@@ -10,7 +10,7 @@ export const HighlightedButton = component$<Props>(({ extraClass = '', onClick$,
 	return (		<button
 			type="button"
 			disabled={disabled}
-			class={`flex items-center justify-around bg-[#ddd7c0] border border-transparent rounded-md py-2 px-4 text-base font-medium text-white hover:bg-[#4F3B26] focus:outline-hidden focus:ring-2 focus:ring-offset-0 focus:ring-gray-800 cursor-pointer ${extraClass} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+			class={`flex items-center justify-around bg-[#8a6d4a] border border-transparent rounded-md py-2 px-4 text-base font-medium text-white hover:bg-[#4F3B26] focus:outline-hidden focus:ring-2 focus:ring-offset-0 focus:ring-gray-800 cursor-pointer ${extraClass} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
 			style="font-family: var(--font-heading)"onClick$={$(async () => {
 				if (onClick$ && !disabled) {
 					await onClick$();

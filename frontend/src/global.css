@@ -10,7 +10,7 @@
 
 @layer utilities {
   .btn-primary {
-    @apply w-full border border-transparent rounded py-2 px-5 flex items-center justify-center text-base font-medium text-black bg-[#ddd7c0] hover:bg-[#4F3B26] hover:text-white focus:outline-hidden focus:ring-0 shadow-none transition-all duration-300 cursor-pointer;
+    @apply w-full border border-transparent rounded py-2 px-5 flex items-center justify-center text-base font-medium text-white bg-[#8a6d4a] hover:bg-[#4F3B26] focus:outline-hidden focus:ring-0 shadow-none transition-all duration-300 cursor-pointer;
     font-family: var(--font-heading);
   }
   .btn-secondary {
@@ -27,7 +27,7 @@
     font-family: var(--font-heading);
   }
   .text-brand-red {
-    color: #ddd7c0;
+    color: #8a6d4a;
   }
   .text-brand-red-hover {
     color: #4F3B26;
