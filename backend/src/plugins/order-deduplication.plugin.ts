@@ -19,6 +19,7 @@ import { getRedisConnection } from '../utils/redis-connection-pool';
  */
 @VendurePlugin({
   imports: [PluginCommonModule],
+  compatibility: '^3.0.0',
 })
 export class OrderDeduplicationPlugin {
   private redis: Redis | null = null;

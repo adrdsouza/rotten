@@ -22,6 +22,7 @@ import * as os from 'os';
  */
 @VendurePlugin({
   imports: [PluginCommonModule],
+  compatibility: '^3.0.0',
 })
 export class UnifiedOrderSecurityPlugin {
   private logFilePath: string = path.join('/home/vendure/rottenhand', 'order-security-audit.log');

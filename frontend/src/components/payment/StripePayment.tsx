@@ -223,7 +223,22 @@ export default component$(() => {
 						// The Stripe webhook will automatically add the payment to the Vendure order
 						// We need to poll the order status until it transitions to PaymentSettled
 						const paymentIntentId = confirmResult?.paymentIntent?.id;
+						const paymentIntent = confirmResult?.paymentIntent;
 						console.log('[StripePayment] Payment Intent ID:', paymentIntentId);
+						console.log('[StripePayment] Full Payment Intent:', paymentIntent);
+
+						// Extract payment method information for display
+						// payment_method can be either a string (ID) or PaymentMethod object
+						const paymentMethod = typeof paymentIntent?.payment_method === 'object'
+							? paymentIntent.payment_method
+							: null;
+
+						const paymentMethodInfo = {
+							type: paymentMethod?.type || 'card',
+							card: paymentMethod?.card || null,
+							wallet: paymentMethod?.card?.wallet || null
+						};
+						console.log('[StripePayment] Payment Method Info:', paymentMethodInfo);
 
 						// First, get the current order code while it's still active
 						const currentActiveOrder = await getActiveOrderQuery();
@@ -251,10 +266,11 @@ export default component$(() => {
 								if (order && order.state === 'PaymentSettled') {
 									console.log('[StripePayment] Order payment settled! Passing order data to confirmation...');
 
-									// Pass complete order data to confirmation page - no additional queries needed
+									// Pass complete order data + payment method info to confirmation page
 									const orderData = encodeURIComponent(JSON.stringify({
 										order: order,
 										paymentIntentId: paymentIntentId,
+										paymentMethodInfo: paymentMethodInfo, // Include payment method details
 										completedAt: Date.now(),
 										source: 'stripe_payment'
 									}));

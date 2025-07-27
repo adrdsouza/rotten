@@ -40,5 +40,6 @@ const schema = gql`
     schema,
     resolvers: [CouponValidationResolver],
   },
+  compatibility: '^3.0.0',
 })
 export class LocalCartCouponPlugin {}

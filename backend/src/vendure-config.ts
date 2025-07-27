@@ -27,6 +27,7 @@ import { OrderDeduplicationPlugin } from './plugins/order-deduplication.plugin';
 
 import { CustomShippingPlugin } from './plugins/custom-shipping';
 import { StripePlugin } from '@vendure/payments-plugin/package/stripe';
+import { StripePaymentMethodCapturePlugin } from './plugins/stripe-payment-method-capture';
 // REMOVED: SezzlePaymentPlugin - not available for this clothing brand
 import { orderFulfillmentHandler } from './email-handlers/order-fulfillment-handler';
 import { orderConfirmationHandler } from './email-handlers/order-confirmation-handler';
@@ -296,7 +297,16 @@ export const config: VendureConfig = {
         StripePlugin.init({
             // This prevents different customers from using the same PaymentIntent
             storeCustomersInStripe: true,
+            // Add payment method information to Stripe metadata for webhook processing
+            metadata: async (injector, ctx, order) => {
+                return {
+                    vendure_order_code: order.code,
+                    vendure_order_id: order.id.toString(),
+                    vendure_customer_email: order.customer?.emailAddress || 'guest'
+                };
+            },
         }),
+        StripePaymentMethodCapturePlugin, // 💳 Capture Stripe payment method details in metadata
         // REMOVED: NmiPaymentPlugin - not available for this clothing brand
         // REMOVED: SezzlePaymentPlugin - not available for this clothing brand
         CustomShippingPlugin,

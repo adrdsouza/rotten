@@ -62,6 +62,7 @@ export class CacheController {
   imports: [PluginCommonModule],
   controllers: [CacheController],
   providers: [],
+  compatibility: '^3.0.0',
 })
 export class CacheInvalidationPlugin {
   static init() {

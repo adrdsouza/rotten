@@ -1,43 +1,78 @@
-import { component$, useStore } from '@qwik.dev/core';
+import { component$, useStore, useVisibleTask$ } from '@qwik.dev/core';
 import { Link, useLocation } from '@qwik.dev/router';
 import CartContents from '~/components/cart-contents/CartContents';
 import CartTotals from '~/components/cart-totals/CartTotals';
 import CheckCircleIcon from '~/components/icons/CheckCircleIcon';
 import { Order } from '~/generated/graphql';
-// No longer needed - pure data passing architecture
+import { getOrderByCodeQuery } from '~/providers/shop/orders/order';
 import { createSEOHead } from '~/utils/seo';
 
 export default component$(() => {
 	const location = useLocation();
 	const {
-		params: { code: _code }, // Prefix with _ to indicate intentionally unused
-		url: { searchParams }
+		params: { code }
 	} = location;
 
-	// Get passed order data from URL params - this is the ONLY source
-	const orderData = (() => {
-		try {
-			const orderDataParam = searchParams.get('orderData');
-			if (orderDataParam) {
-				const decoded = JSON.parse(decodeURIComponent(orderDataParam));
-				console.log('[Confirmation] ✅ Using passed order data - pure architecture!');
-				return decoded.order;
-			}
-		} catch (error) {
-			console.error('[Confirmation] Failed to parse passed order data:', error);
-		}
-		return null;
-	})();
-
+	// Store for fresh order data from database
 	const store = useStore<{
-		order?: Order;
-		error?: string;
+		orderData: Order | null;
+		loading: boolean;
+		error: string | null;
 	}>({
-		order: orderData,
-		error: orderData ? undefined : 'Order data not available. Please complete checkout again.'
+		orderData: null,
+		loading: true,
+		error: null
 	});
 
-	// No useVisibleTask needed - we only use passed data!
+	// Query fresh order data from database
+	useVisibleTask$(async () => {
+		try {
+			console.log('[Confirmation] Querying order data for code:', code);
+			const orderData = await getOrderByCodeQuery(code);
+
+			if (orderData) {
+				store.orderData = orderData;
+				store.loading = false;
+				console.log('[Confirmation] Order data loaded successfully');
+			} else {
+				store.error = 'Order not found';
+				store.loading = false;
+			}
+		} catch (error) {
+			console.error('[Confirmation] Failed to load order:', error);
+			store.error = 'Failed to load order details';
+			store.loading = false;
+		}
+	});
+
+	// Show loading state while querying fresh data
+	if (store.loading) {
+		return (
+			<div class="min-h-screen bg-gray-50 flex items-center justify-center">
+				<div class="text-center">
+					<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#B09983] mx-auto mb-4"></div>
+					<p class="text-gray-600">Loading order details...</p>
+				</div>
+			</div>
+		);
+	}
+
+	// Show error state if query failed
+	if (store.error || !store.orderData) {
+		return (
+			<div class="min-h-screen bg-gray-50 flex items-center justify-center">
+				<div class="text-center">
+					<p class="text-red-600 mb-4">{store.error || 'Order not found'}</p>
+					<Link href="/" class="text-[#B09983] hover:text-[#4F3B26] underline">
+						Return to Home
+					</Link>
+				</div>
+			</div>
+		);
+	}
+
+	// Use fresh order data
+	const orderData = store.orderData;
 
 	return (
 		<div>
@@ -64,7 +99,7 @@ export default component$(() => {
 
 			{/* REMOVED: Sezzle verification error UI - not available for this clothing brand */}
 
-			{store.order?.id && (
+			{orderData?.id && (
 				<div class="bg-gray-50 pb-48">
 						<div class="max-w-7xl mx-auto pt-4 px-4 sm:px-6 lg:px-8">
 							<h2 class="sr-only">{`Order Confirmation`}</h2>
@@ -76,7 +111,7 @@ export default component$(() => {
 									<span>{`Ritual complete`}</span>
 								</h1>
 								<p class="text-base text-gray-600 mb-1">
-									{`Thank you for your order #`}<span class="font-semibold text-gray-900">{store.order?.code}</span>
+									{`Thank you for your order #`}<span class="font-semibold text-gray-900">{orderData?.code}</span>
 								</p>
 								<p class="text-sm text-gray-500">
 									{`It will be processed and shipped within 2 working days`}
@@ -97,12 +132,12 @@ export default component$(() => {
 									
 									{/* Order Items */}
 									<div class="mb-6">
-										<CartContents order={store.order} />
+										<CartContents order={orderData} />
 									</div>
-									
+
 									{/* Order Totals */}
 									<div class="border-t border-gray-100 pt-4">
-										<CartTotals order={store.order} readonly />
+										<CartTotals order={orderData} readonly />
 									</div>
 								</div>
 							</div>
@@ -123,8 +158,8 @@ export default component$(() => {
 										<div>
 											<h3 class="text-sm font-medium text-gray-700 mb-2">{`Customer`}</h3>
 											<div class="bg-gray-50 rounded-lg p-3">
-												<p class="text-gray-900 font-medium text-sm">{store.order?.customer?.firstName} {store.order?.customer?.lastName}</p>
-												<p class="text-gray-600 text-xs mt-1">{store.order?.customer?.emailAddress}</p>
+												<p class="text-gray-900 font-medium text-sm">{orderData?.customer?.firstName} {orderData?.customer?.lastName}</p>
+												<p class="text-gray-600 text-xs mt-1">{orderData?.customer?.emailAddress}</p>
 											</div>
 										</div>
 
@@ -132,14 +167,14 @@ export default component$(() => {
 										<div>
 											<h3 class="text-sm font-medium text-gray-700 mb-2">{`Shipping Address`}</h3>
 											<div class="bg-gray-50 rounded-lg p-3">
-												{store.order?.shippingAddress ? (
+												{orderData?.shippingAddress ? (
 													<address class="not-italic text-gray-700 leading-relaxed text-xs">
-														{store.order.shippingAddress.fullName && <div class="font-medium text-gray-900">{store.order.shippingAddress.fullName}</div>}
-														<div>{store.order.shippingAddress.streetLine1}</div>
-														{store.order.shippingAddress.streetLine2 && <div>{store.order.shippingAddress.streetLine2}</div>}
-														<div>{store.order.shippingAddress.city}, {store.order.shippingAddress.province} {store.order.shippingAddress.postalCode}</div>
-														<div>{store.order.shippingAddress.countryCode}</div>
-														{store.order.shippingAddress.phoneNumber && <div class="mt-1 text-gray-600">{store.order.shippingAddress.phoneNumber}</div>}
+														{orderData.shippingAddress.fullName && <div class="font-medium text-gray-900">{orderData.shippingAddress.fullName}</div>}
+														<div>{orderData.shippingAddress.streetLine1}</div>
+														{orderData.shippingAddress.streetLine2 && <div>{orderData.shippingAddress.streetLine2}</div>}
+														<div>{orderData.shippingAddress.city}, {orderData.shippingAddress.province} {orderData.shippingAddress.postalCode}</div>
+														<div>{orderData.shippingAddress.countryCode}</div>
+														{orderData.shippingAddress.phoneNumber && <div class="mt-1 text-gray-600">{orderData.shippingAddress.phoneNumber}</div>}
 													</address>
 												) : (
 													<p class="text-gray-400 text-xs">No shipping address found.</p>
@@ -151,14 +186,14 @@ export default component$(() => {
 										<div>
 											<h3 class="text-sm font-medium text-gray-700 mb-2">{`Billing Address`}</h3>
 											<div class="bg-gray-50 rounded-lg p-3">
-												{store.order?.billingAddress ? (
+												{orderData?.billingAddress ? (
 													<address class="not-italic text-gray-700 leading-relaxed text-xs">
-														{store.order.billingAddress.fullName && <div class="font-medium text-gray-900">{store.order.billingAddress.fullName}</div>}
-														<div>{store.order.billingAddress.streetLine1}</div>
-														{store.order.billingAddress.streetLine2 && <div>{store.order.billingAddress.streetLine2}</div>}
-														<div>{store.order.billingAddress.city}, {store.order.billingAddress.province} {store.order.billingAddress.postalCode}</div>
-														<div>{store.order.billingAddress.countryCode}</div>
-														{store.order.billingAddress.phoneNumber && <div class="mt-1 text-gray-600">{store.order.billingAddress.phoneNumber}</div>}
+														{orderData.billingAddress.fullName && <div class="font-medium text-gray-900">{orderData.billingAddress.fullName}</div>}
+														<div>{orderData.billingAddress.streetLine1}</div>
+														{orderData.billingAddress.streetLine2 && <div>{orderData.billingAddress.streetLine2}</div>}
+														<div>{orderData.billingAddress.city}, {orderData.billingAddress.province} {orderData.billingAddress.postalCode}</div>
+														<div>{orderData.billingAddress.countryCode}</div>
+														{orderData.billingAddress.phoneNumber && <div class="mt-1 text-gray-600">{orderData.billingAddress.phoneNumber}</div>}
 													</address>
 												) : (
 													<div class="text-gray-600 italic text-xs">
@@ -186,9 +221,9 @@ export default component$(() => {
 										<div>
 											<h3 class="text-sm font-medium text-gray-700 mb-2">{`Shipping Method`}</h3>
 											<div class="bg-gray-50 rounded-lg p-3">
-												{store.order?.shippingLines?.length ? (
+												{orderData?.shippingLines?.length ? (
 													<div class="space-y-2">
-														{store.order.shippingLines.map((line, idx) => (
+														{orderData.shippingLines.map((line, idx) => (
 															<div key={idx} class="flex justify-between items-center">
 																<span class="text-gray-700 text-xs">{line.shippingMethod.name}</span>
 																<span class="font-medium text-gray-900 text-xs">${(line.priceWithTax / 100).toFixed(2)}</span>
@@ -205,19 +240,27 @@ export default component$(() => {
 										<div>
 											<h3 class="text-sm font-medium text-gray-700 mb-2">{`Payment Method`}</h3>
 											<div class="bg-gray-50 rounded-lg p-3">
-												{store.order?.payments?.length ? (
+												{orderData?.payments?.length ? (
 													<div class="space-y-2">
-														{store.order.payments.map((payment, idx) => (
-															<div key={idx} class="text-gray-700">
-																<div class="flex justify-between items-center">
-																	<span class="text-xs">{payment.method}</span>
-																	<span class="text-xs text-gray-500">({payment.state})</span>
+														{orderData.payments.map((payment, idx) => (
+															<div key={idx} class="text-gray-700 space-y-1">
+																{/* Payment Method Display - Clean & Simple */}
+																<div class="text-sm font-medium text-gray-900">
+																	{payment.method === 'stripe' ? 'Card Payment' :
+																	 payment.method.charAt(0).toUpperCase() + payment.method.slice(1)}
 																</div>
-																{payment.metadata?.cardType && payment.metadata?.last4 && (
-																	<div class="text-xs text-gray-600 mt-1">
-																		{payment.metadata.cardType} ending in {payment.metadata.last4}
+
+																{/* Transaction ID */}
+																{payment.transactionId && (
+																	<div class="text-xs text-gray-600">
+																		Transaction ID: {payment.transactionId}
 																	</div>
 																)}
+
+																{/* Amount */}
+																<div class="text-xs text-gray-600">
+																	Amount: ${(payment.amount / 100).toFixed(2)}
+																</div>
 															</div>
 														))}
 													</div>
