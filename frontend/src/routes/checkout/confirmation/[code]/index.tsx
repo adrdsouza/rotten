@@ -1,74 +1,47 @@
-import { component$, useContext, useStore, useVisibleTask$ } from '@qwik.dev/core';
+import { component$, useStore } from '@qwik.dev/core';
 import { Link, useLocation } from '@qwik.dev/router';
 import CartContents from '~/components/cart-contents/CartContents';
 import CartTotals from '~/components/cart-totals/CartTotals';
 import CheckCircleIcon from '~/components/icons/CheckCircleIcon';
-import { APP_STATE } from '~/constants';
 import { Order } from '~/generated/graphql';
-import { getOrderByCodeQuery } from '~/providers/shop/orders/order';
+// No longer needed - pure data passing architecture
 import { createSEOHead } from '~/utils/seo';
 
 export default component$(() => {
+	const location = useLocation();
 	const {
-		params: { code },
-	} = useLocation();
-	const appState = useContext(APP_STATE);
-	const store = useStore<{
-		order?: Order;
-		loading: boolean;
-		error?: string;
-	}>({
-		loading: true,
-	});
+		params: { code: _code }, // Prefix with _ to indicate intentionally unused
+		url: { searchParams }
+	} = location;
 
-	useVisibleTask$(async () => {
+	// Get passed order data from URL params - this is the ONLY source
+	const orderData = (() => {
 		try {
-			// console.log(`[Confirmation] Loading order with code: ${code}`);
-			store.order = await getOrderByCodeQuery(code);
-			// console.log(`[Confirmation] Order loaded:`, store.order);
-
-			// REMOVED: Sezzle payment verification - not available for this clothing brand
-
-			// Mark the order as complete without clearing the activeOrder entirely
-			// This ensures the cart is ready for a new order while preserving state for navigation
-			if (store.order?.id) {
-				appState.activeOrder = {
-					...appState.activeOrder,
-					id: '',
-					code: '',
-					lines: [],
-					state: 'Completed',
-					totalWithTax: 0,
-					subTotal: 0,
-					shippingLines: [],
-					payments: []
-				} as Order;
-				// console.log('✅ Order marked as complete, ready for new order without full state reset');
-				store.loading = false;
-			} else {
-				// console.error(`[Confirmation] No order found with code: ${code}`);
-				store.error = `Order ${code} not found`;
-				store.loading = false;
+			const orderDataParam = searchParams.get('orderData');
+			if (orderDataParam) {
+				const decoded = JSON.parse(decodeURIComponent(orderDataParam));
+				console.log('[Confirmation] ✅ Using passed order data - pure architecture!');
+				return decoded.order;
 			}
 		} catch (error) {
-			// console.error(`[Confirmation] Error loading order:`, error);
-			store.error = `Failed to load order: ${error}`;
-			store.loading = false;
+			console.error('[Confirmation] Failed to parse passed order data:', error);
 		}
+		return null;
+	})();
+
+	const store = useStore<{
+		order?: Order;
+		error?: string;
+	}>({
+		order: orderData,
+		error: orderData ? undefined : 'Order data not available. Please complete checkout again.'
 	});
+
+	// No useVisibleTask needed - we only use passed data!
 
 	return (
 		<div>
-			{store.loading && (
-				<div class="bg-gray-50 pb-48">
-					<div class="max-w-7xl mx-auto pt-4 px-4 sm:px-6 lg:px-8">
-						<div class="text-center py-12">
-							<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-red mx-auto mb-4"></div>
-							<p class="text-gray-600">Loading your order confirmation...</p>
-						</div>
-					</div>
-				</div>
-			)}
+			{/* No loading state needed - pure data passing architecture */}
 
 			{store.error && (
 				<div class="bg-gray-50 pb-48">

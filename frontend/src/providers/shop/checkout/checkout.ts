@@ -68,23 +68,20 @@ export const getEligiblePaymentMethodsQuery = async () => {
 };
 
 // Stripe Payment Integration using official @vendure/payments-plugin
-export const createStripePaymentIntentMutation = async (amount: number) => {
+export const createStripePaymentIntentMutation = async () => {
 	try {
 		const { requester } = await import('~/utils/api');
 		const result = await requester<
-			{ createStripePaymentIntent: { clientSecret: string } },
-			{ amount: number }
+			{ createStripePaymentIntent: string },
+			{}
 		>(
 			gql`
-				mutation createStripePaymentIntent($amount: Float!) {
-					createStripePaymentIntent(amount: $amount) {
-						clientSecret
-					}
+				mutation createStripePaymentIntent {
+					createStripePaymentIntent
 				}
-			`,
-			{ amount }
+			`
 		);
-		return result.createStripePaymentIntent.clientSecret;
+		return result.createStripePaymentIntent;
 	} catch (error) {
 		console.error('Failed to create Stripe payment intent:', error);
 		throw error;

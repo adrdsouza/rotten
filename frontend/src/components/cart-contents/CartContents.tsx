@@ -292,8 +292,8 @@ export default component$<{
 					);
 				})}
 
-				{/* Render Vendure order lines when in Vendure mode */}
-				{!localCart.isLocalMode && (order?.lines || appState.activeOrder?.lines || []).map((line) => {
+				{/* Render Vendure order lines when in Vendure mode OR when explicit order prop is passed */}
+				{(!localCart.isLocalMode || order) && (order?.lines || appState.activeOrder?.lines || []).map((line) => {
 					const { linePriceWithTax } = line;
 					
 					// Get product name directly without computed signal

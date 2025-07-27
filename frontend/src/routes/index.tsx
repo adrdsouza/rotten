@@ -179,7 +179,7 @@ export default component$(() => {
             <Link
               href="/shop"
               prefetch
-              class="inline-block bg-[#eee9d4] text-white px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:scale-105 hover:shadow-xl rounded-lg shadow-lg border border-[#eee9d4]"
+              class="inline-block bg-[#ddd7c0] text-white px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:scale-105 hover:shadow-xl rounded-lg shadow-lg border border-[#ddd7c0]"
             >
               <div class="text-4xl font-bold uppercase tracking-widest">SHOP</div>
               <div class="text-xs uppercase tracking-wide mt-1">Our Money Back Guarantee</div>
@@ -193,7 +193,7 @@ export default component$(() => {
         <div class="max-w-6xl mx-auto px-8 lg:px-16">
           <div class="text-center mb-16">
             <h2 class="text-4xl lg:text-5xl font-light text-black mb-6">
-              Built to Last <span class="font-normal text-[#eee9d4]">Decades</span>
+              Built to Last <span class="font-normal text-[#ddd7c0]">Decades</span>
             </h2>
           </div>
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-16">
@@ -242,7 +242,7 @@ export default component$(() => {
             <div class="max-w-2xl">
               <h2 class="text-4xl lg:text-6xl font-light mb-8 leading-tight text-white">
                 Conscious consumption<br/>
-                <span class="font-normal text-[#eee9d4]">over mindless waste.</span>
+                <span class="font-normal text-[#ddd7c0]">over mindless waste.</span>
               </h2>
               <div class="text-xl text-gray-200 leading-relaxed mb-12 space-y-6">
                 <p>
@@ -256,7 +256,7 @@ export default component$(() => {
                 <Link
                   href="/shop"
                   prefetch
-                  class="inline-block bg-[#eee9d4] text-black px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:text-white hover:scale-105 rounded-lg shadow-lg border border-[#eee9d4]"
+                  class="inline-block bg-[#ddd7c0] text-black px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:text-white hover:scale-105 rounded-lg shadow-lg border border-[#ddd7c0]"
                 >
                   <div class="text-4xl font-bold uppercase tracking-widest">SHOP</div>
                   <div class="text-xs uppercase tracking-wide mt-1">consciously</div>

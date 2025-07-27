@@ -3615,6 +3615,11 @@ export type RequestPasswordResetMutationVariables = Exact<{
 
 export type RequestPasswordResetMutation = { __typename?: 'Mutation', requestPasswordReset?: { __typename: 'NativeAuthStrategyError', errorCode: ErrorCode, message: string } | { __typename: 'Success', success: boolean } | null };
 
+export type CreateStripePaymentIntentMutationVariables = Exact<{ [key: string]: never; }>;
+
+
+export type CreateStripePaymentIntentMutation = { __typename?: 'Mutation', createStripePaymentIntent?: string | null };
+
 export type AvailableCountriesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -4148,6 +4153,11 @@ export const RequestPasswordResetDocument = gql`
   }
 }
     `;
+export const CreateStripePaymentIntentDocument = gql`
+    mutation createStripePaymentIntent {
+  createStripePaymentIntent
+}
+    `;
 export const AvailableCountriesDocument = gql`
     query availableCountries {
   availableCountries {
@@ -4584,6 +4594,9 @@ export function getSdk<C>(requester: Requester<C>) {
     },
     requestPasswordReset(variables: RequestPasswordResetMutationVariables, options?: C): Promise<RequestPasswordResetMutation> {
       return requester<RequestPasswordResetMutation, RequestPasswordResetMutationVariables>(RequestPasswordResetDocument, variables, options) as Promise<RequestPasswordResetMutation>;
+    },
+    createStripePaymentIntent(variables?: CreateStripePaymentIntentMutationVariables, options?: C): Promise<CreateStripePaymentIntentMutation> {
+      return requester<CreateStripePaymentIntentMutation, CreateStripePaymentIntentMutationVariables>(CreateStripePaymentIntentDocument, variables, options) as Promise<CreateStripePaymentIntentMutation>;
     },
     availableCountries(variables?: AvailableCountriesQueryVariables, options?: C): Promise<AvailableCountriesQuery> {
       return requester<AvailableCountriesQuery, AvailableCountriesQueryVariables>(AvailableCountriesDocument, variables, options) as Promise<AvailableCountriesQuery>;

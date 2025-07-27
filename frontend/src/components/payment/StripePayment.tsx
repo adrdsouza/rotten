@@ -1,8 +1,8 @@
-import { $, component$, noSerialize, useContext, useStore, useVisibleTask$ } from '@qwik.dev/core';
+import { $, component$, noSerialize, useStore, useVisibleTask$ } from '@qwik.dev/core';
 import { useLocation } from '@qwik.dev/router';
 import { Stripe, StripeElements, loadStripe } from '@stripe/stripe-js';
-import { APP_STATE } from '~/constants';
 import { createStripePaymentIntentMutation } from '~/providers/shop/checkout/checkout';
+import { getActiveOrderQuery, getOrderByCodeQuery } from '~/providers/shop/orders/order';
 
 
 import CreditCardIcon from '../icons/CreditCardIcon';
@@ -20,7 +20,6 @@ console.log('[StripePayment] Using Stripe key:', stripeKey);
 const stripePromise = getStripe(stripeKey);
 
 export default component$(() => {
-	const appState = useContext(APP_STATE);
 	const baseUrl = useLocation().url.origin;
 	const store = useStore({
 		clientSecret: '',
@@ -30,25 +29,10 @@ export default component$(() => {
 	});
 
 	useVisibleTask$(async () => {
-		// Calculate amount from local cart (like coupon validation) or use active order
-		let amount = 0;
-
-		if (appState.activeOrder?.totalWithTax) {
-			// Vendure order exists - use its total
-			amount = appState.activeOrder.totalWithTax;
-		} else {
-			// Local cart mode - calculate total from cart context
-			// This is the same pattern as your coupon validation
-			const localCart = (window as any).localCartContext || { localCart: { subTotal: 0 } };
-			const cartSubtotal = localCart.localCart?.subTotal || 0;
-			const shippingFee = 2000; // $20.00 - you'd get this from your shipping calculation
-			amount = cartSubtotal + shippingFee;
-		}
-
-		console.log('[StripePayment] Creating payment intent for amount:', amount);
+		console.log('[StripePayment] Creating payment intent for current order...');
 
 		try {
-			store.clientSecret = await createStripePaymentIntentMutation(amount);
+			store.clientSecret = await createStripePaymentIntentMutation();
 		} catch (error) {
 			console.error('[StripePayment] Failed to create payment intent:', error);
 			store.error = 'Failed to initialize payment. Please try again.';
@@ -64,7 +48,7 @@ export default component$(() => {
 				appearance: {
 					theme: 'stripe',
 					variables: {
-						colorPrimary: '#eee9d4',
+						colorPrimary: '#ddd7c0',
 						colorBackground: '#ffffff',
 						colorText: '#374151',
 						colorDanger: '#ef4444',
@@ -103,13 +87,13 @@ export default component$(() => {
 						},
 						'.Tab:hover': {
 							backgroundColor: '#f3f4f6',
-							borderColor: '#eee9d4',
+							borderColor: '#ddd7c0',
 						},
 						'.Tab--selected': {
 							backgroundColor: '#ffffff',
-							borderColor: '#eee9d4',
+							borderColor: '#ddd7c0',
 							borderBottomColor: '#ffffff',
-							color: '#eee9d4',
+							color: '#ddd7c0',
 							fontWeight: '600',
 							position: 'relative',
 							zIndex: '10',
@@ -119,7 +103,7 @@ export default component$(() => {
 						},
 						'.TabContent': {
 							backgroundColor: '#ffffff',
-							border: '1px solid #eee9d4',
+							border: '1px solid #ddd7c0',
 							borderTop: 'none',
 							borderRadius: '0 8px 8px 8px',
 							padding: '20px',
@@ -140,7 +124,7 @@ export default component$(() => {
 							borderColor: '#9ca3af',
 						},
 						'.Input:focus': {
-							borderColor: '#eee9d4',
+							borderColor: '#ddd7c0',
 							boxShadow: '0 0 0 2px rgba(176, 153, 131, 0.2)',
 							outline: 'none',
 						},
@@ -208,23 +192,102 @@ export default component$(() => {
 			)}
 
 			<button
-				class="w-full flex px-6 bg-[#eee9d4] hover:bg-[#4F3B26] items-center justify-center space-x-2 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#eee9d4] disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+				class="w-full flex px-6 bg-[#ddd7c0] hover:bg-[#4F3B26] items-center justify-center space-x-2 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#ddd7c0] disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
 				disabled={!store.clientSecret || !!store.error}
 				onClick$={$(async () => {
-					const result = await store.stripeElements?.submit();
-					if (!result?.error) {
-						const result = await store.resolvedStripe?.confirmPayment({
+					try {
+						console.log('[StripePayment] Starting payment process...');
+
+						// Step 1: Submit the Stripe elements to validate payment method
+						const submitResult = await store.stripeElements?.submit();
+						if (submitResult?.error) {
+							store.error = submitResult.error.message as string;
+							return;
+						}
+
+						// Step 2: Confirm payment with Stripe to get payment method
+						const confirmResult = await store.resolvedStripe?.confirmPayment({
 							elements: store.stripeElements,
 							clientSecret: store.clientSecret,
-							confirmParams: {
-								return_url: `${baseUrl}/checkout/confirmation/${appState.activeOrder?.code}`,
-							},
+							redirect: 'if_required', // Don't redirect, handle in code
 						});
-						if (result?.error) {
-							store.error = result.error.message as string;
+
+						if (confirmResult?.error) {
+							console.error('[StripePayment] Stripe confirmation failed:', confirmResult.error);
+							store.error = confirmResult.error.message as string;
+							return;
 						}
-					} else {
-						store.error = result.error.message as string;
+
+						console.log('[StripePayment] Stripe payment confirmed! Waiting for webhook to process...');
+
+						// The Stripe webhook will automatically add the payment to the Vendure order
+						// We need to poll the order status until it transitions to PaymentSettled
+						const paymentIntentId = confirmResult?.paymentIntent?.id;
+						console.log('[StripePayment] Payment Intent ID:', paymentIntentId);
+
+						// First, get the current order code while it's still active
+						const currentActiveOrder = await getActiveOrderQuery();
+						if (!currentActiveOrder || !currentActiveOrder.code) {
+							console.error('[StripePayment] No active order found to poll');
+							store.error = 'Unable to confirm payment status';
+							return;
+						}
+
+						const orderCode = currentActiveOrder.code;
+						console.log('[StripePayment] Polling order by code:', orderCode);
+
+						// Poll order status for up to 30 seconds
+						let attempts = 0;
+						const maxAttempts = 30; // 30 seconds
+
+						const pollOrderStatus = async (): Promise<void> => {
+							attempts++;
+							console.log(`[StripePayment] Polling order status (attempt ${attempts}/${maxAttempts})...`);
+
+							try {
+								// Get order by code (works even after it's no longer "active")
+								const order = await getOrderByCodeQuery(orderCode);
+
+								if (order && order.state === 'PaymentSettled') {
+									console.log('[StripePayment] Order payment settled! Passing order data to confirmation...');
+
+									// Pass complete order data to confirmation page - no additional queries needed
+									const orderData = encodeURIComponent(JSON.stringify({
+										order: order,
+										paymentIntentId: paymentIntentId,
+										completedAt: Date.now(),
+										source: 'stripe_payment'
+									}));
+
+									window.location.href = `${baseUrl}/checkout/confirmation/${order.code}?orderData=${orderData}`;
+									return;
+								}
+
+								console.log(`[StripePayment] Order state: ${order?.state || 'unknown'}`);
+
+								if (attempts < maxAttempts) {
+									// Wait 1 second and try again
+									setTimeout(pollOrderStatus, 1000);
+								} else {
+									console.error('[StripePayment] Timeout waiting for payment confirmation');
+									store.error = 'Payment is processing. Please check your email for confirmation.';
+								}
+							} catch (error) {
+								console.error('[StripePayment] Error polling order status:', error);
+								if (attempts < maxAttempts) {
+									setTimeout(pollOrderStatus, 1000);
+								} else {
+									store.error = 'Payment is processing. Please check your email for confirmation.';
+								}
+							}
+						};
+
+						// Start polling
+						pollOrderStatus();
+
+					} catch (error) {
+						console.error('[StripePayment] Payment error:', error);
+						store.error = error instanceof Error ? error.message : 'Payment failed';
 					}
 				})}
 			>
