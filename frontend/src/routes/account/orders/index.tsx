@@ -131,7 +131,7 @@ export default component$(() => {
 								When you place your first order, it will appear here. Start shopping to find amazing products!
 							</p>							<button
 								onClick$={() => navigate('/')}
-								class="bg-[#B09983] text-white px-8 py-3 rounded-lg hover:bg-[#4F3B26] transition-colors font-medium cursor-pointer"
+								class="bg-[#eee9d4] text-white px-8 py-3 rounded-lg hover:bg-[#4F3B26] transition-colors font-medium cursor-pointer"
 							>
 								Start Shopping
 							</button>
@@ -197,7 +197,7 @@ export default component$(() => {
 																onClick$={() => {
 																	window.open(`https://tools.usps.com/go/TrackConfirmAction?qtc_tLabels1=${trackingInfo.trackingCode}`, '_blank');
 																}}
-																class="px-2 py-1 bg-[#B09983] text-white text-xs rounded-full hover:bg-[#4F3B26] transition-colors cursor-pointer"
+																class="px-2 py-1 bg-[#eee9d4] text-white text-xs rounded-full hover:bg-[#4F3B26] transition-colors cursor-pointer"
 																title="Track Package"
 															>
 																Track
@@ -244,7 +244,7 @@ export default component$(() => {
 																onClick$={() => {
 																	window.open(`https://tools.usps.com/go/TrackConfirmAction?qtc_tLabels1=${trackingInfo.trackingCode}`, '_blank');
 																}}
-																class="px-3 py-1 bg-[#B09983] text-white text-xs rounded-full hover:bg-[#4F3B26] transition-colors cursor-pointer"
+																class="px-3 py-1 bg-[#eee9d4] text-white text-xs rounded-full hover:bg-[#4F3B26] transition-colors cursor-pointer"
 																title="Track Package"
 															>
 																Track

@@ -242,8 +242,8 @@ const handleColorSelect = $((colorOption: ProductOption) => {
 									disabled={!isAvailable}
 									class={{
 										'px-4 py-2 text-sm font-medium rounded-md border transition-all duration-200': true,
-										'bg-[#B09983] text-white border-[#B09983]': isSelected,
-										'bg-white text-gray-900 border-gray-300 hover:bg-[#B09983] hover:border-[#4F3B26]': !isSelected && isAvailable,
+										'bg-[#eee9d4] text-white border-[#eee9d4]': isSelected,
+										'bg-white text-gray-900 border-gray-300 hover:bg-[#eee9d4] hover:border-[#4F3B26]': !isSelected && isAvailable,
 										'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed': !isAvailable,
 									}}
 								>
@@ -271,8 +271,8 @@ const handleColorSelect = $((colorOption: ProductOption) => {
 									disabled={!isAvailable}
 									class={{
 										'px-4 py-2 text-sm font-medium rounded-md border transition-all duration-200': true,
-										'bg-[#B09983] text-white border-[#B09983]': isSelected,
-										'bg-white text-gray-900 border-gray-300 hover:bg-[#B09983] hover:border-[#4F3B26]': !isSelected && isAvailable,
+										'bg-[#eee9d4] text-white border-[#eee9d4]': isSelected,
+										'bg-white text-gray-900 border-gray-300 hover:bg-[#eee9d4] hover:border-[#4F3B26]': !isSelected && isAvailable,
 										'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed': !isAvailable,
 									}}
 								>

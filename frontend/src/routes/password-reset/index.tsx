@@ -69,7 +69,7 @@ export default component$(() => {
 					)}
 					<div>
 						<button
-							class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#B09983] hover:bg-[#4F3B26] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[#B09983] transition-colors cursor-pointer"
+							class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#eee9d4] hover:bg-[#4F3B26] focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-[#eee9d4] transition-colors cursor-pointer"
 							onClick$={reset}
 						>
 							Reset password

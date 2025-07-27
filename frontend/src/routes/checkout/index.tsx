@@ -1,10 +1,9 @@
 import { $, component$, useContext, useStore, useVisibleTask$, useSignal } from '@builder.io/qwik';
-import { 
-  useNavigate, 
-  routeAction$, 
-  zod$, 
-  z, 
-  Link
+import {
+  useNavigate,
+  routeAction$,
+  zod$,
+  z
 } from '@qwik.dev/router';
 import CartContents from '~/components/cart-contents/CartContents';
 import CartTotals from '~/components/cart-totals/CartTotals';
@@ -104,6 +103,7 @@ export const useCheckoutAction = routeAction$(async (formData, { fail }) => {
 interface CheckoutState {
   loading: boolean;
   error: string | null;
+  step: 'shipping' | 'payment' | 'processing';
 }
 
 // Main checkout content component that uses validation context
@@ -112,10 +112,11 @@ const CheckoutContent = component$(() => {
   const appState = useContext(APP_STATE);
   const localCart = useLocalCart();
   const checkoutValidation = useCheckoutValidation();
-  const validationActions = useCheckoutValidationActions();
+  const _validationActions = useCheckoutValidationActions();
   const state = useStore<CheckoutState>({
     loading: false,
     error: null,
+    step: 'shipping',
   });
 
   // Signals to trigger payment processing
@@ -135,6 +136,95 @@ const CheckoutContent = component$(() => {
   // Modal visibility state for the epic loading animation
   const showProcessingModal = useSignal(false);
   const paymentComplete = useSignal(false);
+
+  // Handler for "Proceed to Payment" button
+  const proceedToPayment$ = $(async () => {
+    try {
+      state.loading = true;
+      state.error = null;
+
+      // Create Vendure order from local cart (reuse existing logic)
+      const vendureOrder = await secureCartConversion(localCart);
+
+      if (!vendureOrder) {
+        throw new Error('Failed to create order from cart');
+      }
+
+      // Update app state with the new Vendure order
+      appState.activeOrder = vendureOrder;
+
+      // Now set all customer data and addresses before transitioning to ArrangingPayment
+      // Submit address form to set customer data, shipping address, billing address
+      if (typeof window !== 'undefined' && (window as any).submitCheckoutAddressForm) {
+        await (window as any).submitCheckoutAddressForm();
+      } else {
+        throw new Error('Failed to submit address form');
+      }
+
+      // Wait for address submission to complete
+      const waitForAddressSubmission = new Promise<void>((resolve, reject) => {
+        const maxWaitTime = 10000; // 10 seconds max wait
+        const intervalTime = 100; // Check every 100ms
+        let elapsedTime = 0;
+
+        const checkInterval = setInterval(() => {
+          elapsedTime += intervalTime;
+          if (addressState.addressSubmissionComplete || !addressState.addressSubmissionInProgress) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+          if (elapsedTime >= maxWaitTime) {
+            clearInterval(checkInterval);
+            reject(new Error('Timeout waiting for address submission to complete'));
+          }
+        }, intervalTime);
+      });
+
+      await waitForAddressSubmission;
+
+      // Set shipping method based on address
+      if (appState.shippingAddress.countryCode && appState.activeOrder) {
+        const countryCode = appState.shippingAddress.countryCode;
+        const subTotal = appState.activeOrder?.subTotal || 0;
+
+        let shippingMethodId: string | undefined;
+        if (countryCode === 'US' || countryCode === 'PR') {
+          if (subTotal >= 10000) { // $100.00 or more in cents
+            shippingMethodId = '6'; // free-shipping (US_PR_OVER_100)
+          } else {
+            shippingMethodId = '3'; // usps (US_PR_UNDER_100)
+          }
+        } else {
+          shippingMethodId = '7'; // usps-int (INTERNATIONAL)
+        }
+
+        const shippingResult = await secureSetOrderShippingMethod([shippingMethodId]);
+        if (shippingResult && '__typename' in shippingResult && shippingResult.__typename === 'Order') {
+          appState.activeOrder = shippingResult;
+        }
+      }
+
+      // NOW transition to ArrangingPayment state after all data is set
+      console.log('🔄 Transitioning order to ArrangingPayment state after all data is set...');
+      try {
+        const { transitionOrderToStateMutation } = await import('~/providers/shop/checkout/checkout');
+        const transitionResult = await transitionOrderToStateMutation('ArrangingPayment');
+        console.log('✅ Order successfully transitioned to ArrangingPayment state', transitionResult);
+      } catch (_transitionError) {
+        console.error('❌ Failed to transition order state:', _transitionError);
+        throw new Error('Failed to prepare order for payment. Please try again.');
+      }
+
+      // Switch to payment step
+      state.step = 'payment';
+
+    } catch (error) {
+      console.error('Failed to proceed to payment:', error);
+      state.error = error instanceof Error ? error.message : 'Failed to create order';
+    } finally {
+      state.loading = false;
+    }
+  });
   
   useVisibleTask$(async () => {
     // Setup cache monitoring for debug (expose to window for cache module)
@@ -269,7 +359,7 @@ const CheckoutContent = component$(() => {
   });
 
   // Place order handler - called when payment method is ready and user clicks Place Order
-  const placeOrder = $(async () => {
+  const _placeOrder = $(async () => {
     if (isOrderProcessing.value) return;
     
     // 🎭 SHOW THE EPIC LOADING MODAL IMMEDIATELY
@@ -325,7 +415,20 @@ const CheckoutContent = component$(() => {
           // Update app state with the new Vendure order, ensuring order ID is saved within activeOrder
           appState.activeOrder = vendureOrder;
           // console.log('🆔 Order ID saved within activeOrder:', vendureOrder.id);
-          
+
+          // Transition order to ArrangingPayment state now that it's created in Vendure
+          // console.log('🔄 Transitioning order to ArrangingPayment state after creation...');
+          try {
+            await secureOrderStateTransition('ArrangingPayment');
+            // console.log('✅ Order successfully transitioned to ArrangingPayment state');
+          } catch (_transitionError) {
+            // console.error('❌ Failed to transition order state:', _transitionError);
+            state.error = 'Failed to prepare order for payment. Please try again.';
+            showProcessingModal.value = false;
+            isOrderProcessing.value = false;
+            return;
+          }
+
           // Switch to Vendure mode since we now have a real order
           // Note: This is handled automatically in the LocalCartService.convertToVendureOrder()
           
@@ -489,21 +592,7 @@ const CheckoutContent = component$(() => {
           state.error = 'There was an error setting the shipping method. Proceeding with default shipping options.';
         }
         
-        // Transition order to ArrangingPayment state for payment processing after addresses are set
-        if (appState.activeOrder && appState.activeOrder?.state !== 'ArrangingPayment') {
-          // console.log('🔄 Transitioning order to ArrangingPayment state after address submission...');
-          try {
-            await secureOrderStateTransition('ArrangingPayment');
-            // console.log('✅ Order successfully transitioned to ArrangingPayment state');
-          } catch (_transitionError) {
-            // console.error('❌ Failed to transition order state:', transitionError);
-            state.error = 'Failed to prepare order for payment. Please try again.';
-            isOrderProcessing.value = false;
-            return;
-          }
-        } else {
-          // console.log('✅ Order already in ArrangingPayment state, no transition needed');
-        }
+        // Address submission complete - order stays in AddingItems state until payment is initiated
         
         // Safety check: Fetch the latest order state to ensure it's in ArrangingPayment before proceeding to payment
         const latestOrder = await getActiveOrderQuery();
@@ -645,31 +734,66 @@ const CheckoutContent = component$(() => {
                   {/* Shipping and Payment Info Section */}
                   <div class="mb-6">
                     <h3 class="text-lg font-semibold text-gray-900 mb-4">
-                      Shipping and Payment Info
+                      {state.step === 'shipping' ? 'Shipping and Payment Info' : 'Payment'}
                     </h3>
+                    <div class="text-sm text-gray-500 mb-4">
+                      Current step: {state.step}
+                    </div>
                     <CheckoutAddresses />
                   </div>
 
                   {/* Section divider */}
                   <div class="border-t border-gray-100 my-2"></div>
 
-                  {/* Payment Section */}
+                  {/* Payment Section - Conditional Rendering */}
                   <div class="mb-6">
-                    <Payment
-                      triggerStripeSignal={stripeTriggerSignal}
-                      selectedPaymentMethod={selectedPaymentMethod}
-                      hideButton={true}
-                      onForward$={$(async (orderCode: string) => {
-                        // console.log('🎉 Payment successful, order code:', orderCode);
+                    {state.step === 'shipping' && (
+                      <div class="text-center">
+                        <button
+                          type="button"
+                          onClick$={proceedToPayment$}
+                          disabled={state.loading || !checkoutValidation.isAllValid}
+                          class="w-full flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-[#eee9d4] hover:bg-[#4F3B26] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#eee9d4] disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                        >
+                          {state.loading ? (
+                            <>
+                              <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Creating Order...
+                            </>
+                          ) : (
+                            'Proceed to Payment'
+                          )}
+                        </button>
+                        {state.error && (
+                          <div class="mt-3 text-sm text-red-600 text-center">
+                            {state.error}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                        // Trigger the ritual complete message immediately
-                        paymentComplete.value = true;
+                    {state.step === 'payment' && (
+                      <div class="space-y-6">
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                          <h3 class="text-lg font-medium text-gray-900 mb-4">Payment Method</h3>
+                          <Payment
+                          triggerStripeSignal={stripeTriggerSignal}
+                          selectedPaymentMethod={selectedPaymentMethod}
+                          hideButton={false}
+                          onForward$={$(async (orderCode: string) => {
+                          // console.log('🎉 Payment successful, order code:', orderCode);
 
-                        // Navigate immediately to confirmation page (independent of modal)
-                        // console.log('🚀 Navigating to confirmation page immediately...');
-                        navigate(`/checkout/confirmation/${orderCode}`);
-                        
-                        // Keep loading state true until navigation completes
+                          // Trigger the ritual complete message immediately
+                          paymentComplete.value = true;
+
+                          // Navigate immediately to confirmation page (independent of modal)
+                          // console.log('🚀 Navigating to confirmation page immediately...');
+                          navigate(`/checkout/confirmation/${orderCode}`);
+
+                          // Keep loading state true until navigation completes
                         state.loading = true;
                       })}
                       onError$={$(async (errorMessage: string) => {
@@ -699,86 +823,8 @@ const CheckoutContent = component$(() => {
                       })}
                       isDisabled={false}
                     />
-                  </div>
-                  
-                  {/* Terms & Conditions Checkbox */}
-                  <div class="pt-2 border-t border-gray-100">
-                    <div class="flex items-start space-x-3 mb-4">
-                      <input
-                        type="checkbox"
-                        id="termsAcceptance"
-                        checked={checkoutValidation.isTermsAccepted}
-                        onChange$={(_, el) => {
-                          validationActions.updateTermsAcceptance(el.checked);
-                        }}
-                        class="mt-1 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded transition-colors duration-200"
-                      />
-                      <label for="termsAcceptance" class="text-sm text-gray-700 leading-5">
-                        I agree to the{' '}
-                        <Link 
-                          href="/terms" 
-                          target="_blank"
-                          class="text-primary-600 hover:text-primary-700 underline font-medium"
-                        >
-                          Terms & Conditions
-                        </Link>
-                        {' '}and{' '}
-                        <Link
-                          href="/privacy" 
-                          target="_blank"
-                          class="text-primary-600 hover:text-primary-700 underline font-medium"
-                        >
-                          Privacy Policy
-                        </Link>
-                        {' '}<span class="text-red-500">*</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Place Order Button */}
-                  <div>
-                    <button
-                      onClick$={placeOrder}
-                      disabled={state.loading || !checkoutValidation.isAllValid}
-                      class={`w-full rounded-xl shadow-lg py-4 px-6 text-lg font-semibold focus:outline-none focus:ring-4 focus:ring-offset-2 focus:ring-offset-gray-50 transition-all duration-200 ${
-                        state.loading || !checkoutValidation.isAllValid
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60 shadow-none'
-                          : selectedPaymentMethod.value === 'sezzle'
-                            ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 focus:ring-purple-500 transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
-                            : 'bg-gradient-to-r from-gray-900 to-black text-white hover:from-black hover:to-gray-800 focus:ring-gray-500 transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
-                      }`}
-                      title={!checkoutValidation.isAllValid ? 'Please complete all required information' : ''}
-                    >
-                      {state.loading ? (
-                        <span class="flex items-center justify-center">
-                          <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Processing...
-                        </span>
-                      ) : (
-                        <span class="flex items-center justify-center">
-                          {selectedPaymentMethod.value === 'sezzle' ? (
-                            <>
-                              <span class="mr-2">🛍️</span>
-                              Continue with Sezzle
-                            </>
-                          ) : (
-                            <>
-                              <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              Place Order
-                            </>
-                          )}
-                        </span>
-                      )}
-                    </button>
-                    {!checkoutValidation.isAllValid && (
-                      <p class="text-sm text-gray-500 mt-3 text-center">
-                        Please complete all required information to continue
-                      </p>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>

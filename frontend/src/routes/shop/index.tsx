@@ -159,14 +159,14 @@ export default component$(() => {
           <div class="space-y-4">
             <button
               onClick$={() => window.location.reload()}
-              class="w-full bg-[#B09983] text-white px-6 py-3 rounded-lg font-medium hover:bg-[#4F3B26] transition-colors"
+              class="w-full bg-[#eee9d4] text-white px-6 py-3 rounded-lg font-medium hover:bg-[#4F3B26] transition-colors"
             >
               Refresh Page
             </button>
 
             <Link
               href="/"
-              class="block text-[#B09983] hover:text-[#4F3B26] font-medium"
+              class="block text-[#eee9d4] hover:text-[#4F3B26] font-medium"
             >
               ← Return to Homepage
             </Link>
@@ -491,12 +491,12 @@ export default component$(() => {
               {/* Style Selection */}
               <div class={{
                 'p-3 rounded-t-lg border-2 transition-all duration-300': true,
-                'border-[#B09983] bg-[#B09983]/5': !selectedStyle.value, // Active when no style selected
+                'border-[#eee9d4] bg-[#eee9d4]/5': !selectedStyle.value, // Active when no style selected
                 'border-gray-200 bg-gray-50': selectedStyle.value // Completed state
               }}>
                 <div class={{
                   'flex items-center justify-center gap-2 mb-3 text-lg font-semibold transition-colors duration-300': true,
-                  'text-[#B09983]': !selectedStyle.value, // Active styling
+                  'text-[#eee9d4]': !selectedStyle.value, // Active styling
                   'text-gray-600': selectedStyle.value // Completed styling
                 }}>
                   <span class="text-xl">👕</span>
@@ -508,8 +508,8 @@ export default component$(() => {
                     <div
                       class={{
                         'flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 text-center bg-white': true,
-                        'border-[#B09983] bg-gray-50': selectedStyle.value === 'short',
-                        'border-gray-200 hover:border-[#B09983]': selectedStyle.value !== 'short'
+                        'border-[#eee9d4] bg-gray-50': selectedStyle.value === 'short',
+                        'border-gray-200 hover:border-[#eee9d4]': selectedStyle.value !== 'short'
                       }}
                       onClick$={() => {
                         selectedStyle.value = 'short';
@@ -529,8 +529,8 @@ export default component$(() => {
                     <div
                       class={{
                         'flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 text-center bg-white': true,
-                        'border-[#B09983] bg-gray-50': selectedStyle.value === 'long',
-                        'border-gray-200 hover:border-[#B09983]': selectedStyle.value !== 'long'
+                        'border-[#eee9d4] bg-gray-50': selectedStyle.value === 'long',
+                        'border-gray-200 hover:border-[#eee9d4]': selectedStyle.value !== 'long'
                       }}
                       onClick$={() => {
                         selectedStyle.value = 'long';
@@ -552,13 +552,13 @@ export default component$(() => {
               <div class={{
                 'p-3 border-2 transition-all duration-300': true,
                 'border-t-0': !(selectedStyle.value && !selectedSize.value), // Remove top border unless active
-                'border-[#B09983] bg-[#B09983]/5': selectedStyle.value && !selectedSize.value, // Active when style selected but no size
+                'border-[#eee9d4] bg-[#eee9d4]/5': selectedStyle.value && !selectedSize.value, // Active when style selected but no size
                 'border-gray-200 bg-gray-50': !!selectedSize.value, // Completed state
                 'border-gray-200 bg-gray-100 opacity-60 cursor-not-allowed': !selectedStyle.value // Inactive state
               }}>
                 <div class={{
                   'flex items-center justify-center gap-2 mb-3 text-lg font-semibold transition-colors duration-300': true,
-                  'text-[#B09983]': selectedStyle.value && !selectedSize.value, // Active styling
+                  'text-[#eee9d4]': selectedStyle.value && !selectedSize.value, // Active styling
                   'text-gray-600': !!selectedSize.value, // Completed styling
                   'text-gray-400': !selectedStyle.value // Inactive styling
                 }}>
@@ -577,8 +577,8 @@ export default component$(() => {
                           key={sizeOption.id}
                           class={{
                             'flex-1 p-3 border-2 rounded-lg transition-all duration-200 text-center bg-white': true,
-                            'border-[#B09983] bg-gray-50 cursor-pointer': isSelected,
-                            'border-gray-200 hover:border-[#B09983] cursor-pointer': !isSelected && isAvailable,
+                            'border-[#eee9d4] bg-gray-50 cursor-pointer': isSelected,
+                            'border-gray-200 hover:border-[#eee9d4] cursor-pointer': !isSelected && isAvailable,
                             'border-gray-200 cursor-not-allowed opacity-50': !isAvailable
                           }}
                           onClick$={() => {
@@ -609,7 +609,7 @@ export default component$(() => {
                   )}
                 </div>
                 <div class="text-center mt-4">
-                  <a href="#" class="text-sm text-[#B09983] hover:underline">View detailed size chart</a>
+                  <a href="#" class="text-sm text-[#eee9d4] hover:underline">View detailed size chart</a>
                 </div>
               </div>
 
@@ -617,13 +617,13 @@ export default component$(() => {
               <div class={{
                 'p-3 border-2 transition-all duration-300': true,
                 'border-t-0': !(selectedSize.value && !selectedColor.value), // Remove top border unless active
-                'border-[#B09983] bg-[#B09983]/5': selectedSize.value && !selectedColor.value, // Active when size selected but no color
+                'border-[#eee9d4] bg-[#eee9d4]/5': selectedSize.value && !selectedColor.value, // Active when size selected but no color
                 'border-gray-200 bg-gray-50': !!selectedColor.value, // Completed state
                 'border-gray-200 bg-gray-100 opacity-60 cursor-not-allowed': !selectedSize.value // Inactive state
               }}>
                 <div class={{
                   'flex items-center justify-center gap-2 mb-3 text-lg font-semibold transition-colors duration-300': true,
-                  'text-[#B09983]': selectedSize.value && !selectedColor.value, // Active styling
+                  'text-[#eee9d4]': selectedSize.value && !selectedColor.value, // Active styling
                   'text-gray-600': !!selectedColor.value, // Completed styling
                   'text-gray-400': !selectedSize.value // Inactive styling
                 }}>
@@ -657,8 +657,8 @@ export default component$(() => {
                           key={colorOption.id}
                           class={{
                             [`p-3 border-2 rounded-lg transition-all duration-200 text-center text-xs font-semibold ${getColorStyle(colorOption.name)}`]: true,
-                            'border-[#B09983] border-4 cursor-pointer': isSelected,
-                            'border-gray-300 hover:border-[#B09983] hover:-translate-y-0.5 cursor-pointer': !isSelected && isAvailable,
+                            'border-[#eee9d4] border-4 cursor-pointer': isSelected,
+                            'border-gray-300 hover:border-[#eee9d4] hover:-translate-y-0.5 cursor-pointer': !isSelected && isAvailable,
                             'cursor-not-allowed opacity-30': !isAvailable
                           }}
                           onClick$={() => {
@@ -704,8 +704,8 @@ export default component$(() => {
                   disabled={isAddingToCart.value || !selectedVariantId.value}
                   class={{
                     'w-full py-3 px-6 rounded-lg font-semibold transition-all duration-200': true,
-                    'bg-[#B09983] text-white hover:bg-[#4F3B26] cursor-pointer': !isAddingToCart.value && selectedVariantId.value,
-                    'bg-[#B09983] text-white cursor-not-allowed': isAddingToCart.value || !selectedVariantId.value,
+                    'bg-[#eee9d4] text-white hover:bg-[#4F3B26] cursor-pointer': !isAddingToCart.value && selectedVariantId.value,
+                    'bg-[#eee9d4] text-white cursor-not-allowed': isAddingToCart.value || !selectedVariantId.value,
                   }}
                 >
                   {isAddingToCart.value ? (

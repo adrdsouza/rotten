@@ -82,9 +82,9 @@ export default component$(() => {
 			class={`fixed top-0 left-0 right-0 z-50 border-0 transition-all duration-500 ease-in-out ${
 				isHomePage
 					? isScrolled.value
-						? 'bg-[#B09983]/95 backdrop-blur-sm shadow-sm' // New brand color with blur
+						? 'bg-[#eee9d4]/95 backdrop-blur-sm shadow-sm' // New brand color with blur
 						: 'bg-transparent' // Fully transparent
-					: 'bg-[#B09983]' // Solid brand color background on other pages
+					: 'bg-[#eee9d4]' // Solid brand color background on other pages
 			}`}
 		>{/* Main Header */}
 				<div class="max-w-content-wide mx-auto px-4 sm:px-6 lg:px-8 w-full">
@@ -222,7 +222,7 @@ export default component$(() => {
 					</div>
 				</div>				{/* Mobile Menu Overlay */}
 				{appState.showMenu && (					<div
-						class="fixed inset-0 z-50 w-full h-full bg-[#B09983] flex flex-col items-center justify-center px-6"
+						class="fixed inset-0 z-50 w-full h-full bg-[#eee9d4] flex flex-col items-center justify-center px-6"
 						style="min-height: 100vh;"
 					>						<button
 							class="absolute top-4 right-4 p-2 text-white hover:text-gray-200 rounded-lg hover:bg-white/10 transition-all duration-200"

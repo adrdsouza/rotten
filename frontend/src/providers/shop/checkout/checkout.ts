@@ -67,18 +67,33 @@ export const getEligiblePaymentMethodsQuery = async () => {
 		.then((res: EligiblePaymentMethodsQuery) => res.eligiblePaymentMethods as PaymentMethodQuote[]);
 };
 
-// Stripe Payment Integration - Temporarily commented until GraphQL types are generated
+// Stripe Payment Integration using official @vendure/payments-plugin
 export const createStripePaymentIntentMutation = async (amount: number) => {
-	// TODO: Implement after GraphQL codegen
-	console.log('Creating Stripe payment intent for amount:', amount);
-	return {
-		clientSecret: 'pi_test_client_secret',
-		paymentIntentId: 'pi_test_payment_intent_id'
-	};
+	try {
+		const { requester } = await import('~/utils/api');
+		const result = await requester<
+			{ createStripePaymentIntent: { clientSecret: string } },
+			{ amount: number }
+		>(
+			gql`
+				mutation createStripePaymentIntent($amount: Float!) {
+					createStripePaymentIntent(amount: $amount) {
+						clientSecret
+					}
+				}
+			`,
+			{ amount }
+		);
+		return result.createStripePaymentIntent.clientSecret;
+	} catch (error) {
+		console.error('Failed to create Stripe payment intent:', error);
+		throw error;
+	}
 };
 
 export const getStripePublishableKeyQuery = async () => {
-	// TODO: Implement after GraphQL codegen
+	// The official plugin doesn't provide a query for the publishable key
+	// So we use the environment variable directly
 	return import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
 };
 

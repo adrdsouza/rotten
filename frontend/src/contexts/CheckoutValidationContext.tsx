@@ -42,7 +42,7 @@ export interface CheckoutValidationState {
     cvv?: string;
   };
   
-  // Terms & Conditions validation
+  // Terms & Conditions validation (handled by Stripe)
   isTermsAccepted: boolean;
   
   // Overall validation state
@@ -89,27 +89,27 @@ export const CheckoutValidationProvider = component$(() => {
 
   // Use a task to automatically recalculate overall validation when any validation state changes
   useTask$(({ track }) => {
-    // Track all validation-related properties
+    // Track validation properties needed for "Proceed to Payment" button
     const customerValid = track(() => state.isCustomerValid);
     const shippingValid = track(() => state.isShippingAddressValid);
     const billingValid = track(() => state.useDifferentBilling ? state.isBillingAddressValid : true);
-    const paymentValid = track(() => state.isPaymentValid);
-    const termsValid = track(() => state.isTermsAccepted);
 
-    // Calculate overall validation
-    const overall = customerValid && shippingValid && billingValid && paymentValid && termsValid;
+    // Note: paymentValid and termsValid are NOT included here because:
+    // - Payment validation happens AFTER clicking "Proceed to Payment"
+    // - Terms acceptance happens on the payment step, not shipping step
+
+    // Calculate overall validation for shipping step only
+    const overall = customerValid && shippingValid && billingValid;
 
     // Update the state
     state.isAllValid = overall;
 
-    // console.log('[CheckoutValidation] Overall validation recalculated:', {
-    //   customer: customerValid,
-    //   shipping: shippingValid,
-    //   billing: billingValid,
-    //   payment: paymentValid,
-    //   terms: termsValid,
-    //   overall
-    // });
+    console.log('[CheckoutValidation] Overall validation recalculated:', {
+      customer: customerValid,
+      shipping: shippingValid,
+      billing: billingValid,
+      overall
+    });
   });
 
   // Use Qwik's useContextProvider - only provide the state

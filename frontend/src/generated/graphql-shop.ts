@@ -3863,15 +3863,6 @@ export type ProductQueryVariables = Exact<{
 
 export type ProductQuery = { __typename?: 'Query', product?: { __typename?: 'Product', id: string, name: string, slug: string, description: string, facetValues: Array<{ __typename?: 'FacetValue', id: string, code: string, name: string, facet: { __typename?: 'Facet', id: string, code: string, name: string } }>, featuredAsset?: { __typename?: 'Asset', id: string, preview: string } | null, assets: Array<{ __typename?: 'Asset', id: string, preview: string }>, variants: Array<{ __typename?: 'ProductVariant', id: string, name: string, priceWithTax: any, currencyCode: CurrencyCode, sku: string, stockLevel: string, options: Array<{ __typename?: 'ProductOption', id: string, code: string, name: string, group: { __typename?: 'ProductOptionGroup', id: string, code: string, name: string } }> }> } | null };
 
-export type ListedProductFragment = { __typename?: 'SearchResult', productId: string, productName: string, slug: string, currencyCode: CurrencyCode, inStock: boolean, productAsset?: { __typename?: 'SearchResultAsset', id: string, preview: string } | null, priceWithTax: { __typename?: 'PriceRange', min: any, max: any } | { __typename?: 'SinglePrice', value: any } };
-
-export type SearchQueryVariables = Exact<{
-  input: SearchInput;
-}>;
-
-
-export type SearchQuery = { __typename?: 'Query', search: { __typename?: 'SearchResponse', totalItems: number, items: Array<{ __typename?: 'SearchResult', productId: string, productName: string, slug: string, currencyCode: CurrencyCode, inStock: boolean, productAsset?: { __typename?: 'SearchResultAsset', id: string, preview: string } | null, priceWithTax: { __typename?: 'PriceRange', min: any, max: any } | { __typename?: 'SinglePrice', value: any } }> } };
-
 export const AddressFragmentDoc = gql`
     fragment Address on Address {
   id
@@ -4041,28 +4032,6 @@ export const OptimizedDetailedProductFragmentDoc = gql`
         code
         name
       }
-    }
-  }
-}
-    `;
-export const ListedProductFragmentDoc = gql`
-    fragment ListedProduct on SearchResult {
-  productId
-  productName
-  slug
-  productAsset {
-    id
-    preview
-  }
-  currencyCode
-  inStock
-  priceWithTax {
-    ... on PriceRange {
-      min
-      max
-    }
-    ... on SinglePrice {
-      value
     }
   }
 }
@@ -4586,16 +4555,6 @@ export const ProductDocument = gql`
   }
 }
     ${OptimizedDetailedProductFragmentDoc}`;
-export const SearchDocument = gql`
-    query search($input: SearchInput!) {
-  search(input: $input) {
-    totalItems
-    items {
-      ...ListedProduct
-    }
-  }
-}
-    ${ListedProductFragmentDoc}`;
 export type Requester<C = {}> = <R, V>(doc: DocumentNode, vars?: V, options?: C) => Promise<R> | AsyncIterable<R>
 export function getSdk<C>(requester: Requester<C>) {
   return {
@@ -4706,9 +4665,6 @@ export function getSdk<C>(requester: Requester<C>) {
     },
     product(variables?: ProductQueryVariables, options?: C): Promise<ProductQuery> {
       return requester<ProductQuery, ProductQueryVariables>(ProductDocument, variables, options) as Promise<ProductQuery>;
-    },
-    search(variables: SearchQueryVariables, options?: C): Promise<SearchQuery> {
-      return requester<SearchQuery, SearchQueryVariables>(SearchDocument, variables, options) as Promise<SearchQuery>;
     }
   };
 }

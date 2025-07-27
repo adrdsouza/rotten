@@ -44,6 +44,9 @@ importers:
       '@vendure/harden-plugin':
         specifier: ^3.3.7
         version: 3.3.7(graphql@16.11.0)
+      '@vendure/payments-plugin':
+        specifier: ^3.3.0
+        version: 3.3.7(stripe@13.11.0)
       axios:
         specifier: ^1.10.0
         version: 1.10.0
@@ -84,8 +87,8 @@ importers:
         specifier: ^1.1.7
         version: 1.1.7
       stripe:
-        specifier: ^17.4.0
-        version: 17.7.0
+        specifier: ^13.11.0
+        version: 13.11.0
       typeorm:
         specifier: ^0.3.25
         version: 0.3.25(ioredis@5.6.1)(pg@8.16.3)(reflect-metadata@0.2.2)(ts-node@10.9.2(@types/node@24.0.15)(typescript@5.8.3))
@@ -2474,6 +2477,20 @@ packages:
     engines: {node: '>=18.0.0'}
     hasBin: true
 
+  '@vendure/payments-plugin@3.3.7':
+    resolution: {integrity: sha512-Lw9fTlFNhyfYeRG993dc/hG5q+KQGsGEL5BL223oZUoHb+MEoUtaPFVjBmee1L2EfyQNZAQpMGmjADQwcT9Y1A==}
+    peerDependencies:
+      '@mollie/api-client': 3.x
+      braintree: 3.x
+      stripe: 13.x
+    peerDependenciesMeta:
+      '@mollie/api-client':
+        optional: true
+      braintree:
+        optional: true
+      stripe:
+        optional: true
+
   '@vendure/ui-devkit@3.3.7':
     resolution: {integrity: sha512-nbn55N1L6K8Du5gamUhk34B/vJqbOJtBbba5RkTLgaNJS/vb/ao2jrmtpPoRfTWE+dekEL0DoA2JhLGxmZ27fg==}
 
@@ -3210,6 +3227,10 @@ packages:
 
   csv-writer@1.6.0:
     resolution: {integrity: sha512-NOx7YDFWEsM/fTRAJjRpPp8t+MKRVvniAg9wQlUKx20MFrPs73WLJhFf5iteqrxNYnsy924K3Iroh3yNHeYd2g==}
+
+  currency.js@2.0.4:
+    resolution: {integrity: sha512-6/OplJYgJ0RUlli74d93HJ/OsKVBi8lB1+Z6eJYS1YZzBuIp4qKKHpJ7ad+GvTlWmLR/hLJOWTykN5Nm8NJ7+w==}
+    engines: {node: '>=4'}
 
   data-uri-to-buffer@4.0.1:
     resolution: {integrity: sha512-0R9ikRb668HB7QDxT1vkpuUBtqc53YyAwMwGeUFKRojY/NWKvdZ+9UYtRfGmhqNbRkTSVpMbmyhXipFFv2cb/A==}
@@ -5856,8 +5877,8 @@ packages:
     resolution: {integrity: sha512-vavAMRXOgBVNF6nyEEmL3DBK19iRpDcoIwW+swQ+CbGiu7lju6t+JklA1MHweoWtadgt4ISVUsXLyDq34ddcwA==}
     engines: {node: '>=4'}
 
-  stripe@17.7.0:
-    resolution: {integrity: sha512-aT2BU9KkizY9SATf14WhhYVv2uOapBWX0OFWF4xvcj1mPaNotlSc2CsxpS4DS46ZueSppmCF5BX1sNYBtwBvfw==}
+  stripe@13.11.0:
+    resolution: {integrity: sha512-yPxVJxUzP1QHhHeFnYjJl48QwDS1+5befcL7ju7+t+i88D5r0rbsL+GkCCS6zgcU+TiV5bF9eMGcKyJfLf8BZQ==}
     engines: {node: '>=12.*'}
 
   strtok3@10.3.1:
@@ -9202,6 +9223,12 @@ snapshots:
       - supports-color
       - typescript
 
+  '@vendure/payments-plugin@3.3.7(stripe@13.11.0)':
+    dependencies:
+      currency.js: 2.0.4
+    optionalDependencies:
+      stripe: 13.11.0
+
   '@vendure/ui-devkit@3.3.7(@types/node@24.0.15)(graphql-ws@6.0.4(graphql@16.11.0)(ws@8.18.1))(jiti@1.21.7)(subscriptions-transport-ws@0.11.0(graphql@16.11.0))(typescript@5.8.3)(vite@6.2.7(@types/node@24.0.15)(jiti@1.21.7)(less@4.2.2)(sass@1.85.0)(terser@5.39.0))':
     dependencies:
       '@angular-devkit/build-angular': 19.2.15(@angular/compiler-cli@19.2.14(@angular/compiler@19.2.14)(typescript@5.8.3))(@angular/compiler@19.2.14)(@types/node@24.0.15)(chokidar@3.6.0)(jiti@1.21.7)(typescript@5.8.3)(vite@6.2.7(@types/node@24.0.15)(jiti@1.21.7)(less@4.2.2)(sass@1.85.0)(terser@5.39.0))
@@ -10080,6 +10107,8 @@ snapshots:
   csv-parser@3.2.0: {}
 
   csv-writer@1.6.0: {}
+
+  currency.js@2.0.4: {}
 
   data-uri-to-buffer@4.0.1: {}
 
@@ -13134,7 +13163,7 @@ snapshots:
 
   strip-bom@3.0.0: {}
 
-  stripe@17.7.0:
+  stripe@13.11.0:
     dependencies:
       '@types/node': 24.0.15
       qs: 6.14.0

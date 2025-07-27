@@ -81,6 +81,7 @@
 		"@graphql-codegen/typescript-generic-sdk": "^4.0.2",
 		"@stripe/stripe-js": "^7.6.1",
 		"@types/grecaptcha": "^3.0.9",
+		"@vendure/payments-plugin": "^3.3.7",
 		"card-validator": "^10.0.3",
 		"graphql": "^16.11.0",
 		"graphql-tag": "^2.12.6",

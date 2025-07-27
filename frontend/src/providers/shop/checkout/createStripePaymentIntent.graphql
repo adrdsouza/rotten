@@ -1,0 +1,5 @@
+mutation createStripePaymentIntent($amount: Float!) {
+  createStripePaymentIntent(amount: $amount) {
+    clientSecret
+  }
+}

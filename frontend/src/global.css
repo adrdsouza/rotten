@@ -10,7 +10,7 @@
 
 @layer utilities {
   .btn-primary {
-    @apply w-full border border-transparent rounded py-2 px-5 flex items-center justify-center text-base font-medium text-black bg-[#B09983] hover:bg-[#4F3B26] hover:text-white focus:outline-hidden focus:ring-0 shadow-none transition-all duration-300 cursor-pointer;
+    @apply w-full border border-transparent rounded py-2 px-5 flex items-center justify-center text-base font-medium text-black bg-[#eee9d4] hover:bg-[#4F3B26] hover:text-white focus:outline-hidden focus:ring-0 shadow-none transition-all duration-300 cursor-pointer;
     font-family: var(--font-heading);
   }
   .btn-secondary {
@@ -27,7 +27,7 @@
     font-family: var(--font-heading);
   }
   .text-brand-red {
-    color: #B09983;
+    color: #eee9d4;
   }
   .text-brand-red-hover {
     color: #4F3B26;
@@ -131,6 +131,29 @@
   strong,
   b {
     font-weight: 500;
+  }
+
+  /* Custom styles for Stripe payment tabs */
+  .payment-tabs-container {
+    position: relative;
+    width: 100%;
+  }
+
+  /* Force Stripe payment element to use full width */
+  .payment-tabs-container #payment-form {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .payment-tabs-container #payment-form > div {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Ensure all nested Stripe elements use full width */
+  .payment-tabs-container iframe {
+    width: 100% !important;
+    max-width: 100% !important;
   }
 }
 

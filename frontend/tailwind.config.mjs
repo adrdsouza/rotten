@@ -24,11 +24,11 @@ const config = {
 					900: '#404040',
 				},
 				brand: {
-					gold: '#B09983',
+					gold: '#eee9d4',
 					'gold-hover': '#4F3B26',
-					'gold-light': '#B09983',
+					'gold-light': '#eee9d4',
 					// Legacy aliases for backward compatibility
-					red: '#B09983',
+					red: '#eee9d4',
 					'red-hover': '#4F3B26',
 				},
 				accent: {
