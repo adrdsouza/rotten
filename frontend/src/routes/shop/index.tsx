@@ -5,7 +5,7 @@ import Price from '~/components/products/Price';
 import { getBatchedProductsForShop, getProductAssets } from '~/providers/shop/products/products';
 import { Product, ProductOption } from '~/types';
 import { createSEOHead } from '~/utils/seo';
-import { useLocalCart, addToLocalCart } from '~/contexts/CartContext';
+import { useLocalCart, addToLocalCart, loadCartIfNeeded } from '~/contexts/CartContext';
 import { APP_STATE } from '~/constants';
 import { loadCountryOnDemand } from '~/utils/addressStorage';
 import { LocalCartService } from '~/services/LocalCartService';

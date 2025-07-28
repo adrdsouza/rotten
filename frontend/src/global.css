@@ -1,6 +1,9 @@
 /* Font faces */
 @import 'tailwindcss';
 
+/* 🚀 ENHANCED: Modern CSS scroll animations */
+@import './styles/scroll-animations.css';
+
 /* Font rendering improvements to fix ghosting */
 
 /*

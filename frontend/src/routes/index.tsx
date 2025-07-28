@@ -1,6 +1,6 @@
 // 🚀 MODERN REDESIGN 2025: Clean, performance-focused homepage
 // 🚀 BACKUP: Original homepage saved as index-backup.tsx
-import { component$, useStylesScoped$, useSignal, useVisibleTask$ } from '@qwik.dev/core';
+import { component$, useStylesScoped$ } from '@qwik.dev/core';
 import { Link } from '@qwik.dev/router';
 import { createSEOHead } from '~/utils/seo';
 
@@ -130,31 +130,8 @@ const MODERN_STYLES = `
 export default component$(() => {
   useStylesScoped$(MODERN_STYLES);
 
-  const videoRef = useSignal<HTMLVideoElement>();
-
-  // Performance-optimized video loading
-  useVisibleTask$(() => {
-    if (videoRef.value) {
-      const video = videoRef.value;
-
-      // Intersection observer to start video when visible
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            video.play().catch(() => {
-              // Fallback: if autoplay fails, user can click to play
-              console.log('Video autoplay prevented by browser');
-            });
-            observer.disconnect();
-          }
-        });
-      }, { threshold: 0.1 });
-
-      observer.observe(video);
-
-      return () => observer.disconnect();
-    }
-  });
+  // 🚀 SIMPLIFIED: Removed complex intersection observer for video loading
+  // Browser handles autoplay optimization automatically
 
   return (
     <div>
@@ -192,20 +169,21 @@ export default component$(() => {
           <div class="absolute inset-0 hero-overlay"></div>
         </div>
 
-        {/* Hero Content - Clean, Premium Design */}
+        {/* Hero Content - Clean, Premium Design with CSS animations */}
         <div class="relative z-10 h-full flex items-end justify-center px-6 sm:px-8 lg:px-16 pb-16 sm:pb-20 lg:pb-24">
           <div class="text-center max-w-3xl">
-            <h1 class="font-heading text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-light text-white leading-tight mb-6 tracking-tight">
+            <h1 class="font-heading text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-light text-white leading-tight mb-6 tracking-tight animate-fade-up">
               One Shirt. 18 Options.<br/>
               <span class="font-normal">Zero Bullshit.</span>
             </h1>
-            <p class="font-body text-base sm:text-lg lg:text-xl text-white/90 font-light leading-relaxed mb-8 max-w-xl mx-auto">
+            <p class="font-body text-base sm:text-lg lg:text-xl text-white/90 font-light leading-relaxed mb-8 max-w-xl mx-auto animate-fade-up" style="animation-delay: 0.2s;">
               If it's not the softest shirt you've ever felt, we'll pay you back
             </p>
             <Link
               href="/shop"
               prefetch
-              class="inline-block bg-[#8a6d4a] text-white px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:scale-105 hover:shadow-xl rounded-lg shadow-lg border border-[#8a6d4a]"
+              class="inline-block bg-[#8a6d4a] text-white px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:scale-105 hover:shadow-xl rounded-lg shadow-lg border border-[#8a6d4a] animate-scale"
+              style="animation-delay: 0.4s;"
             >
               <div class="text-4xl font-bold uppercase tracking-widest">SHOP</div>
               <div class="text-xs uppercase tracking-wide mt-1">Our Money Back Guarantee</div>
@@ -247,10 +225,10 @@ export default component$(() => {
 
       {/* Conscious Consumption Section - Brand Story with Background Video/Image */}
       <section class="relative min-h-[70vh] overflow-hidden">
-        {/* Background Video - Performance optimized with Qwik intersection observer */}
+        {/* Background Video - Simplified browser-native autoplay optimization */}
         <div class="absolute inset-0">
           <video
-            ref={videoRef}
+            autoplay
             muted
             loop
             playsInline
@@ -263,15 +241,15 @@ export default component$(() => {
           <div class="absolute inset-0 bg-black/40"></div>
         </div>
 
-        {/* Content - Positioned on the left */}
+        {/* Content - Positioned on the left with CSS animations */}
         <div class="relative z-10 h-full flex items-center">
           <div class="w-full px-8 lg:px-16 py-20">
             <div class="max-w-2xl">
-              <h2 class="text-4xl lg:text-6xl font-light mb-8 leading-tight text-white">
+              <h2 class="text-4xl lg:text-6xl font-light mb-8 leading-tight text-white animate-fade-left">
                 Conscious consumption<br/>
                 <span class="font-normal text-[#8a6d4a]">over mindless waste.</span>
               </h2>
-              <div class="text-xl text-gray-200 leading-relaxed mb-12 space-y-6">
+              <div class="text-xl text-gray-200 leading-relaxed mb-12 space-y-6 animate-fade-left" style="animation-delay: 0.2s;">
                 <p>
                   Fast fashion dumps 92 million tons into landfills every year. Why shop trends that end up as waste?
                 </p>

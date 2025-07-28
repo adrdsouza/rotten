@@ -193,7 +193,7 @@ export default component$(() => {
 		<CartProvider>
 			<div>
 				<Header />
-				{/* Conditional Cart Loading: Only load full cart component when needed */}
+				{/* 🚀 DEMAND-BASED: Conditional Cart Loading following Damned Designs pattern */}
 				{!isHomePage ? (
 					// Non-homepage: Load cart immediately for better UX
 					<Cart />
