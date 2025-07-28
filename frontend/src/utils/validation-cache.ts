@@ -180,7 +180,18 @@ export function cleanupValidationCache(): void {
   validationCache.cleanup();
 }
 
-// Auto cleanup every 30 seconds
-if (typeof window !== 'undefined') {
-  setInterval(cleanupValidationCache, 30000);
+// Auto cleanup only when explicitly enabled to prevent performance overhead
+let cleanupInterval: NodeJS.Timeout | null = null;
+
+export function enableAutoCleanup(): void {
+  if (typeof window !== 'undefined' && !cleanupInterval) {
+    cleanupInterval = setInterval(cleanupValidationCache, 30000);
+  }
+}
+
+export function disableAutoCleanup(): void {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
 }

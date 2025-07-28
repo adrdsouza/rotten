@@ -189,6 +189,17 @@ export default defineConfig((config) => {
             level: 9, // Maximum compression for build-time (since it's pre-computed)
           },
         }),
+        // Brotli compression (better compression ratios, supported by modern browsers)
+        viteCompression({
+          algorithm: 'brotliCompress',
+          ext: '.br',
+          threshold: 1024, // Only compress files > 1KB
+          deleteOriginFile: false, // Keep original files
+          filter: /\.(js|mjs|json|css|html|svg)$/i, // Compress text-based files
+          compressionOptions: {
+            level: 11, // Maximum Brotli compression for build-time
+          },
+        }),
       ] : []),
     ],
     preview: {

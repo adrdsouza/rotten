@@ -274,6 +274,17 @@ export default component$(() => {
 								if (order && order.state === 'PaymentSettled') {
 									console.log('[StripePayment] Order payment settled! Passing order data to confirmation...');
 
+									// 🚀 PREFETCH OPTIMIZATION: Prefetch confirmation page before redirect
+									const confirmationUrl = `${baseUrl}/checkout/confirmation/${order.code}`;
+									if (typeof document !== 'undefined') {
+										const link = document.createElement('link');
+										link.rel = 'prefetch';
+										link.href = confirmationUrl;
+										link.as = 'document';
+										document.head.appendChild(link);
+										console.log(`🔗 Prefetched confirmation page: ${order.code}`);
+									}
+
 									// Pass complete order data + payment method info to confirmation page
 									const orderData = encodeURIComponent(JSON.stringify({
 										order: order,
@@ -283,7 +294,10 @@ export default component$(() => {
 										source: 'stripe_payment'
 									}));
 
-									window.location.href = `${baseUrl}/checkout/confirmation/${order.code}?orderData=${orderData}`;
+									// Small delay to allow prefetch to start
+									setTimeout(() => {
+										window.location.href = `${baseUrl}/checkout/confirmation/${order.code}?orderData=${orderData}`;
+									}, 100);
 									return;
 								}
 

@@ -1,5 +1,6 @@
 // 🚀 ADVANCED CACHING: Background cache warming for optimal performance
 import { $ } from '@qwik.dev/core';
+import ShopImageUrl from '~/media/shop.jpg?url';
 
 // Cache warming configuration
 const CACHE_WARMING_CONFIG = {
@@ -8,14 +9,16 @@ const CACHE_WARMING_CONFIG = {
   
   // Assets to prefetch
   PRIORITY_ASSETS: [
-    '/media/shop.jpg',
-    '/fonts/Damned-Regular.woff2',
-    '/fonts/Damned-Bold.woff2'
+    ShopImageUrl, // Dynamic path resolved by Vite import
+    '/fonts/inter/inter-v19-latin-regular.woff2',
+    '/fonts/inter/inter-v19-latin-500.woff2',
+    '/fonts/playfair-display/playfair-display-v37-latin-regular.woff2',
+    '/fonts/playfair-display/playfair-display-v37-latin-700.woff2'
   ],
   
-  // Timing configuration
-  WARM_DELAY: 2000, // Wait 2s after page load
-  PREFETCH_TIMEOUT: 5000, // Max 5s per prefetch
+  // Timing configuration - optimized for faster loading
+  WARM_DELAY: 500, // Wait 500ms after page load (reduced from 2s)
+  PREFETCH_TIMEOUT: 2000, // Max 2s per prefetch (reduced from 5s)
 };
 
 // 🚀 SMART PREFETCHING: Only prefetch likely-to-be-needed resources

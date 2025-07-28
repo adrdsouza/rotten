@@ -5,12 +5,12 @@ import Price from '~/components/products/Price';
 import { getBatchedProductsForShop, getProductAssets } from '~/providers/shop/products/products';
 import { Product, ProductOption } from '~/types';
 import { createSEOHead } from '~/utils/seo';
-import { useLocalCart, addToLocalCart, loadCartIfNeeded } from '~/contexts/CartContext';
+import { useLocalCart, addToLocalCart } from '~/contexts/CartContext';
 import { APP_STATE } from '~/constants';
 import { loadCountryOnDemand } from '~/utils/addressStorage';
 import { LocalCartService } from '~/services/LocalCartService';
 import ShopImageUrl from '~/media/shop.jpg?url';
-import { warmProductCache, prefetchOnHover, cleanupCache } from '~/utils/cache-warming';
+import { prefetchOnHover, cleanupCache } from '~/utils/cache-warming';
 
 
 // 🚀 OPTIMIZED: Memoized helper functions for better performance
@@ -360,11 +360,8 @@ export default component$(() => {
 
 
 
-  // 🚀 ADVANCED CACHING: Background cache warming and cleanup
+  // 🚀 CACHE CLEANUP: Only cleanup old cache entries (removed cache warming that was causing 5s delay)
   useVisibleTask$(() => {
-    // Start background cache warming
-    warmProductCache();
-
     // Clean up old cache entries
     cleanupCache();
   });

@@ -20,7 +20,8 @@ import { useLocalCart, refreshCartStock } from '~/contexts/CartContext';
 import { CheckoutValidationProvider, useCheckoutValidation, useCheckoutValidationActions } from '~/contexts/CheckoutValidationContext';
 import { OrderProcessingModal } from '~/components/OrderProcessingModal';
 import { clearAllValidationCache } from '~/utils/cached-validation';
-import { recordCacheHit, recordCacheMiss, resetCacheMonitoring } from '~/utils/validation-cache-debug';
+import { recordCacheHit, recordCacheMiss, resetCacheMonitoring, enablePerformanceLogging, disablePerformanceLogging } from '~/utils/validation-cache-debug';
+import { enableAutoCleanup, disableAutoCleanup } from '~/utils/validation-cache';
 import { 
   secureCartConversion, 
   secureOrderStateTransition,
@@ -143,8 +144,27 @@ const CheckoutContent = component$(() => {
       state.loading = true;
       state.error = null;
 
-      // Create Vendure order from local cart (reuse existing logic)
-      const vendureOrder = await secureCartConversion(localCart);
+      // 🚀 ENHANCED ERROR RECOVERY: Create Vendure order with retry mechanism
+      let vendureOrder;
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      while (retryCount < maxRetries) {
+        try {
+          vendureOrder = await secureCartConversion(localCart);
+          if (vendureOrder) break;
+        } catch (conversionError) {
+          retryCount++;
+          console.log(`Cart conversion attempt ${retryCount}/${maxRetries} failed:`, conversionError);
+
+          if (retryCount === maxRetries) {
+            throw new Error(`Failed to create order after ${maxRetries} attempts: ${conversionError instanceof Error ? conversionError.message : 'Unknown error'}`);
+          }
+
+          // Wait before retry with exponential backoff
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+        }
+      }
 
       if (!vendureOrder) {
         throw new Error('Failed to create order from cart');
@@ -153,12 +173,30 @@ const CheckoutContent = component$(() => {
       // Update app state with the new Vendure order
       appState.activeOrder = vendureOrder;
 
-      // Now set all customer data and addresses before transitioning to ArrangingPayment
-      // Submit address form to set customer data, shipping address, billing address
-      if (typeof window !== 'undefined' && (window as any).submitCheckoutAddressForm) {
-        await (window as any).submitCheckoutAddressForm();
-      } else {
-        throw new Error('Failed to submit address form');
+      // 🚀 ENHANCED ERROR RECOVERY: Submit address form with retry mechanism
+      let addressSubmissionSuccess = false;
+      let addressRetryCount = 0;
+      const maxAddressRetries = 2;
+
+      while (addressRetryCount < maxAddressRetries && !addressSubmissionSuccess) {
+        try {
+          if (typeof window !== 'undefined' && (window as any).submitCheckoutAddressForm) {
+            await (window as any).submitCheckoutAddressForm();
+            addressSubmissionSuccess = true;
+          } else {
+            throw new Error('Address form submission function not available');
+          }
+        } catch (addressError) {
+          addressRetryCount++;
+          console.log(`Address submission attempt ${addressRetryCount}/${maxAddressRetries} failed:`, addressError);
+
+          if (addressRetryCount === maxAddressRetries) {
+            throw new Error(`Failed to submit address form after ${maxAddressRetries} attempts: ${addressError instanceof Error ? addressError.message : 'Unknown error'}`);
+          }
+
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
 
       // Wait for address submission to complete
@@ -182,7 +220,7 @@ const CheckoutContent = component$(() => {
 
       await waitForAddressSubmission;
 
-      // Set shipping method based on address
+      // 🚀 ENHANCED ERROR RECOVERY: Set shipping method with fallback mechanisms
       if (appState.shippingAddress.countryCode && appState.activeOrder) {
         const countryCode = appState.shippingAddress.countryCode;
         const subTotal = appState.activeOrder?.subTotal || 0;
@@ -198,9 +236,33 @@ const CheckoutContent = component$(() => {
           shippingMethodId = '7'; // usps-int (INTERNATIONAL)
         }
 
-        const shippingResult = await secureSetOrderShippingMethod([shippingMethodId]);
-        if (shippingResult && '__typename' in shippingResult && shippingResult.__typename === 'Order') {
-          appState.activeOrder = shippingResult;
+        let shippingSuccess = false;
+        let shippingRetryCount = 0;
+        const maxShippingRetries = 2;
+
+        while (shippingRetryCount < maxShippingRetries && !shippingSuccess) {
+          try {
+            const shippingResult = await secureSetOrderShippingMethod([shippingMethodId]);
+            if (shippingResult && '__typename' in shippingResult && shippingResult.__typename === 'Order') {
+              appState.activeOrder = shippingResult;
+              shippingSuccess = true;
+              console.log('✅ Shipping method set successfully');
+            } else {
+              throw new Error('Invalid shipping method response');
+            }
+          } catch (shippingError) {
+            shippingRetryCount++;
+            console.log(`Shipping method attempt ${shippingRetryCount}/${maxShippingRetries} failed:`, shippingError);
+
+            if (shippingRetryCount === maxShippingRetries) {
+              console.log('⚠️ Shipping method setting failed, continuing with default options');
+              // Don't fail the entire checkout for shipping method issues
+              state.error = 'Unable to set preferred shipping method. Default shipping will be applied.';
+            } else {
+              // Wait before retry
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
         }
       }
 
@@ -232,12 +294,15 @@ const CheckoutContent = component$(() => {
       (window as any).recordCacheHit = recordCacheHit;
       (window as any).recordCacheMiss = recordCacheMiss;
     }
-    
+
+    // Enable cache monitoring and auto-cleanup only for checkout page
+    enablePerformanceLogging();
+    enableAutoCleanup();
+
     // Clear all validation cache when checkout page loads
     clearAllValidationCache();
     resetCacheMonitoring();
-    // console.log('[Checkout] Cleared validation cache and reset monitoring on page load');
-    
+
     appState.showCart = false;
     pageLoading.value = true;
 
@@ -245,9 +310,8 @@ const CheckoutContent = component$(() => {
     if (localCart.isLocalMode && localCart.localCart.items.length > 0) {
       try {
         await refreshCartStock(localCart);
-        // console.log('✅ Checkout: Stock levels refreshed');
       } catch (_error) {
-        // console.error('❌ Checkout: Failed to refresh stock levels:', error);
+        console.error('❌ Checkout: Failed to refresh stock levels:', _error);
       }
     }
 
@@ -279,21 +343,16 @@ const CheckoutContent = component$(() => {
 
         // console.log(`✅ Local cart has ${localCart.localCart.items.length} items, proceeding with checkout`);
       } else {
-        // console.log('🔄 Checkout in Vendure order mode, fetching order data...');
-
         // Existing Vendure order flow
-        const _startTime = performance.now();
         const actualOrder = await getActiveOrderQuery();
-        const _endTime = performance.now();
-        // console.log(`⏱️ Order data fetched in ${(_endTime - _startTime).toFixed(0)}ms`);
 
         if (!actualOrder || !actualOrder.lines || actualOrder.lines.length === 0) {
-          // console.log('🔄 No valid order found, redirecting to shop...');
+          console.log('🔄 No valid order found, redirecting to shop...');
           pageLoading.value = false;
           showEmptyCartMessage.value = true;
 
           setTimeout(() => {
-            // console.log('Redirecting to shop...');
+            console.log('Redirecting to shop...');
             if (typeof window !== 'undefined') {
               window.location.href = '/shop';
             } else {
@@ -310,11 +369,17 @@ const CheckoutContent = component$(() => {
         }
       }
     } catch (_error) {
-      // console.error('[Checkout] Error during checkout initialization:', error);
+      console.error('[Checkout] Error during checkout initialization:', _error);
       state.error = 'Failed to load checkout. Please try again.';
     } finally {
       pageLoading.value = false;
     }
+
+    // Cleanup function to disable monitoring when leaving checkout page
+    return () => {
+      disablePerformanceLogging();
+      disableAutoCleanup();
+    };
   });
 
   // Process payment after address submission
@@ -325,34 +390,30 @@ const CheckoutContent = component$(() => {
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // At this point, address submission should be complete since we're called after addressSubmissionComplete
-      // console.log(`Address submission verified complete, triggering ${paymentMethod} payment...`);
-
-      // Trigger payment processing via the selected payment component with detailed logging
-      // console.log(`🔍 Triggering ${paymentMethod} payment processing with detailed diagnostics...`);
-      // console.log('💳 Payment data being prepared for submission:', {
-      //   orderId: appState.activeOrder?.id,
-      //   orderCode: appState.activeOrder?.code,
-      //   orderTotal: appState.activeOrder?.totalWithTax,
-      //   customerEmail: appState.customer?.emailAddress,
-      //   customerName: `${appState.customer?.firstName} ${appState.customer?.lastName}`.trim(),
-      //   billingAddress: appState.billingAddress || 'Using shipping address as billing',
-      //   paymentMethod: paymentMethod,
-      // });
+      if (import.meta.env.DEV) {
+        console.log(`Address submission verified complete, triggering ${paymentMethod} payment...`);
+        console.log('💳 Payment data being prepared for submission:', {
+          orderId: appState.activeOrder?.id,
+          orderCode: appState.activeOrder?.code,
+          orderTotal: appState.activeOrder?.totalWithTax,
+          customerEmail: appState.customer?.emailAddress,
+          customerName: `${appState.customer?.firstName} ${appState.customer?.lastName}`.trim(),
+          billingAddress: appState.billingAddress || 'Using shipping address as billing',
+          paymentMethod: paymentMethod,
+        });
+      }
 
       // Safeguard to prevent multiple payment triggers
       if (paymentMethod === 'stripe' && stripeTriggerSignal.value === 0) {
         stripeTriggerSignal.value++;
-        // console.log('🚀 Stripe payment processing triggered');
 
         // 🚀 PREFETCH OPTIMIZATION: Prefetch specific order confirmation as soon as payment starts
         if (appState.activeOrder?.code) {
           await prefetchOrderConfirmation(appState.activeOrder?.code);
         }
-      } else {
-        // console.log('⚠️ Payment processing already triggered, ignoring additional trigger');
       }
     } catch (error) {
-      // console.error('[Checkout/processPayment] Error:', error);
+      console.error('[Checkout/processPayment] Error:', error);
       state.error = error instanceof Error ? error.message : 'Order processing failed. Please try again.';
       isOrderProcessing.value = false; // Reset processing state on error
     }
@@ -797,24 +858,31 @@ const CheckoutContent = component$(() => {
                         state.loading = true;
                       })}
                       onError$={$(async (errorMessage: string) => {
-                        // console.error('[Checkout/Payment onError] Error:', errorMessage);
+                        console.error('[Checkout/Payment onError] Error:', errorMessage);
+
+                        // 🚀 COMPREHENSIVE ERROR RECOVERY: Enhanced error handling with fallback mechanisms
                         // Hide the processing modal on error
                         showProcessingModal.value = false;
                         state.error = errorMessage || 'Payment processing failed. Please check your details and try again.';
                         state.loading = false; // Ensure loading is stopped on error
                         isOrderProcessing.value = false; // Reset order processing state
-                        
+
                         // CRITICAL: Reset the payment triggers to allow retry with different payment methods
                         stripeTriggerSignal.value = 0;
-                        // console.log('🔄 Reset payment trigger signals to allow retry');
-                        
-                        // Transition order back to AddingItems state to allow modifications
+
+                        // 🚀 ENHANCED ERROR RECOVERY: Transition order back to AddingItems state to allow modifications
                         try {
-                          // console.log('🔄 Transitioning order back to AddingItems state after failed payment...');
                           await secureOrderStateTransition('AddingItems');
-                          // console.log('✅ Order transitioned back to AddingItems state');
+
+                          // Additional recovery: Refresh order state to ensure consistency
+                          const recoveredOrder = await getActiveOrderQuery();
+                          if (recoveredOrder && recoveredOrder.id) {
+                            appState.activeOrder = recoveredOrder;
+                          }
                         } catch (_transitionError) {
-                          // console.error('❌ Failed to transition order back to AddingItems state:', transitionError);
+                          console.error('❌ Failed to transition order back to AddingItems state:', _transitionError);
+                          // Fallback: Allow user to retry without state transition
+                          state.error = 'Payment failed. You can try again or refresh the page if issues persist.';
                         }
                       })}
                       onProcessingChange$={$(async (isProcessing: boolean) => {

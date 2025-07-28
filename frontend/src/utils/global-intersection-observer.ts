@@ -107,3 +107,18 @@ if (typeof window !== 'undefined' && import.meta.env.DEV) {
   (window as any).getObserverStats = getGlobalObserverStats;
   console.log('🔍 Global Intersection Observer initialized. Use getObserverStats() in console to check stats.');
 }
+
+// 🚀 MEMORY MANAGEMENT: Cleanup only on page unload (not on visibility change)
+if (typeof window !== 'undefined') {
+  const cleanup = () => {
+    const instance = GlobalIntersectionObserver.getInstance();
+    const observedCount = instance.getObservedCount();
+    if (observedCount > 0) {
+      console.log(`🧹 Cleaning up ${observedCount} intersection observers on page unload`);
+      instance.disconnect();
+    }
+  };
+
+  // Only clean up on actual page unload, not on visibility changes
+  window.addEventListener('beforeunload', cleanup);
+}

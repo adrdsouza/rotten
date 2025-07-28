@@ -240,8 +240,6 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     const countryCode = appState.shippingAddress.countryCode || 'US';
     const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
     
-    // console.log('[CheckoutAddresses] Complete validation - Country:', countryCode, 'Phone optional:', isPhoneOptional);
-    
     // Get current customer data - ensure all fields are strings
     const customer = {
       firstName: appState.customer?.firstName || '',
@@ -263,16 +261,17 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     };
     const customerValid = isActiveCustomerValid(customerForValidation as any);
     
-    // DEBUG: Add detailed customer validation logging
-    // console.log('[CheckoutAddresses] Customer validation debug:', {
-    //   customerData: customer,
-    //   customerForValidation,
-    //   customerValid,
-    //   emailResult: { isValid: emailResult.isValid, message: emailResult.message },
-    //   firstNameResult: { isValid: firstNameResult.isValid, message: firstNameResult.message },
-    //   lastNameResult: { isValid: lastNameResult.isValid, message: lastNameResult.message },
-    //   phoneResult: { isValid: phoneResult.isValid, message: phoneResult.message }
-    // });
+    // Validation debug logging (development only)
+    if (import.meta.env.DEV) {
+      console.log('[CheckoutAddresses] Customer validation debug:', {
+        customerData: customer,
+        customerValid,
+        emailResult: { isValid: emailResult.isValid, message: emailResult.message },
+        firstNameResult: { isValid: firstNameResult.isValid, message: firstNameResult.message },
+        lastNameResult: { isValid: lastNameResult.isValid, message: lastNameResult.message },
+        phoneResult: { isValid: phoneResult.isValid, message: phoneResult.message }
+      });
+    }
     
     // Phone requirement validation (non-US/PR countries require phone)
     const phoneRequirementValid = isPhoneOptional || phoneResult.isValid;
@@ -287,16 +286,16 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     // If checkbox is OFF, billing is always valid since it inherits from shipping
     
     const overallValid = customerValid && phoneResult.isValid && phoneRequirementValid && shippingAddressValid && billingAddressValid;
-    
-    // console.log('[CheckoutAddresses] Validation results:', {
-    //   customerValid,
-    //   phoneValid: phoneResult.isValid,
-    //   phoneRequirementValid,
-    //   shippingAddressValid,
-    //   billingAddressValid,
-    //   overallValid,
-    //   phoneMessage: phoneResult.message
-    // });
+
+    console.log('[CheckoutAddresses] Validation results:', {
+      customerValid,
+      phoneValid: phoneResult.isValid,
+      phoneRequirementValid,
+      shippingAddressValid,
+      billingAddressValid,
+      overallValid,
+      phoneMessage: phoneResult.message
+    });
     
     // Update individual error signals - use empty strings for signal clearing
     emailValidationError.value = emailResult.isValid ? '' : (emailResult.message || 'Invalid email');
@@ -338,9 +337,9 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     // Don't sync to appState here to prevent circular dependency
     // State synchronization will be handled by the form submission process
     if (overallValid) {
-      // console.log('[CheckoutAddresses] Customer validation passed');
+      console.log('[CheckoutAddresses] Customer validation passed');
     } else {
-      // console.log('[CheckoutAddresses] Customer validation failed');
+      console.log('[CheckoutAddresses] Customer validation failed');
     }
   });
 
@@ -353,39 +352,47 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     
     // PREVENT VALIDATION ON INITIAL LOAD - only validate after user interaction
     if (!hasInitializedValidation.value) {
-      // console.log('[CheckoutAddresses] Skipping validation - not initialized yet');
+      console.log('[CheckoutAddresses] Skipping validation - not initialized yet');
       return;
     }
 
-    // console.log('[CheckoutAddresses] Triggering validation due to form data change');
-    
-    // Trigger complete form validation (debounced to 300ms for consistency)
+    console.log('[CheckoutAddresses] Triggering validation due to form data change');
+
+    // 🚀 SOPHISTICATED DEBOUNCING: Use different timing based on validation type
     if (validationTimer.value) {
       clearTimeout(validationTimer.value);
     }
+
+    // Use shorter debounce for address changes (200ms) vs longer for other changes (400ms)
+    const debounceTime = appState.shippingAddress ? 200 : 400;
     validationTimer.value = setTimeout(() => {
       validateCompleteForm$();
-    }, 300);
+    }, debounceTime);
   });
 
-  // IMMEDIATE country code change handler - replicating old flow behavior
+  // 🚀 IMMEDIATE country code change handler - enhanced validation logic
   useTask$(({ track }) => {
     track(() => appState.shippingAddress.countryCode);
-    
+
     // Immediately re-validate phone when country changes (no debounce for country changes)
     const countryCode = appState.shippingAddress.countryCode || 'US';
     const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
     const customerPhoneNumber = (appState.customer?.phoneNumber || '') as string;
-    
-    // console.log(`📍 [CheckoutAddresses] Country changed to: ${countryCode}, Phone optional: ${isPhoneOptional}`);
-    
+
+    if (import.meta.env.DEV) {
+      console.log(`📍 [CheckoutAddresses] Country changed to: ${countryCode}, Phone optional: ${isPhoneOptional}`);
+    }
+
     // Immediately re-validate phone with new country rules
     if (customerPhoneNumber && phoneTouched.value) {
       const phoneResult = validatePhone(customerPhoneNumber, countryCode, isPhoneOptional);
       phoneValidationError.value = phoneResult.isValid ? '' : (phoneResult.message || 'Invalid phone number');
-      // console.log(`📞 [CheckoutAddresses] Phone re-validated for ${countryCode}: ${phoneResult.isValid ? 'valid' : (phoneResult.message || 'Invalid phone number')}`);
+
+      if (import.meta.env.DEV) {
+        console.log(`📞 [CheckoutAddresses] Phone re-validated for ${countryCode}: ${phoneResult.isValid ? 'valid' : (phoneResult.message || 'Invalid phone number')}`);
+      }
     }
-    
+
     // Trigger immediate complete validation for country changes
     validateCompleteForm$();
   });
@@ -557,8 +564,24 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   useVisibleTask$(() => {
     if (typeof window !== 'undefined') {
       (window as any).submitCheckoutAddressForm = submitAddresses;
-      // console.log('[CheckoutAddresses] Exposed submitCheckoutAddressForm to window object');
+      console.log('[CheckoutAddresses] Exposed submitCheckoutAddressForm to window object');
     }
+
+    // 🚀 MEMORY MANAGEMENT: Cleanup function for timers and global references
+    return () => {
+      // Clear any pending validation timer
+      if (validationTimer.value) {
+        clearTimeout(validationTimer.value);
+        validationTimer.value = null;
+        console.log('[CheckoutAddresses] Cleaned up validation timer');
+      }
+
+      // Clean up global function reference
+      if (typeof window !== 'undefined') {
+        delete (window as any).submitCheckoutAddressForm;
+        console.log('[CheckoutAddresses] Cleaned up global function reference');
+      }
+    };
   });
 
   // Auto-proceed when form becomes valid - exactly like old implementation

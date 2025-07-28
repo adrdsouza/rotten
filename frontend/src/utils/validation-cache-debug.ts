@@ -99,12 +99,24 @@ export function resetCacheMonitoring(): void {
   cacheMonitor.reset();
 }
 
-// Auto-log performance every 30 seconds in development
-if (typeof window !== 'undefined' && import.meta.env.DEV) {
-  setInterval(() => {
-    const stats = getCacheHitRateStats();
-    if (stats.total > 0) {
-      logCachePerformance();
-    }
-  }, 30000);
+// Auto-log performance only when explicitly enabled (not by default)
+// This prevents performance overhead on non-checkout pages
+let performanceLoggingInterval: NodeJS.Timeout | null = null;
+
+export function enablePerformanceLogging(): void {
+  if (typeof window !== 'undefined' && import.meta.env.DEV && !performanceLoggingInterval) {
+    performanceLoggingInterval = setInterval(() => {
+      const stats = getCacheHitRateStats();
+      if (stats.total > 0) {
+        logCachePerformance();
+      }
+    }, 30000);
+  }
+}
+
+export function disablePerformanceLogging(): void {
+  if (performanceLoggingInterval) {
+    clearInterval(performanceLoggingInterval);
+    performanceLoggingInterval = null;
+  }
 }
