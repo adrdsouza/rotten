@@ -1,6 +1,6 @@
 // 🚀 MODERN REDESIGN 2025: Clean, performance-focused homepage
 // 🚀 BACKUP: Original homepage saved as index-backup.tsx
-import { component$, useStylesScoped$ } from '@qwik.dev/core';
+import { component$, useStylesScoped$, useSignal, useVisibleTask$ } from '@qwik.dev/core';
 import { Link } from '@qwik.dev/router';
 import { createSEOHead } from '~/utils/seo';
 
@@ -130,11 +130,37 @@ const MODERN_STYLES = `
 export default component$(() => {
   useStylesScoped$(MODERN_STYLES);
 
+  const videoRef = useSignal<HTMLVideoElement>();
+
+  // Performance-optimized video loading
+  useVisibleTask$(() => {
+    if (videoRef.value) {
+      const video = videoRef.value;
+
+      // Intersection observer to start video when visible
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            video.play().catch(() => {
+              // Fallback: if autoplay fails, user can click to play
+              console.log('Video autoplay prevented by browser');
+            });
+            observer.disconnect();
+          }
+        });
+      }, { threshold: 0.1 });
+
+      observer.observe(video);
+
+      return () => observer.disconnect();
+    }
+  });
+
   return (
     <div>
       {/* Hero Section */}
       <section class="hero-section relative overflow-hidden">
-        {/* Hero Background Image */}
+        {/* Hero Background Image - DAMN SITE PATTERN: Keep responsive but simplified */}
         <div class="absolute inset-0">
           <picture>
             <source
@@ -221,14 +247,15 @@ export default component$(() => {
 
       {/* Conscious Consumption Section - Brand Story with Background Video/Image */}
       <section class="relative min-h-[70vh] overflow-hidden">
-        {/* Background Video */}
+        {/* Background Video - Performance optimized with Qwik intersection observer */}
         <div class="absolute inset-0">
           <video
-            autoplay
+            ref={videoRef}
             muted
             loop
             playsInline
             class="w-full h-full object-cover"
+            preload="metadata"
           >
             <source src="/homepage.mp4" type="video/mp4" />
           </video>
@@ -284,7 +311,7 @@ export const head = () => {
     description: 'Two shirts. Zero compromise. Ethically made in India with fair wages. Built to last decades, not seasons. Why buy garbage when you can buy forever?',
     noindex: false,
     links: [
-      // 🚀 OPTIMIZED: Only preload hero image for optimal LCP
+      // 🚀 DAMN SITE PATTERN: Only 4 strategic preloads for optimal LCP
       // Mobile-first: 768w for most mobile devices
       {
         rel: 'preload',
