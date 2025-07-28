@@ -1,8 +1,8 @@
-import { component$, useSignal, $, useContext, useVisibleTask$ } from '@qwik.dev/core';
+import { component$, useSignal, $, useContext, useVisibleTask$, useComputed$ } from '@qwik.dev/core';
 import { routeLoader$, Link } from '@qwik.dev/router';
 import { OptimizedImage } from '~/components/ui';
 import Price from '~/components/products/Price';
-import { getProductBySlug } from '~/providers/shop/products/products';
+import { getBatchedProductsForShop, getProductAssets } from '~/providers/shop/products/products';
 import { Product, ProductOption } from '~/types';
 import { createSEOHead } from '~/utils/seo';
 import { useLocalCart, addToLocalCart } from '~/contexts/CartContext';
@@ -10,9 +10,10 @@ import { APP_STATE } from '~/constants';
 import { loadCountryOnDemand } from '~/utils/addressStorage';
 import { LocalCartService } from '~/services/LocalCartService';
 import ShopImageUrl from '~/media/shop.jpg?url';
+import { warmProductCache, prefetchOnHover, cleanupCache } from '~/utils/cache-warming';
 
 
-// Helper functions moved outside component to avoid lexical scope issues
+// 🚀 OPTIMIZED: Memoized helper functions for better performance
 const getAvailableOptions = (product: Product | null) => {
   if (!product?.variants) return { sizes: [], colors: [] };
 
@@ -42,74 +43,69 @@ const getAvailableOptions = (product: Product | null) => {
   };
 };
 
-const checkSizeAvailable = (sizeOption: ProductOption, product: Product | null) => {
-  if (!product?.variants || !Array.isArray(product.variants)) return false;
+// 🚀 OPTIMIZED: Pre-compute variant availability map for O(1) lookups
+const createVariantAvailabilityMap = (product: Product | null) => {
+  if (!product?.variants) return new Map();
+
+  const availabilityMap = new Map<string, boolean>();
+
+  product.variants.forEach(variant => {
+    if (!variant.options || !Array.isArray(variant.options)) return;
+
+    // Check if variant is in stock
+    const stockLevel = parseInt(String(variant.stockLevel || '0'));
+    const trackInventory = variant.trackInventory;
+    const isInStock = stockLevel > 0 || trackInventory === 'FALSE';
+
+    if (isInStock) {
+      // Mark each option as available
+      variant.options.forEach(option => {
+        if (option?.id) {
+          availabilityMap.set(option.id, true);
+        }
+      });
+
+      // Mark size+color combinations as available
+      const sizeOption = variant.options.find(opt => opt.group?.code.toLowerCase() === 'size');
+      const colorOption = variant.options.find(opt => opt.group?.code.toLowerCase() === 'color');
+
+      if (sizeOption?.id && colorOption?.id) {
+        availabilityMap.set(`${sizeOption.id}+${colorOption.id}`, true);
+      }
+    }
+  });
+
+  return availabilityMap;
+};
+
+// 🚀 PERFORMANCE OPTIMIZED: Fast availability checks using pre-computed map
+const checkSizeAvailable = (sizeOption: ProductOption, availabilityMap: Map<string, boolean>) => {
   if (!sizeOption?.id) return false;
-
-  return product.variants.some(variant => {
-    if (!variant || !variant.options || !Array.isArray(variant.options)) return false;
-    const hasThisSize = variant.options.some(opt => opt?.id === sizeOption.id);
-
-    if (!hasThisSize) return false;
-
-    // Check if variant is in stock: either has inventory OR tracking is disabled
-    const stockLevel = parseInt(String(variant.stockLevel || '0'));
-    const trackInventory = variant.trackInventory;
-
-    // In stock if: has stock > 0 OR inventory tracking is disabled for this variant
-    const isInStock = stockLevel > 0 || trackInventory === 'FALSE';
-
-    return isInStock;
-  });
+  return availabilityMap.has(sizeOption.id);
 };
 
-const checkColorAvailable = (colorOption: ProductOption, selectedSize: ProductOption | null, product: Product | null) => {
-  if (!selectedSize?.id || !product?.variants || !colorOption?.id) return false;
-  if (!Array.isArray(product.variants)) return false;
-
-  return product.variants.some(variant => {
-    if (!variant || !variant.options || !Array.isArray(variant.options)) return false;
-    const hasSelectedSize = variant.options.some(opt => opt?.id === selectedSize.id);
-    const hasThisColor = variant.options.some(opt => opt?.id === colorOption.id);
-
-    // Check if this variant has the right size/color combination
-    if (!hasSelectedSize || !hasThisColor) return false;
-
-    // Check if variant is in stock: either has inventory OR tracking is disabled
-    const stockLevel = parseInt(String(variant.stockLevel || '0'));
-    const trackInventory = variant.trackInventory;
-
-    // In stock if: has stock > 0 OR inventory tracking is disabled for this variant
-    // trackInventory can be 'FALSE', 'TRUE', or 'INHERIT' (inherits from global/channel settings)
-    const isInStock = stockLevel > 0 || trackInventory === 'FALSE';
-
-    return isInStock;
-  });
+const checkColorAvailable = (colorOption: ProductOption, selectedSize: ProductOption | null, availabilityMap: Map<string, boolean>) => {
+  if (!selectedSize?.id || !colorOption?.id) return false;
+  return availabilityMap.has(`${selectedSize.id}+${colorOption.id}`);
 };
 
 
 
-// Load both shirt products for the customization experience
+// Load both shirt products AND cart quantities for optimal performance
 export const useShirtProductsLoader = routeLoader$(async () => {
   try {
-    console.log('Loading shirt products...');
+    console.log('Loading shirt products and cart quantities...');
 
     // Add timeout to prevent hanging requests
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Product loading timeout')), 10000)
     );
 
-    // Load both shirt products using actual slugs from database
-    const productPromises = Promise.all([
-      getProductBySlug('shortsleeveshirt').catch(err => {
-        console.error('Failed to load short sleeve product:', err);
-        return null;
-      }),
-      getProductBySlug('longsleeveshirt').catch(err => {
-        console.error('Failed to load long sleeve product:', err);
-        return null;
-      })
-    ]);
+    // 🚀 STEP 2: Load both shirt products using QUERY BATCHING (single HTTP request)
+    const productPromises = getBatchedProductsForShop(['shortsleeveshirt', 'longsleeveshirt']).catch(err => {
+      console.error('Failed to load products with batching:', err);
+      return [null, null];
+    });
 
     const [shortSleeveProduct, longSleeveProduct] = await Promise.race([
       productPromises,
@@ -121,17 +117,41 @@ export const useShirtProductsLoader = routeLoader$(async () => {
       longSleeve: !!longSleeveProduct
     });
 
+    // Extract all variant IDs for cart quantity loading
+    const allVariantIds: string[] = [];
+    if (shortSleeveProduct?.variants) {
+      allVariantIds.push(...shortSleeveProduct.variants.map((v: any) => v.id).filter(Boolean));
+    }
+    if (longSleeveProduct?.variants) {
+      allVariantIds.push(...longSleeveProduct.variants.map((v: any) => v.id).filter(Boolean));
+    }
+
+    // Load cart quantities server-side (from localStorage or session)
+    let cartQuantities: Record<string, number> = {};
+    if (allVariantIds.length > 0) {
+      try {
+        // Use LocalCartService to get quantities from storage
+        cartQuantities = LocalCartService.getItemQuantitiesFromStorage(allVariantIds);
+      } catch (error) {
+        console.warn('Failed to load cart quantities:', error);
+        // Fallback to empty quantities
+        cartQuantities = {};
+      }
+    }
+
     // Ensure we always return a valid structure
     return {
       shortSleeve: shortSleeveProduct || null,
-      longSleeve: longSleeveProduct || null
+      longSleeve: longSleeveProduct || null,
+      cartQuantities, // Include cart quantities in initial load
     };
   } catch (error) {
     console.error('Failed to load shirt products:', error);
     // Always return a valid structure even on error
     return {
       shortSleeve: null,
-      longSleeve: null
+      longSleeve: null,
+      cartQuantities: {},
     };
   }
 });
@@ -189,7 +209,9 @@ export default component$(() => {
   // Cart quantity tracking for all variants
   const quantitySignal = useSignal<Record<string, number>>({});
 
-
+  // 🚀 PERFORMANCE OPTIMIZED: Memoized computations for better rendering performance
+  const availableOptions = useComputed$(() => getAvailableOptions(selectedProduct.value));
+  const availabilityMap = useComputed$(() => createVariantAvailabilityMap(selectedProduct.value));
 
   // Update variant selection when size and color are both selected
   const updateVariantSelection = $(() => {
@@ -214,14 +236,14 @@ export default component$(() => {
 
 
   const handleSizeSelect = $((sizeOption: ProductOption) => {
-    // Only allow selection if size is available
-    if (!checkSizeAvailable(sizeOption, selectedProduct.value)) {
+    // 🚀 OPTIMIZED: Fast availability check using pre-computed map
+    if (!checkSizeAvailable(sizeOption, availabilityMap.value)) {
       return;
     }
 
     selectedSize.value = sizeOption;
     // Reset color if it's no longer available with new size
-    if (selectedColor.value && !checkColorAvailable(selectedColor.value, sizeOption, selectedProduct.value)) {
+    if (selectedColor.value && !checkColorAvailable(selectedColor.value, sizeOption, availabilityMap.value)) {
       selectedColor.value = null;
     }
     updateVariantSelection();
@@ -229,7 +251,8 @@ export default component$(() => {
   });
 
   const handleColorSelect = $((colorOption: ProductOption) => {
-    if (!checkColorAvailable(colorOption, selectedSize.value, selectedProduct.value)) return;
+    // 🚀 OPTIMIZED: Fast availability check using pre-computed map
+    if (!checkColorAvailable(colorOption, selectedSize.value, availabilityMap.value)) return;
     selectedColor.value = colorOption;
     updateVariantSelection();
     // No need to change currentStep since all options are visible
@@ -293,25 +316,58 @@ export default component$(() => {
 
   // Get current product image - using signal instead of computed for better reactivity
   const currentProductImage = useSignal<any>(null);
+  const productAssets = useSignal<any>(null);
+  const assetsLoading = useSignal<boolean>(false);
 
-  // Update current product image when selectedProduct changes
+  // Lazy load assets when selectedProduct changes
   useVisibleTask$(({ track }) => {
     track(() => selectedProduct.value);
+
     if (selectedProduct.value) {
-      // Prioritize featuredAsset, then first asset, then placeholder
-      if (selectedProduct.value.featuredAsset) {
-        currentProductImage.value = selectedProduct.value.featuredAsset;
-      } else if (selectedProduct.value.assets && selectedProduct.value.assets.length > 0) {
-        currentProductImage.value = selectedProduct.value.assets[0];
-      } else {
-        currentProductImage.value = { id: 'placeholder', preview: '/asset_placeholder.webp' };
-      }
+      console.log('Product selected, lazy loading assets...');
+      assetsLoading.value = true;
+
+      // Lazy load assets for the selected product
+      getProductAssets(selectedProduct.value.slug || '')
+        .then((assets) => {
+          productAssets.value = assets;
+
+          // Set initial image
+          if (assets.featuredAsset) {
+            currentProductImage.value = assets.featuredAsset;
+          } else if (assets.assets && assets.assets.length > 0) {
+            currentProductImage.value = assets.assets[0];
+          } else {
+            currentProductImage.value = { id: 'placeholder', preview: '/asset_placeholder.webp' };
+          }
+
+          assetsLoading.value = false;
+        })
+        .catch((error) => {
+          console.error('Failed to load assets:', error);
+          currentProductImage.value = { id: 'placeholder', preview: '/asset_placeholder.webp' };
+          assetsLoading.value = false;
+        });
+    } else {
+      // No product selected - clear assets
+      productAssets.value = null;
+      currentProductImage.value = null;
+      assetsLoading.value = false;
     }
   });
 
 
 
 
+
+  // 🚀 ADVANCED CACHING: Background cache warming and cleanup
+  useVisibleTask$(() => {
+    // Start background cache warming
+    warmProductCache();
+
+    // Clean up old cache entries
+    cleanupCache();
+  });
 
   // Load cart quantities for all variants when products are available
   useVisibleTask$(() => {
@@ -384,21 +440,21 @@ export default component$(() => {
             <div class="sticky top-24">
               <div class="flex gap-4">
                 {/* Thumbnail Images - Left Side - Always show to prevent layout shift */}
-                <div class="flex flex-col gap-2 w-[22%] max-w-[180px] min-w-[80px]">
-                  {selectedProduct.value ? (
+                <div class="flex flex-col gap-2 w-[22%] max-w-[180px] min-w-[80px] pt-4">
+                  {selectedProduct.value && productAssets.value ? (
                     (() => {
-                      // Create a combined array of all available assets
+                      // Create a combined array of all available assets from lazy-loaded data
                       const allAssets = [];
 
                       // Add featured asset first if it exists
-                      if (selectedProduct.value.featuredAsset) {
-                        allAssets.push(selectedProduct.value.featuredAsset);
+                      if (productAssets.value.featuredAsset) {
+                        allAssets.push(productAssets.value.featuredAsset);
                       }
 
                       // Add other assets, avoiding duplicates
-                      if (selectedProduct.value?.assets && selectedProduct.value.assets.length > 0) {
-                        selectedProduct.value.assets.forEach((asset: any) => {
-                          if (!selectedProduct.value?.featuredAsset || asset.id !== selectedProduct.value.featuredAsset.id) {
+                      if (productAssets.value.assets && productAssets.value.assets.length > 0) {
+                        productAssets.value.assets.forEach((asset: any) => {
+                          if (!productAssets.value.featuredAsset || asset.id !== productAssets.value.featuredAsset.id) {
                             allAssets.push(asset);
                           }
                         });
@@ -433,6 +489,11 @@ export default component$(() => {
                         </div>
                       ));
                     })()
+                  ) : selectedProduct.value && assetsLoading.value ? (
+                    // Loading state for thumbnails
+                    <div class="border-2 border-gray-200 rounded-lg overflow-hidden aspect-4/5 animate-pulse bg-gray-100 flex items-center justify-center">
+                      <div class="text-gray-400 text-sm">Loading...</div>
+                    </div>
                   ) : (
                     // Default thumbnail when no product is selected - show the shop.jpg image
                     <div class="border-2 border-gray-200 rounded-lg overflow-hidden aspect-4/5">
@@ -451,16 +512,21 @@ export default component$(() => {
 
                 {/* Main Image */}
                 <div class="flex-1">
-                  {selectedProduct.value ? (
+                  {selectedProduct.value && currentProductImage.value ? (
                     <OptimizedImage
-                      key={selectedProduct.value?.id || 'no-product'}
-                      src={currentProductImage.value?.preview || selectedProduct.value.featuredAsset?.preview || '/asset_placeholder.webp'}
+                      key={currentProductImage.value?.id || 'no-image'}
+                      src={currentProductImage.value.preview}
                       alt={selectedProduct.value?.name || 'Product'}
                       width={600}
                       height={750}
                       class="w-full h-auto rounded-lg shadow-lg aspect-4/5 object-cover"
                       responsive="productMain"
                     />
+                  ) : selectedProduct.value && assetsLoading.value ? (
+                    // Loading state for main image
+                    <div class="w-full h-auto rounded-lg shadow-lg aspect-4/5 bg-gray-100 animate-pulse flex items-center justify-center">
+                      <div class="text-gray-400">Loading image...</div>
+                    </div>
                   ) : (
                     <OptimizedImage
                       key="shop-default"
@@ -511,6 +577,7 @@ export default component$(() => {
                         'border-[#8a6d4a] bg-gray-50': selectedStyle.value === 'short',
                         'border-gray-200 hover:border-[#8a6d4a]': selectedStyle.value !== 'short'
                       }}
+                      onMouseEnter$={() => prefetchOnHover('shortsleeveshirt')}
                       onClick$={() => {
                         selectedStyle.value = 'short';
                         selectedProduct.value = productsData.value.shortSleeve;
@@ -532,6 +599,7 @@ export default component$(() => {
                         'border-[#8a6d4a] bg-gray-50': selectedStyle.value === 'long',
                         'border-gray-200 hover:border-[#8a6d4a]': selectedStyle.value !== 'long'
                       }}
+                      onMouseEnter$={() => prefetchOnHover('longsleeveshirt')}
                       onClick$={() => {
                         selectedStyle.value = 'long';
                         selectedProduct.value = productsData.value.longSleeve;
@@ -568,9 +636,9 @@ export default component$(() => {
                 </div>
                 <div class="flex gap-3">
                   {selectedProduct.value ? (
-                    getAvailableOptions(selectedProduct.value).sizes.map((sizeOption) => {
+                    availableOptions.value.sizes.map((sizeOption) => {
                       const isSelected = selectedSize.value?.id === sizeOption.id;
-                      const isAvailable = checkSizeAvailable(sizeOption, selectedProduct.value);
+                      const isAvailable = checkSizeAvailable(sizeOption, availabilityMap.value);
 
                       return (
                         <div
@@ -633,9 +701,9 @@ export default component$(() => {
                 </div>
                 <div class="grid grid-cols-3 gap-2">
                   {selectedProduct.value ? (
-                    getAvailableOptions(selectedProduct.value).colors.map((colorOption) => {
+                    availableOptions.value.colors.map((colorOption) => {
                       const isSelected = selectedColor.value?.id === colorOption.id;
-                      const isAvailable = selectedSize.value ? checkColorAvailable(colorOption, selectedSize.value, selectedProduct.value) : false;
+                      const isAvailable = selectedSize.value ? checkColorAvailable(colorOption, selectedSize.value, availabilityMap.value) : false;
 
                       // Map color names to background styles
                       const getColorStyle = (name: string) => {

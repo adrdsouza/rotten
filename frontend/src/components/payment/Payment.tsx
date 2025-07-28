@@ -1,4 +1,4 @@
-eimport { component$, QRL, useSignal, useVisibleTask$, Signal, $ } from '@qwik.dev/core';
+import { component$, QRL, useSignal, useVisibleTask$, Signal, $ } from '@qwik.dev/core';
 import { EligiblePaymentMethods } from '~/types';
 
 import StripePayment from './StripePayment';
@@ -62,7 +62,7 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 						)}
 						{method.code.includes('stripe') && (
 							console.log('[Payment] Rendering Stripe elements for method:', method.code),
-							<div className="!w-full">
+							<div class="!w-full">
 								<StripePayment />
 							</div>
 						)}

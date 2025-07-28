@@ -676,7 +676,7 @@ const CheckoutContent = component$(() => {
             visible={showProcessingModal.value}
           />
           
-          <div class="max-w-7xl mx-auto pt-4 mb-12 px-4 sm:px-6 lg:px-8">
+          <div class="max-w-7xl mx-auto pt-8 mb-12 px-4 sm:px-6 lg:px-8">
             {/* Error message - shows at the top if there's an error */}
             {state.error && (
               <div class="rounded-xl bg-red-50 border border-red-200 p-6 my-6 shadow-sm">

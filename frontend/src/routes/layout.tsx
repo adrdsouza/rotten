@@ -22,15 +22,30 @@ import Header from '../components/header/header';
 import Footer from '../components/footer/footer';
 import { CartProvider } from '~/contexts/CartContext';
 
-export const onGet: RequestHandler = async ({ cacheControl, url }) => {
-	// Different caching strategies based on page type
+export const onGet: RequestHandler = async ({ cacheControl, url, headers }) => {
+	// 🚀 ADVANCED CACHING: Intelligent cache strategies based on page type and user agent
 	const pathname = url.pathname;
+	const userAgent = headers.get('user-agent') || '';
+	const isBot = /bot|crawler|spider|crawling/i.test(userAgent);
 
 	if (pathname.startsWith('/shop')) {
-		// Shop page: minimal cache for real-time inventory
-		cacheControl({ maxAge: 0, sMaxAge: 30 }); // No browser cache, 30s CDN cache
+		// Shop page: minimal cache for real-time inventory, but allow CDN caching for bots
+		if (isBot) {
+			cacheControl({ maxAge: 60 * 5, sMaxAge: 60 * 30 }); // 5min browser, 30min CDN for bots
+		} else {
+			cacheControl({ maxAge: 0, sMaxAge: 30 }); // No browser cache, 30s CDN cache for users
+		}
+	} else if (pathname.startsWith('/api/')) {
+		// API routes: no caching for dynamic data
+		cacheControl({ maxAge: 0, sMaxAge: 0 });
+	} else if (pathname === '/' || pathname.startsWith('/contact') || pathname.startsWith('/terms')) {
+		// Static pages: aggressive caching
+		cacheControl({
+			staleWhileRevalidate: 60 * 60 * 24 * 30, // 30 days stale
+			maxAge: 60 * 60 * 2 // 2 hours fresh
+		});
 	} else {
-		// Other pages: longer cache for static content
+		// Other pages: moderate caching
 		cacheControl({ staleWhileRevalidate: 60 * 60 * 24 * 7, maxAge: 60 * 5 }); // 5 minutes fresh, 7 days stale
 	}
 };

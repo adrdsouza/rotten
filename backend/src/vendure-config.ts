@@ -323,13 +323,13 @@ export const config: VendureConfig = {
         // }),
         AuditPlugin,
         HardenPlugin.init({
-            maxQueryComplexity: 10000,
+            maxQueryComplexity: 5000, // Reduced from 10000 for better control
             apiMode: process.env.APP_ENV !== 'prod' ? 'dev' : 'prod',
             logComplexityScore: process.env.APP_ENV !== 'prod',
         }),
         RedisCachePlugin.init({
             namespace: 'vendure-cache',
-            maxItemSizeInBytes: 256_000, // Increased for larger cached objects
+            maxItemSizeInBytes: 512_000, // Increased for batched product queries
             redisOptions: {
                 host: process.env.REDIS_HOST || '127.0.0.1',
                 port: parseInt(process.env.REDIS_PORT || '6379', 10),
