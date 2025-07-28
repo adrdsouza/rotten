@@ -11,6 +11,7 @@ import { loadCountryOnDemand } from '~/utils/addressStorage';
 import { LocalCartService } from '~/services/LocalCartService';
 import ShopImageUrl from '~/media/shop.jpg?url';
 import { prefetchOnHover, cleanupCache } from '~/utils/cache-warming';
+import { preloadImage } from '~/utils/image-cache';
 
 
 // 🚀 OPTIMIZED: Memoized helper functions for better performance
@@ -340,6 +341,37 @@ export default component$(() => {
           } else {
             currentProductImage.value = { id: 'placeholder', preview: '/asset_placeholder.webp' };
           }
+
+          // 🚀 PRELOAD OPTIMIZATION: Preload larger versions of all images for instant thumbnail switching
+          const allAssets = [];
+          if (assets.featuredAsset) allAssets.push(assets.featuredAsset);
+          if (assets.assets) allAssets.push(...assets.assets);
+
+          // Preload the main image size (600x750) for each asset in multiple formats
+          allAssets.forEach(async (asset) => {
+            if (asset.preview) {
+              const baseUrl = asset.preview.split('?')[0];
+
+              // Preload multiple formats and sizes that OptimizedImage will use
+              const preloadUrls = [
+                `${baseUrl}?preset=large&w=600&format=avif`,
+                `${baseUrl}?preset=large&w=600&format=webp`,
+                `${baseUrl}?preset=large&w=600`,
+                // Also preload medium size for responsive behavior
+                `${baseUrl}?preset=medium&w=640&format=avif`,
+                `${baseUrl}?preset=medium&w=640&format=webp`,
+              ];
+
+              // Preload all formats in background (don't await to avoid blocking)
+              preloadUrls.forEach(async (url) => {
+                try {
+                  await preloadImage(url);
+                } catch (_error) {
+                  // Silent fail for preloading - not critical
+                }
+              });
+            }
+          });
 
           assetsLoading.value = false;
         })
