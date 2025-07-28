@@ -346,3 +346,14 @@ only screen and (device-width: 414px) and (device-height: 896px) and (-webkit-de
 .animate-pulse-once {
   animation: pulse-once 0.6s ease-in-out;
 }
+
+
+.p-PaymentMethodSelector{
+  display: grid !important;
+grid-template-columns: repeat(3, auto) !important;
+gap: 7px !important;
+
+}
+.p-PaymentMethodSelector button{
+margin: 0 !important;
+}

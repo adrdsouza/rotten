@@ -1,4 +1,4 @@
-import { component$, QRL, useSignal, useVisibleTask$, Signal, $ } from '@qwik.dev/core';
+eimport { component$, QRL, useSignal, useVisibleTask$, Signal, $ } from '@qwik.dev/core';
 import { EligiblePaymentMethods } from '~/types';
 
 import StripePayment from './StripePayment';
@@ -44,7 +44,7 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 				{paymentMethods.value?.map((method) => {
 					console.log('[Payment] Rendering method:', method.code);
 					return (
-					<div key={method.code} class="flex flex-col items-center">
+					<div key={method.code} class="flex flex-col items-center w-full">
 						{method.code === 'standard-payment' && (
 							<>
 								<p class="text-gray-600 text-sm p-6">
@@ -62,7 +62,7 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 						)}
 						{method.code.includes('stripe') && (
 							console.log('[Payment] Rendering Stripe elements for method:', method.code),
-							<div>
+							<div className="!w-full">
 								<StripePayment />
 							</div>
 						)}
