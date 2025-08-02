@@ -12,7 +12,9 @@ import {
   validatePostalCode as originalValidatePostalCode,
   validateAddress as originalValidateAddress,
   validateRequired as originalValidateRequired,
-  validateStateProvince as originalValidateStateProvince
+  validateStateProvince as originalValidateStateProvince,
+  filterPhoneInput,
+  hasInvalidPhoneCharacters
 } from './validation';
 import { withCache, clearValidationCache } from './validation-cache';
 
@@ -76,6 +78,11 @@ export const validateStateProvince = withCache(
   (value: string, countryCode: string, fieldName: string = 'State/Province') =>
     `state:${countryCode}:${fieldName}:${value.trim().toLowerCase()}`
 );
+
+/**
+ * Phone input filtering functions (no caching needed for these utility functions)
+ */
+export { filterPhoneInput, hasInvalidPhoneCharacters };
 
 /**
  * Clear validation cache when field values change

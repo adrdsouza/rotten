@@ -1,6 +1,6 @@
 import { $, QRL, component$, useContext, useSignal, useTask$ } from '@builder.io/qwik';
 import { APP_STATE, CUSTOMER_NOT_DEFINED_ID } from '~/constants';
-import { validateEmail, validateName, validatePhone } from '~/utils/validation';
+import { validateEmail, validateName, validatePhone, filterPhoneInput } from '~/utils/validation';
 
 export interface CustomerInfoErrors {
   firstName: string;
@@ -132,7 +132,9 @@ export const CustomerInfoForm = component$<CustomerInfoFormProps>(({ updateValid
     if (!appState.customer) {
       appState.customer = { id: CUSTOMER_NOT_DEFINED_ID, phoneNumber: '', firstName: '', lastName: '', emailAddress: '' };
     }
-    appState.customer.phoneNumber = value;
+    // Filter input to only allow valid phone characters
+    const filteredValue = filterPhoneInput(value);
+    appState.customer.phoneNumber = filteredValue;
   });
 
   // Mark fields as touched on blur and run validation

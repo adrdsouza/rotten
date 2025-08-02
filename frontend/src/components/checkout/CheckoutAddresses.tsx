@@ -11,7 +11,7 @@ import {
 import { getActiveCustomerAddressesQuery, getActiveCustomerQuery } from '~/providers/shop/customer/customer';
 import { Address, Order } from '~/generated/graphql';
 import { isActiveCustomerValid, isShippingAddressValid, isBillingAddressValid } from '~/utils';
-import { validateEmail, validateName, validatePhone } from '~/utils/validation';
+import { validateEmail, validateName, validatePhone, filterPhoneInput } from '~/utils/validation';
 import { useLocalCart } from '~/contexts/CartContext';
 import { useCheckoutValidationActions } from '~/contexts/CheckoutValidationContext';
 // Import shared addressState instead of defining it here
@@ -748,12 +748,14 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
       // console.log('[CheckoutAddresses] Validation initialized - user started interacting');
     }
     
-    appState.customer = { ...appState.customer, phoneNumber: value };
+    // Filter input to only allow valid phone characters
+    const filteredValue = filterPhoneInput(value);
+    appState.customer = { ...appState.customer, phoneNumber: filteredValue };
     
     if (phoneTouched.value) {
       const countryCode = appState.shippingAddress.countryCode || 'US';
       const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
-      const phoneResult = validatePhone(value, countryCode, isPhoneOptional);
+      const phoneResult = validatePhone(filteredValue, countryCode, isPhoneOptional);
       if (phoneResult.isValid) {
         phoneValidationError.value = '';
       } else {

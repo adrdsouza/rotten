@@ -52,6 +52,21 @@ export const validateEmail = (email: string): ValidationResult => {
   return { isValid: true };
 };
 
+/**
+ * Filters phone input in real-time to only allow valid characters
+ * Allows: digits (0-9), +, -, (, ), spaces
+ */
+export const filterPhoneInput = (input: string): string => {
+  return input.replace(/[^0-9+\-()\s]/g, '');
+};
+
+/**
+ * Detects if phone number contains invalid characters
+ */
+export const hasInvalidPhoneCharacters = (phone: string): boolean => {
+  return /[^0-9+\-()\s]/.test(phone);
+};
+
 export const validatePhone = (phone: string, countryCode: string, isOptional: boolean = false): ValidationResult => {
   const trimmedPhone = phone.trim();
   if (!trimmedPhone) {
@@ -61,10 +76,30 @@ export const validatePhone = (phone: string, countryCode: string, isOptional: bo
     return { isValid: false, message: 'Phone number is required' };
   }
 
+  // Check for invalid characters first
+  if (hasInvalidPhoneCharacters(trimmedPhone)) {
+    return { isValid: false, message: 'Phone numbers can only contain digits and formatting characters (+, -, (, ), spaces)' };
+  }
+
   const digitsOnly = trimmedPhone.replace(/\D/g, '');
+  
+  // Check if phone has at least some digits
+  if (digitsOnly.length === 0) {
+    return { isValid: false, message: 'Phone number must contain at least some digits' };
+  }
+
   // Check for common fake phone numbers
   if (bogusPatterns.fakePhones.includes(digitsOnly)) {
     return { isValid: false, message: 'Please enter a real phone number' };
+  }
+
+  // Basic length validation
+  if (digitsOnly.length < 7) {
+    return { isValid: false, message: 'Phone number is too short' };
+  }
+  
+  if (digitsOnly.length > 15) {
+    return { isValid: false, message: 'Phone number is too long' };
   }
 
   try {
@@ -74,14 +109,58 @@ export const validatePhone = (phone: string, countryCode: string, isOptional: bo
     if (phoneNumber && phoneNumber.isValid()) {
       return { isValid: true };
     } else {
-      // Log for debugging, but return a generic message to the user
+      // More specific country-based error messages
+      const countryName = getCountryName(upperCaseCountryCode);
       console.log(`Phone number ${trimmedPhone} for country ${upperCaseCountryCode} considered invalid by libphonenumber-js.`);
-      return { isValid: false, message: 'Invalid phone number format for the selected country.' };
+      return { isValid: false, message: `Invalid phone number format for ${countryName}. Please check the number format.` };
     }
   } catch (e) {
     console.error(`Error validating phone number '${trimmedPhone}' for ${countryCode.toUpperCase()}:`, e);
-    return { isValid: false, message: 'Phone number format is incorrect or not supported. Please check the number and country.' };
+    const countryName = getCountryName(countryCode.toUpperCase());
+    return { isValid: false, message: `Phone number format is not supported for ${countryName}. Please check the number and country.` };
   }
+};
+
+/**
+ * Get country name for better error messages
+ */
+const getCountryName = (countryCode: string): string => {
+  const countryNames: Record<string, string> = {
+    'US': 'United States',
+    'CA': 'Canada', 
+    'GB': 'United Kingdom',
+    'AU': 'Australia',
+    'DE': 'Germany',
+    'FR': 'France',
+    'IT': 'Italy',
+    'ES': 'Spain',
+    'NL': 'Netherlands',
+    'BE': 'Belgium',
+    'CH': 'Switzerland',
+    'AT': 'Austria',
+    'SE': 'Sweden',
+    'NO': 'Norway',
+    'DK': 'Denmark',
+    'FI': 'Finland',
+    'IE': 'Ireland',
+    'PT': 'Portugal',
+    'PL': 'Poland',
+    'CZ': 'Czech Republic',
+    'HU': 'Hungary',
+    'SK': 'Slovakia',
+    'SI': 'Slovenia',
+    'HR': 'Croatia',
+    'BG': 'Bulgaria',
+    'RO': 'Romania',
+    'GR': 'Greece',
+    'CY': 'Cyprus',
+    'MT': 'Malta',
+    'LU': 'Luxembourg',
+    'EE': 'Estonia',
+    'LV': 'Latvia',
+    'LT': 'Lithuania'
+  };
+  return countryNames[countryCode] || countryCode;
 };
 
 export const validatePostalCode = (postalCode: string, countryCode: string): ValidationResult => {

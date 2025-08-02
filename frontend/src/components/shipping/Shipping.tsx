@@ -17,7 +17,8 @@ import {
 	validateName, 
 	validatePhone,
 	clearFieldValidationCache,
-	clearAllValidationCache
+	clearAllValidationCache,
+	filterPhoneInput
 } from '~/utils/cached-validation';
 import AutoShippingSelector from '../auto-shipping-selector/AutoShippingSelector';
 
@@ -269,10 +270,12 @@ export default component$<IProps>(({ onForward$, isReviewMode }) => {
 		const countryCode = appState.shippingAddress.countryCode || 'US';
 		clearFieldValidationCache(countryCode, 'phone');
 		
-		appState.customer = { ...appState.customer, phoneNumber: value };
+		// Filter input to only allow valid phone characters
+		const filteredValue = filterPhoneInput(value);
+		appState.customer = { ...appState.customer, phoneNumber: filteredValue };
 		if (phoneTouched.value) {
 			const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
-			const phoneResult = validatePhone(value, countryCode, isPhoneOptional);
+			const phoneResult = validatePhone(filteredValue, countryCode, isPhoneOptional);
 			phoneValidationError.value = phoneResult.isValid ? '' : (phoneResult.message || 'Invalid phone number');
 		}
 	});
