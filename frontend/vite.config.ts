@@ -17,13 +17,13 @@ export default defineConfig((config) => {
       minify: !isDev ? 'terser' : false, // Enhanced: Switch to Terser for better compression
       outDir: 'dist', // Ensure output goes to dist/
 
-      // 🚀 ENHANCED TERSER CONFIGURATION - 15-25% better compression than esbuild
+      // 🚀 ENHANCED TERSER CONFIGURATION - Aggressive settings for maximum compression
       terserOptions: {
         compress: {
           drop_console: true, // Remove console.logs in production
           drop_debugger: true, // Remove debugger statements
           pure_funcs: ['console.log', 'console.info', 'console.debug'], // Remove specific functions
-          passes: 2, // Multiple compression passes for maximum optimization
+          passes: 3, // Maximum compression passes for optimal results
           dead_code: true, // Remove unreachable code
           conditionals: true, // Optimize if-s and conditional expressions
           evaluate: true, // Evaluate constant expressions
@@ -36,10 +36,15 @@ export default defineConfig((config) => {
           join_vars: true, // Join consecutive var statements
           reduce_vars: true, // Improve optimization of variables assigned with and used as constant values
           warnings: false, // Don't show warnings in production
+          sequences: true, // Join consecutive simple statements using the comma operator
+          properties: true, // Optimize property access
+          comparisons: true, // Apply certain optimizations to binary nodes
+          inline: true, // Inline calls to function with simple return statement
         },
         mangle: {
           safari10: true, // Safari 10 compatibility for proper variable mangling
           properties: false, // Don't mangle property names (can break functionality)
+          toplevel: true, // Mangle names declared in the top level scope
         },
         format: {
           comments: false, // Remove all comments for smaller bundle size
