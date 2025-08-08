@@ -320,6 +320,10 @@ export default component$(() => {
   const productAssets = useSignal<any>(null);
   const assetsLoading = useSignal<boolean>(false);
 
+  // Touch handling for mobile swipe
+  const touchStartX = useSignal<number | null>(null);
+  const touchEndX = useSignal<number | null>(null);
+
   // Lazy load assets when selectedProduct changes
   useVisibleTask$(({ track }) => {
     track(() => selectedProduct.value);
@@ -461,15 +465,15 @@ export default component$(() => {
     <div class="min-h-screen bg-gray-50">
 
       {/* Main Content */}
-      <div class="max-w-content-wide mx-auto px-8 sm:px-12 lg:px-16 pb-8">
+      <div class="max-w-content-wide mx-auto px-0 sm:px-12 lg:px-16 pb-8">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
 
           {/* Product Image */}
-          <div class="order-1 lg:order-1 pt-6">
+          <div class="order-1 lg:order-1 pt-0 lg:pt-6">
             <div class="sticky top-24">
-              <div class="flex gap-4">
-                {/* Thumbnail Images - Left Side - Always show to prevent layout shift */}
-                <div class="flex flex-col gap-2 w-[22%] max-w-[180px] min-w-[80px] pt-4">
+              <div class="flex flex-col lg:flex-row lg:gap-4">
+                {/* Thumbnail Images - Left Side - Hidden on mobile, visible on desktop */}
+                <div class="hidden lg:flex flex-col gap-2 w-[22%] max-w-[180px] min-w-[80px] pt-4">
                   {selectedProduct.value && productAssets.value ? (
                     (() => {
                       // Create a combined array of all available assets from lazy-loaded data
@@ -499,7 +503,7 @@ export default component$(() => {
                           key={asset.id}
                           class={{
                             'border-2 cursor-pointer rounded-lg overflow-hidden aspect-4/5 transition-all duration-200 transform hover:scale-105 hover:shadow-md': true,
-                            'border-black scale-105': currentProductImage.value?.id === asset.id,
+                            'border-[#8a6d4a] border-4': currentProductImage.value?.id === asset.id,
                             'border-gray-200': currentProductImage.value?.id !== asset.id,
                           }}
                           onClick$={() => {
@@ -508,7 +512,7 @@ export default component$(() => {
                         >
                           <OptimizedImage
                             src={asset.preview}
-                            class="w-full h-full object-cover transition-all duration-200 hover:opacity-80"
+                            class="w-full h-full object-contain transition-all duration-200 hover:opacity-80"
                             width={360}
                             height={450}
                             responsive="thumbnail"
@@ -539,34 +543,133 @@ export default component$(() => {
                   )}
                 </div>
 
-                {/* Main Image */}
+                {/* Main Image Container */}
                 <div class="flex-1">
-                  {selectedProduct.value && currentProductImage.value ? (
-                    <OptimizedImage
-                      key={currentProductImage.value?.id || 'no-image'}
-                      src={currentProductImage.value.preview}
-                      alt={selectedProduct.value?.name || 'Product'}
-                      width={600}
-                      height={750}
-                      class="w-full h-auto rounded-lg shadow-lg aspect-4/5 object-cover"
-                      responsive="productMain"
-                    />
-                  ) : selectedProduct.value && assetsLoading.value ? (
-                    // Loading state for main image
-                    <div class="w-full h-auto rounded-lg shadow-lg aspect-4/5 bg-gray-100 animate-pulse flex items-center justify-center">
-                      <div class="text-gray-400">Loading image...</div>
-                    </div>
-                  ) : (
-                    <OptimizedImage
-                      key="shop-default"
-                      src={ShopImageUrl}
-                      alt="Choose your perfect shirt style"
-                      width={600}
-                      height={750}
-                      class="w-full h-auto rounded-lg shadow-lg aspect-4/5 object-cover"
-                      responsive="productMain"
-                    />
-                  )}
+                  {/* Main Image */}
+                  <div 
+                    class="w-full relative"
+                    onTouchStart$={(e) => {
+                      touchStartX.value = e.touches[0].clientX;
+                      touchEndX.value = null;
+                    }}
+                    onTouchMove$={(e) => {
+                      if (touchStartX.value === null) return;
+                      touchEndX.value = e.touches[0].clientX;
+                      
+                      // Prevent vertical scroll if horizontal swipe is detected
+                      const diffX = Math.abs(touchStartX.value - e.touches[0].clientX);
+                      if (diffX > 30) {
+                        e.preventDefault();
+                      }
+                    }}
+                    onTouchEnd$={() => {
+                      if (touchStartX.value === null || touchEndX.value === null) return;
+                      
+                      const diffX = touchStartX.value - touchEndX.value;
+                      const minSwipeDistance = 50;
+                      
+                      // Only handle swipe if we have multiple images
+                      if (selectedProduct.value && productAssets.value) {
+                        const allAssets = [];
+                        if (productAssets.value.featuredAsset) {
+                          allAssets.push(productAssets.value.featuredAsset);
+                        }
+                        if (productAssets.value.assets && productAssets.value.assets.length > 0) {
+                          productAssets.value.assets.forEach((asset: any) => {
+                            if (!productAssets.value.featuredAsset || asset.id !== productAssets.value.featuredAsset.id) {
+                              allAssets.push(asset);
+                            }
+                          });
+                        }
+                        
+                        if (allAssets.length > 1) {
+                          const currentIndex = allAssets.findIndex(asset => asset.id === currentProductImage.value?.id);
+                          
+                          if (Math.abs(diffX) > minSwipeDistance) {
+                            if (diffX > 0 && currentIndex < allAssets.length - 1) {
+                              // Swipe left - next image
+                              currentProductImage.value = allAssets[currentIndex + 1];
+                            } else if (diffX < 0 && currentIndex > 0) {
+                              // Swipe right - previous image
+                              currentProductImage.value = allAssets[currentIndex - 1];
+                            }
+                          }
+                        }
+                      }
+                      
+                      touchStartX.value = null;
+                      touchEndX.value = null;
+                    }}
+                  >
+                    {selectedProduct.value && currentProductImage.value ? (
+                      <OptimizedImage
+                        key={currentProductImage.value?.id || 'no-image'}
+                        src={currentProductImage.value.preview}
+                        alt={selectedProduct.value?.name || 'Product'}
+                        width={600}
+                        height={750}
+                        class="w-full h-auto rounded-none lg:rounded-lg shadow-lg aspect-4/5 object-contain"
+                        responsive="productMain"
+                      />
+                    ) : selectedProduct.value && assetsLoading.value ? (
+                      // Loading state for main image
+                      <div class="w-full h-auto rounded-none lg:rounded-lg shadow-lg aspect-4/5 bg-gray-100 animate-pulse flex items-center justify-center">
+                        <div class="text-gray-400">Loading image...</div>
+                      </div>
+                    ) : (
+                      <OptimizedImage
+                        key="shop-default"
+                        src={ShopImageUrl}
+                        alt="Choose your perfect shirt style"
+                        width={600}
+                        height={750}
+                        class="w-full h-auto rounded-none lg:rounded-lg shadow-lg aspect-auto lg:aspect-4/5 object-contain"
+                        responsive="productMain"
+                      />
+                    )}
+                  </div>
+
+                  {/* Dots Navigation - Mobile only, below image */}
+                  {selectedProduct.value && productAssets.value && (() => {
+                    // Create a combined array of all available assets from lazy-loaded data
+                    const allAssets = [];
+
+                    // Add featured asset first if it exists
+                    if (productAssets.value.featuredAsset) {
+                      allAssets.push(productAssets.value.featuredAsset);
+                    }
+
+                    // Add other assets, avoiding duplicates
+                    if (productAssets.value.assets && productAssets.value.assets.length > 0) {
+                      productAssets.value.assets.forEach((asset: any) => {
+                        if (!productAssets.value.featuredAsset || asset.id !== productAssets.value.featuredAsset.id) {
+                          allAssets.push(asset);
+                        }
+                      });
+                    }
+
+                    // Only show dots if there are multiple images and on mobile
+                    if (allAssets.length <= 1) return null;
+
+                    return (
+                      <div class="flex lg:hidden justify-center gap-2 mt-4">
+                        {allAssets.map((asset: any, index: number) => (
+                          <button
+                            key={asset.id}
+                            class={{
+                              'w-3 h-3 rounded-full transition-all duration-200 cursor-pointer': true,
+                              'bg-[#8a6d4a]': currentProductImage.value?.id === asset.id,
+                              'bg-gray-300 hover:bg-gray-400': currentProductImage.value?.id !== asset.id,
+                            }}
+                            onClick$={() => {
+                              currentProductImage.value = asset;
+                            }}
+                            aria-label={`View image ${index + 1} of ${selectedProduct.value?.name || 'Product'}`}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
