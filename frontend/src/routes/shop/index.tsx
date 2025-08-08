@@ -466,7 +466,7 @@ export default component$(() => {
 
       {/* Main Content */}
       <div class="max-w-content-wide mx-auto px-0 sm:px-12 lg:px-16 pb-8">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-0 lg:gap-12">
 
           {/* Product Image */}
           <div class="order-1 lg:order-1 pt-0 lg:pt-6">
@@ -652,7 +652,7 @@ export default component$(() => {
                     if (allAssets.length <= 1) return null;
 
                     return (
-                      <div class="flex lg:hidden justify-center gap-2 mt-4">
+                      <div class="flex lg:hidden justify-center gap-2 mt-2 mb-2">
                         {allAssets.map((asset: any, index: number) => (
                           <button
                             key={asset.id}
@@ -676,19 +676,19 @@ export default component$(() => {
           </div>
 
           {/* Customization Steps */}
-          <div class="order-2 lg:order-2 lg:pt-8 pt-6">
+          <div class="order-2 lg:order-2 lg:pt-8 pt-0">
 
             {/* New Product Selector */}
-            <div class="bg-[#f5f5f5] rounded-2xl px-8 pb-8 pt-4 shadow-lg">
+            <div class="bg-[#f5f5f5] rounded-none md:rounded-2xl px-0 pb-0 pt-0 shadow-lg">
 
               {/* Sizing Note */}
-              <div class="bg-gray-50 border border-gray-200 rounded-lg p-2 mb-2 text-sm text-gray-600 text-center">
+              <div class="bg-gray-50 border border-gray-200 rounded-lg p-2 mb-0 text-sm text-gray-600 text-center">
                 💡 These shirts are designed with an oversized, relaxed fit for comfort and style
               </div>
 
               {/* Style Selection */}
               <div class={{
-                'p-3 rounded-t-lg border-2 transition-all duration-300': true,
+                'p-3 rounded-none md:rounded-t-lg border-2 transition-all duration-300': true,
                 'border-[#8a6d4a] bg-[#8a6d4a]/5': !selectedStyle.value, // Active when no style selected
                 'border-gray-200 bg-gray-50': selectedStyle.value // Completed state
               }}>
@@ -884,7 +884,7 @@ export default component$(() => {
                 </div>
               </div>
               {/* Selection Summary */}
-              <div class="bg-black text-white p-4 rounded-b-xl border-t-0">
+              <div class="bg-black text-white p-4 rounded-none md:rounded-b-xl border-t-0">
                 <div class="grid grid-cols-3 gap-4 mb-4">
                   <div class="text-center">
                     <div class="text-sm opacity-80 mb-1">Style</div>
