@@ -91,7 +91,7 @@ export default component$(() => {
 					<div class="flex items-center justify-between h-20">
 						{/* Logo - Always on left */}
 						<div class="flex items-center">
-							<Link href="/" class="flex items-center space-x-3">
+							<Link href="/" class="flex items-center space-x-3 -ml-1">
 								<LogoImage
 									alt="Rotten Hand Logo"
 									class="h-12 w-auto object-contain bg-transparent transition-all duration-500 ease-in-out"
@@ -121,7 +121,7 @@ export default component$(() => {
 							>
 								Contact
 							</Link></nav>{/* Icons */}
-						<div class="flex items-center space-x-3">
+						<div class="flex items-center space-x-3 pr-1">
 							{/* Cart */}
 							{!(isOnCheckoutPage || isOnConfirmationPage) && (
 								<button
