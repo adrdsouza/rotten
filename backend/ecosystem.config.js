@@ -35,9 +35,9 @@ module.exports = {
       min_uptime: '10s',
 
       // Logging for performance monitoring
-      log_file: 'logs/pm2-admin.log',
-      out_file: 'logs/pm2-admin-out.log',
-      error_file: 'logs/pm2-admin-error.log',
+      log_file: '../logs/pm2/pm2-admin.log',
+      out_file: '../logs/pm2/pm2-admin-out.log',
+      error_file: '../logs/pm2/pm2-admin-error.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
 
@@ -75,13 +75,13 @@ module.exports = {
       min_uptime: '30s',
 
       // Worker logging
-      log_file: 'logs/pm2-worker.log',
-      out_file: 'logs/pm2-worker-out.log',
-      error_file: 'logs/pm2-worker-error.log',
+      log_file: '../logs/pm2/pm2-worker.log',
+      out_file: '../logs/pm2/pm2-worker-out.log',
+      error_file: '../logs/pm2/pm2-worker-error.log',
       merge_logs: true,
     },
     {
-      name: "redis-monitor",
+      name: "redis",
       script: "redis-monitor.js",
 
       // Single instance monitoring process
@@ -101,9 +101,9 @@ module.exports = {
       min_uptime: '30s',
 
       // Redis monitor logging
-      log_file: 'logs/pm2-redis-monitor.log',
-      out_file: 'logs/pm2-redis-monitor-out.log',
-      error_file: 'logs/pm2-redis-monitor-error.log',
+      log_file: '../logs/pm2/pm2-redis-monitor.log',
+      out_file: '../logs/pm2/pm2-redis-monitor-out.log',
+      error_file: '../logs/pm2/pm2-redis-monitor-error.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
     }

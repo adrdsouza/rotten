@@ -41,10 +41,10 @@ case ${1:-status} in
         
     logs)
         echo "📋 Recent Full Backup Logs:"
-        tail -10 /home/vendure/rottenhand/database/logs/full-backup.log 2>/dev/null || echo "No full backup logs"
+        tail -10 /home/vendure/rottenhand/logs/database/full-backup.log 2>/dev/null || echo "No full backup logs"
         echo ""
         echo "📋 Recent Incremental Backup Logs:"
-        tail -10 /home/vendure/rottenhand/database/logs/incremental-backup.log 2>/dev/null || echo "No incremental backup logs"
+        tail -10 /home/vendure/rottenhand/logs/database/incremental-backup.log 2>/dev/null || echo "No incremental backup logs"
         ;;
         
     *)

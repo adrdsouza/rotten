@@ -41,9 +41,9 @@ module.exports = {
       min_uptime: '10s', // Minimum uptime before considering stable
       
       // Enhanced Logging with timestamps
-      log_file: './logs/pm2-frontend.log',
-      out_file: './logs/pm2-frontend-out.log',
-      error_file: './logs/pm2-frontend-error.log',
+      log_file: '../logs/pm2/pm2-frontend.log',
+      out_file: '../logs/pm2/pm2-frontend-out.log',
+      error_file: '../logs/pm2/pm2-frontend-error.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       
       // Health Monitoring

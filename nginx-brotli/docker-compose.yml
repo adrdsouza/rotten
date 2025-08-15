@@ -8,10 +8,10 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      # SSL certificates (will be copied from current NPM)
-      - ./ssl:/etc/letsencrypt/live/npm-13:ro
+      # SSL certificates
+      - ./ssl-new:/etc/letsencrypt:ro
       # Logs
-      - ./logs:/var/log/nginx
+      - /home/vendure/rottenhand/logs/nginx:/var/log/nginx
     restart: unless-stopped
     networks:
       - default

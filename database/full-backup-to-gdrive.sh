@@ -14,7 +14,7 @@ DB_PASSWORD="adrdsouza"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_DIR="/home/vendure/rottenhand/database/backups/full"
 GDRIVE_DIR="gdrive:RottenHand-Backups/database/full"
-LOG_FILE="/home/vendure/rottenhand/database/logs/full-backup.log"
+LOG_FILE="/home/vendure/rottenhand/logs/database/full-backup.log"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"

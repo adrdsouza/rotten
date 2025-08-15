@@ -27,7 +27,7 @@ import * as path from 'path';
         // Initialize logging configuration on plugin load
         try {
             // Set up logging paths with fallbacks
-            const logBasePath = process.env.LOG_BASE_PATH || '/home/vendure/rottenhand/backend/logs';
+            const logBasePath = process.env.LOG_BASE_PATH || '/home/vendure/rottenhand/logs/audit';
             
             // Ensure base log directory exists
             if (!fs.existsSync(logBasePath)) {
@@ -37,9 +37,9 @@ import * as path from 'path';
             // Set environment variables if not already set
             const logVars = {
                 LOG_BACKUP_PATH: path.join(logBasePath, 'backup'),
-                AUDIT_LOG_BACKUP_PATH: path.join(logBasePath, 'audit-backup'),
-                SECURITY_LOG_BACKUP_PATH: path.join(logBasePath, 'security-backup'),
-                APP_LOG_BACKUP_PATH: path.join(logBasePath, 'app-backup')
+                AUDIT_LOG_BACKUP_PATH: path.join(logBasePath, 'backup'),
+                SECURITY_LOG_BACKUP_PATH: path.join(logBasePath, 'backup'),
+                APP_LOG_BACKUP_PATH: path.join(logBasePath, 'backup')
             };
             
             // Set environment variables and ensure directories exist

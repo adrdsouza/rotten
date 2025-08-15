@@ -30,7 +30,7 @@
 		"prepare": "husky install",
 		"preview": "qwik build preview && vite preview --open",
 		"preview:server": "vite preview",
-		"serve": "node server/entry.express",
+		"serve": "node server/entry.express.js",
 		"start": "pnpm generate && vite --open --mode ssr",
 		"qwik": "qwik",
 		"generate-shop": "DOTENV_CONFIG_PATH=.env graphql-codegen -r dotenv/config --config codegen-shop.ts",

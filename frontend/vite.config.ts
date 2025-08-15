@@ -14,7 +14,7 @@ export default defineConfig((config) => {
 
     build: {
       sourcemap: isDev,
-      minify: !isDev ? 'terser' : false, // Enhanced: Switch to Terser for better compression
+      minify: false, // Disable minification to resolve syntax errors
       outDir: 'dist', // Ensure output goes to dist/
 
       // 🚀 ENHANCED TERSER CONFIGURATION - Aggressive settings for maximum compression
