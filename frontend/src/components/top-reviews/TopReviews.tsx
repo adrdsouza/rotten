@@ -52,11 +52,11 @@ export default component$(() => {
 						<div class="lg:col-start-5 lg:col-span-8 xl:col-start-4 xl:col-span-9 xl:grid xl:grid-cols-3 xl:gap-x-8 xl:items-start">
 							<div class="flex items-center xl:col-span-1">
 								<div class="flex items-center">
-									{[0, 1, 2, 3, 4].map((rating) => (
-										<div key={rating}>
-											<StarIcon rating={rating} review={review} />
-										</div>
-									))}
+									{[0, 1, 2, 3, 4].map((starIndex) => (
+											<div key={starIndex}>
+												<StarIcon filled={starIndex < review.rating} />
+											</div>
+										))}
 								</div>
 								<p class="ml-3 text-sm text-gray-700">
 									{review.rating}

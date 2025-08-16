@@ -18,7 +18,7 @@
         mso-line-height-rule: exactly;
     }
     .callout {
-        background-color: #e34545;
+        background-color: #8a6d4a;
         padding: 20px 0;
     }
     .callout-large > div {
@@ -104,7 +104,7 @@
         white-space: nowrap;
     }
     .total-row td {
-        border-top: 2px solid #e34545;
+        border-top: 2px solid #8a6d4a;
         font-weight: 700;
         font-size: 16px;
         padding: 16px 8px;
@@ -210,11 +210,11 @@
             <!-- Discounts -->
             {{#each order.discounts }}
                 <tr>
-                    <td style="padding: 12px 8px; border-bottom: 1px solid #f0f0f0; color: #e34545; font-weight: 600;">
+                    <td style="padding: 12px 8px; border-bottom: 1px solid #f0f0f0; color: #8a6d4a; font-weight: 600;">
                         {{ description }}
                     </td>
                     <td style="padding: 12px 8px; border-bottom: 1px solid #f0f0f0;"></td>
-                    <td class="price-cell" style="text-align: right; font-weight: 600; color: #e34545; padding: 12px 8px; border-bottom: 1px solid #f0f0f0; white-space: nowrap;">
+                    <td class="price-cell" style="text-align: right; font-weight: 600; color: #8a6d4a; padding: 12px 8px; border-bottom: 1px solid #f0f0f0; white-space: nowrap;">
                         -{{ formatMoney amount ../order.currencyCode 'en' }}
                     </td>
                 </tr>
@@ -224,11 +224,11 @@
             {{#if order.couponCodes}}
                 {{#each order.couponCodes }}
                     <tr>
-                        <td style="padding: 12px 8px; border-bottom: 1px solid #f0f0f0; color: #e34545; font-weight: 600;">
+                        <td style="padding: 12px 8px; border-bottom: 1px solid #f0f0f0; color: #8a6d4a; font-weight: 600;">
                             Coupon: {{ this }}
                         </td>
                         <td style="padding: 12px 8px; border-bottom: 1px solid #f0f0f0;"></td>
-                        <td class="price-cell" style="text-align: right; font-weight: 600; color: #e34545; padding: 12px 8px; border-bottom: 1px solid #f0f0f0; white-space: nowrap;">
+                        <td class="price-cell" style="text-align: right; font-weight: 600; color: #8a6d4a; padding: 12px 8px; border-bottom: 1px solid #f0f0f0; white-space: nowrap;">
                             ✓ Applied
                         </td>
                     </tr>
@@ -259,11 +259,11 @@
             
             <!-- Total -->
             <tr class="total-row">
-                <td style="border-top: 2px solid #e34545; font-weight: 700; font-size: 16px; padding: 16px 8px; background-color: #fafafa;">
+                <td style="border-top: 2px solid #8a6d4a; font-weight: 700; font-size: 16px; padding: 16px 8px; background-color: #fafafa;">
                     Total:
                 </td>
-                <td style="border-top: 2px solid #e34545; padding: 16px 8px; background-color: #fafafa;"></td>
-                <td style="border-top: 2px solid #e34545; font-weight: 700; font-size: 16px; padding: 16px 8px; background-color: #fafafa; text-align: right; color: #000000; white-space: nowrap;">
+                <td style="border-top: 2px solid #8a6d4a; padding: 16px 8px; background-color: #fafafa;"></td>
+                <td style="border-top: 2px solid #8a6d4a; font-weight: 700; font-size: 16px; padding: 16px 8px; background-color: #fafafa; text-align: right; color: #000000; white-space: nowrap;">
                     {{ formatMoney order.totalWithTax order.currencyCode 'en' }}
                 </td>
             </tr>
@@ -322,7 +322,7 @@
 <mj-section padding="20px">
     <mj-column>
         <mj-text css-class="info-box" padding="0" margin="0">
-            <div style="background-color: #e8f4fd; border-left: 3px solid #e34545; padding: 12px; margin: 0; border-radius: 0 5px 5px 0; font-size: 13px;">
+            <div style="background-color: #e8f4fd; border-left: 3px solid #8a6d4a; padding: 12px; margin: 0; border-radius: 0 5px 5px 0; font-size: 13px;">
                 <h4 style="font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 700; color: #000000; margin: 0 0 8px 0;">Order Status: {{ order.state }}</h4>
                 <h4 style="font-family: 'Playfair Display', serif; font-size: 16px; font-weight: 700; color: #000000; margin: 0 0 8px 0;">What happens next?</h4>
                 <ul style="margin: 0; padding-left: 18px; color: #333333; font-family: 'Inter', sans-serif; line-height: 1.5;">
@@ -344,10 +344,10 @@
             Questions about your order? Contact us:
         </mj-text>
         <mj-text color="#333333" font-family="Inter, sans-serif" font-size="14px" line-height="1.5" align="center" padding="0 0 15px 0">
-            <strong>Email:</strong> <a href="mailto:info@damneddesigns.com" style="color: #e34545; text-decoration: none;">info@damneddesigns.com</a><br/>
+            <strong>Email:</strong> <a href="mailto:info@rottenhand.com" style="color: #8a6d4a; text-decoration: none;">info@rottenhand.com</a><br/>
             <strong>Order #:</strong> {{ order.code }}
         </mj-text>
-        <mj-button background-color="#e34545" color="white" font-family="Inter, sans-serif" font-size="14px" font-weight="600" href="https://damneddesigns.com/order-status?orderCode={{ order.code }}" padding="10px 20px" border-radius="4px">
+        <mj-button background-color="#8a6d4a" color="white" font-family="Inter, sans-serif" font-size="14px" font-weight="600" href="https://rottenhand.com/order-status?orderCode={{ order.code }}" padding="10px 20px" border-radius="4px">
             View Order Status
         </mj-button>
     </mj-column>

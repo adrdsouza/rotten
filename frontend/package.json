@@ -81,12 +81,14 @@
 	"dependencies": {
 		"@angular/localize": "^20.1.7",
 		"@graphql-codegen/typescript-generic-sdk": "^4.0.2",
+		"@qwikest/icons": "^0.0.13",
 		"@stripe/stripe-js": "^7.8.0",
 		"@types/grecaptcha": "^3.0.9",
 		"@vendure/payments-plugin": "^3.4.0",
 		"card-validator": "^10.0.3",
 		"graphql": "^16.11.0",
 		"graphql-tag": "^2.12.6",
+
 		"qwik-image": "0.0.16",
 		"stripe": "^18.4.0",
 		"us-state-converter": "^1.0.8",

@@ -150,7 +150,7 @@ export default component$(() => {
 											cartQuantitySignal.value = localCart.localCart.totalQuantity;
 										}
 									})}
-									class="relative p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer text-white hover:text-gray-200"
+									class="relative p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer text-white hover:text-gray-200 flex items-center justify-center"
 									aria-label={`${totalQuantity} items in cart`}
 									title="View cart"
 								>
@@ -164,7 +164,7 @@ export default component$(() => {
 							)}
 									{/* User Icon - Hidden on mobile, shown on desktop */}							<div class="relative hidden md:block">
 								<button
-									class={`p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer ${
+									class={`p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer flex items-center justify-center ${
 										appState.customer.id !== CUSTOMER_NOT_DEFINED_ID 
 											? 'text-[#8a6d4a] hover:text-[#4F3B26]' 
 											: 'text-white hover:text-gray-200'
@@ -198,7 +198,7 @@ export default component$(() => {
 								)}
 							</div>							{/* Mobile Menu Button - On right side next to cart */}
 							<button
-								class="md:hidden p-2 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer text-white hover:text-gray-200"
+								class="md:hidden p-2 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer text-white hover:text-gray-200 flex items-center justify-center"
 								onClick$={() => (appState.showMenu = !appState.showMenu)}
 							>
 								<span class="sr-only">Menu</span>

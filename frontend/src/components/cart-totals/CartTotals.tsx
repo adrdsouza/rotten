@@ -224,7 +224,7 @@ export default component$<{
                     title={`Remove coupon`}
                     class="p-1 ml-2"
                   >
-                    <TrashIcon class="h-4 w-4 text-red-500 hover:text-red-700" />
+                    <TrashIcon forcedClass="h-4 w-4 text-red-500 hover:text-red-700" />
                   </button>
                 </div>
                 <dd class="font-medium text-green-600 whitespace-nowrap">
