@@ -1,54 +1,60 @@
 module.exports = {
   apps: [
     {
-      name: 'store',
-      script: 'pnpm',
-      args: 'serve',
-      cwd: '/home/vendure/rottenhand/frontend',
-      env: {
-        NODE_ENV: 'production',
-        PORT: 4000,
-        HOST: '0.0.0.0',
-        // 🚀 DEDICATED vCPU OPTIMIZATIONS - Performance tuning
-        NODE_OPTIONS: [
-          '--max-old-space-size=512',        // Reduced memory for efficiency
-          '--max-semi-space-size=64',        // Faster garbage collection
-          '--enable-source-maps',            // Better error reporting
-          '--no-warnings',                   // Reduce console noise
-          '--unhandled-rejections=strict'    // Catch promise errors
-        ].join(' '),
-        // CPU affinity optimizations for dedicated vCPU
-        UV_THREADPOOL_SIZE: '4',             // Increase thread pool for I/O
-        // Explicitly unset problematic pnpm environment variables
-        NPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: undefined,
-        NPM_CONFIG__JSR_REGISTRY: undefined,
-      },
-      // 🚀 SINGLE INSTANCE: Avoid port conflicts and process instability
-      instances: 1,
-      exec_mode: 'fork',
-      autorestart: true,
-      watch: false,
-      max_memory_restart: '512M',          // Optimized for dedicated vCPU efficiency
+      name: "store",
+      script: "start-server.js",
+      cwd: "/home/vendure/rottenhand/frontend",
 
-      // 🚀 DEDICATED vCPU PERFORMANCE MONITORING
-      max_cpu_restart: 80,                 // Restart if CPU usage > 80% for extended period
-      instance_var: 'INSTANCE_ID',         // Load balancing between instances
-      
-      // Enhanced Security and Monitoring
-      kill_timeout: 5000, // Graceful shutdown timeout
-      listen_timeout: 3000, // Startup timeout
-      max_restarts: 10, // Limit restart attempts
-      min_uptime: '10s', // Minimum uptime before considering stable
-      
-      // Enhanced Logging with timestamps
-      log_file: '../logs/pm2/pm2-frontend.log',
-      out_file: '../logs/pm2/pm2-frontend-out.log',
-      error_file: '../logs/pm2/pm2-frontend-error.log',
+      // Single instance for session consistency
+      instances: 1,
+      exec_mode: "fork",
+
+      // Memory and performance optimization
+      node_args: [
+        '--max-old-space-size=2048', // 2GB heap size
+        '--optimize-for-size'
+      ],
+
+      env: {
+        NODE_ENV: "production",
+        PORT: "4000",
+        HOST: "0.0.0.0",
+        // Performance optimizations
+        UV_THREADPOOL_SIZE: 8,
+        NODE_OPTIONS: '--enable-source-maps'
+      },
+
+
+      // Memory management
+      max_memory_restart: "1536M",
+
+      // Health and restart configuration
+      wait_ready: true,
+      kill_timeout: 30000,
+      listen_timeout: 15000,
+      restart_delay: 5000,
+      max_restarts: 10,
+      min_uptime: '10s',
+
+      // Logging
+      log_file: '../logs/pm2/pm2-store.log',
+      out_file: '../logs/pm2/pm2-store-out.log',
+      error_file: '../logs/pm2/pm2-store-error.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      
-      // Health Monitoring
+      merge_logs: true,
+
+      // Auto restart on file changes in development
+      watch: false,
+      ignore_watch: [
+        "node_modules",
+        "logs",
+        "tmp",
+        ".git"
+      ],
+
+      // Health monitoring
+      health_check_url: 'http://localhost:4000',
       health_check_grace_period: 3000,
-      health_check_fatal_exceptions: true,
     }
   ]
 };
