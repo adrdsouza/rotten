@@ -80,14 +80,14 @@ export default component$(() => {
 		// Use hard refresh like the old version for reliability
 		window.location.href = '/';
 	});	return (
-		<header
-			class={`fixed top-0 left-0 right-0 z-50 border-0 transition-all duration-500 ease-in-out ${
-				isHomePage
-					? isScrolled.value
-						? 'bg-[#8a6d4a]/95 backdrop-blur-sm shadow-sm' // New brand color with blur
-						: 'bg-transparent' // Fully transparent
-					: 'bg-[#8a6d4a]' // Solid brand color background on other pages
-			}`}
+			<header
+				class={`fixed top-0 left-0 right-0 z-50 border-0 transition-all duration-500 ease-in-out ${
+					isHomePage
+						? isScrolled.value
+							? 'bg-black/95 backdrop-blur-sm shadow-sm' // Black with blur
+							: 'bg-transparent' // Fully transparent
+						: 'bg-black' // Solid black background on other pages
+				}`}
 		>{/* Main Header */}
 				<div class="max-w-content-wide mx-auto px-4 sm:px-6 lg:px-8 w-full">
 					<div class="flex items-center justify-between h-20">
@@ -131,6 +131,14 @@ export default component$(() => {
 										// 🚀 DEMAND-BASED: Load cart only when cart icon is clicked
 										loadCartIfNeeded(localCart);
 
+										// 🚀 RESTORE COUNTRY: Check sessionStorage for saved country when opening cart
+										if (!appState.shippingAddress.countryCode) {
+											const storedCountry = sessionStorage.getItem('countryCode');
+											if (storedCountry) {
+												appState.shippingAddress.countryCode = storedCountry;
+											}
+										}
+
 										// 🚀 FRESH STOCK: Refresh stock levels when opening cart
 										if (!appState.showCart && localCart.localCart.items.length > 0) {
 											await refreshCartStock(localCart);
@@ -156,7 +164,11 @@ export default component$(() => {
 							)}
 									{/* User Icon - Hidden on mobile, shown on desktop */}							<div class="relative hidden md:block">
 								<button
-									class="p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer text-white hover:text-gray-200"
+									class={`p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer ${
+										appState.customer.id !== CUSTOMER_NOT_DEFINED_ID 
+											? 'text-[#8a6d4a] hover:text-[#4F3B26]' 
+											: 'text-white hover:text-gray-200'
+									}`}
 									onClick$={() => {
 										if (appState.customer.id !== CUSTOMER_NOT_DEFINED_ID) {
 											appState.showUserMenu = !appState.showUserMenu;

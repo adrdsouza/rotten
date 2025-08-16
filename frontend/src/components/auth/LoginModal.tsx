@@ -181,11 +181,7 @@ export default component$<LoginModalProps>(({
         signUpPassword.value = '';
         confirmPassword.value = '';
 
-        // Switch to sign in tab after successful registration
-        setTimeout(() => {
-          activeTab.value = 'signin';
-          successSignal.value = false;
-        }, 3000);
+        // No automatic action - customer can manually close modal or switch tabs
       } else {
         // Enhanced error detection for better user messages
         let errorMessage = 'Registration failed';
@@ -388,10 +384,7 @@ export default component$<LoginModalProps>(({
                         </svg>
                         <h3 class="text-lg font-semibold text-gray-900 mb-2">Account Created!</h3>
                         <p class="text-gray-600 mb-4">
-                          Please check your email to verify your account before signing in.
-                        </p>
-                        <p class="text-sm text-gray-500">
-                          Switching to sign in form...
+                          Please check your email to verify your account. You can now use the sign in form to sign in.
                         </p>
                       </div>
                     </div>

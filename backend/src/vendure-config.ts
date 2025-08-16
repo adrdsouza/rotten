@@ -416,7 +416,7 @@ export const config: VendureConfig = {
                 ],
                 templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
                 globalTemplateVars: {
-                    fromAddress: `\"${process.env.STORE_NAME || 'Rotten Hand'}\" <${process.env.GMAIL_USER}>`,
+                    fromAddress: `\"${process.env.STORE_NAME || 'Rotten Hand'}\" <${process.env.FROM_EMAIL || process.env.GMAIL_USER}>`,
                     verifyEmailAddressUrl: `${process.env.STOREFRONT_URL || 'https://rottenhand.com'}/verify`,
                     passwordResetUrl: `${process.env.STOREFRONT_URL || 'https://rottenhand.com'}/password-reset`,
                     changeEmailAddressUrl: `${process.env.STOREFRONT_URL || 'https://rottenhand.com'}/verify-email-address-change`
@@ -444,7 +444,7 @@ export const config: VendureConfig = {
                 },
             },
                 globalTemplateVars: {
-                    fromAddress: `\"${process.env.STORE_NAME || 'Rotten Hand'}\" <${process.env.GMAIL_USER}>`,
+                    fromAddress: `\"${process.env.STORE_NAME || 'Rotten Hand'}\" <${process.env.FROM_EMAIL || process.env.GMAIL_USER}>`,
                     verifyEmailAddressUrl: `${process.env.STOREFRONT_URL || 'https://rottenhand.com'}/verify`,
                     passwordResetUrl: `${process.env.STOREFRONT_URL || 'https://rottenhand.com'}/password-reset`,
                     changeEmailAddressUrl: `${process.env.STOREFRONT_URL || 'https://rottenhand.com'}/verify-email-address-change`

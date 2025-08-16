@@ -8,15 +8,27 @@ export default component$(() => {
 	const location = useLocation();
 
 	useVisibleTask$(async () => {
-		const { verifyCustomerAccount } = await verifyCustomerAccountMutation(
-			location.url.href.split('=')[1]
-		);
+		// Extract token from URL parameters
+		const urlParams = new URLSearchParams(location.url.search);
+		const token = urlParams.get('token');
 
-		if (verifyCustomerAccount.__typename !== 'CurrentUser') {
-			error.value = verifyCustomerAccount.message;
-		} else {
-			// Force a page reload to ensure the auth cookie is properly set for SSR
-			window.location.href = '/account';
+		if (!token) {
+			error.value = 'No verification token found in URL';
+			return;
+		}
+
+		try {
+			const { verifyCustomerAccount } = await verifyCustomerAccountMutation(token);
+
+			if (verifyCustomerAccount.__typename !== 'CurrentUser') {
+				error.value = verifyCustomerAccount.message;
+			} else {
+				// Force a page reload to ensure the auth cookie is properly set for SSR
+				window.location.href = '/account';
+			}
+		} catch (err) {
+			error.value = 'An error occurred during verification. Please try again.';
+			console.error('Verification error:', err);
 		}
 	});
 

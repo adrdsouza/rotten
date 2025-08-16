@@ -6,6 +6,7 @@ import {
 	useContextProvider,
 	useOn,
 	useStore,
+	useVisibleTask$,
 } from '@qwik.dev/core';
 import { RequestHandler, routeLoader$, useLocation } from '@qwik.dev/router';
 import { ImageTransformerProps, useImageProvider } from 'qwik-image';
@@ -185,6 +186,33 @@ export default component$(() => {
 
 	useContextProvider(APP_STATE, state);
 
+	// Sync customer data between SSR and client, and re-validate authentication on client side
+	useVisibleTask$(async () => {
+		// If SSR provided customer data, sync it to the client state
+		if (layoutData.value.customer) {
+			state.customer = layoutData.value.customer;
+		}
+
+		// If no customer data from SSR but we might have an auth token, try to fetch customer data
+		if (!layoutData.value.customer) {
+			try {
+				const customerData = await getActiveCustomerQuery();
+				if (customerData) {
+					state.customer = {
+						title: customerData.title ?? '',
+						firstName: customerData.firstName,
+						id: customerData.id,
+						lastName: customerData.lastName,
+						emailAddress: customerData.emailAddress,
+						phoneNumber: customerData.phoneNumber ?? '',
+					};
+				}
+			} catch (error) {
+				console.error('Failed to fetch customer data on client:', error);
+			}
+		}
+	});
+
 	// Simplified: Remove loading state that causes unnecessary re-renders
 	// Qwik handles navigation loading automatically
 
@@ -192,7 +220,7 @@ export default component$(() => {
 	// No longer runs on every page load - only when user shows purchase intent
 
 	// 🚀 OPTIMIZED: Body overflow handled via CSS classes on container
-	// This avoids useVisibleTask$ and lets CSS handle the overflow state
+	// This avoids additional useVisibleTask$ and lets CSS handle the overflow state
 
 
 
