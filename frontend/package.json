@@ -13,8 +13,9 @@
 		"node": ">=16"
 	},
 	"scripts": {
-		"build": "QWIK_LOG_LEVEL=silent qwik build",
-		"build.verbose": "qwik build",
+		"build": "QWIK_LOG_LEVEL=silent qwik build && node scripts/cleanup-static-sitemaps.js",
+		"build.verbose": "qwik build && node scripts/cleanup-static-sitemaps.js",
+		"cleanup-sitemaps": "node scripts/cleanup-static-sitemaps.js",
 		"build:progress": "./build-with-progress.sh",
 		"build.client": "NODE_OPTIONS='--max-old-space-size=6144' vite build",
 		"build.preview": "vite build --ssr src/entry.preview.tsx",

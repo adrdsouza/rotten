@@ -46,6 +46,7 @@ import { CacheInvalidationPlugin } from './plugins/cache-invalidation.plugin';
 import { LocalCartCouponPlugin } from './plugins/custom-coupon-validation/local-cart-coupon.plugin';
 // import { FulfillmentIntegrationPlugin } from './plugins/fulfillment-integration';
 import { HealthMonitorService } from './services/health-monitor.service';
+import { SeoPlugin } from './plugins/seo';
 
 function validateEnvironment() {
     const required: Record<string, 'string' | 'number' | 'boolean'> = {
@@ -282,6 +283,24 @@ export const config: VendureConfig = {
         stockDisplayStrategy: new ExactStockDisplayStrategy(),
     },
     plugins: [
+        SeoPlugin.init({
+            siteDomain: 'https://rottenhand.com',
+            companyName: 'Rotten Hand',
+            companyDescription: 'Premium quality products and exceptional service at Rotten Hand',
+            contactEmail: 'info@rottenhand.com',
+            socialMediaUrls: {
+                // Add social media URLs when available
+            },
+            localBusiness: {
+                address: '123 Commerce Street',
+                city: 'Business City',
+                state: 'State',
+                zipCode: '12345',
+                country: 'US',
+                phone: '+1-XXX-XXX-XXXX',
+                hours: 'Mon-Fri 9AM-6PM EST',
+            },
+        }), // 🔍 SEO plugin for JSON-LD schemas and sitemaps
         LocalCartCouponPlugin, // 🎫 Local cart coupon validation
         UnifiedOrderSecurityPlugin.init(), // 🚀 UNIFIED - comprehensive logging + security
         OrderDeduplicationPlugin.init(), // 🔒 Prevent duplicate orders during high traffic

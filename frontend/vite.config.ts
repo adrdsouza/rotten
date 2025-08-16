@@ -133,7 +133,10 @@ export default defineConfig((config) => {
       },
     },
     plugins: [
-      qwikRouter(),
+      qwikRouter({
+        // Exclude dynamic sitemap routes from static generation
+        exclude: ['/sitemap.xml', '/sitemap-*.xml'],
+      }),
       qwikVite({
         devTools: {
           clickToSource: false,
