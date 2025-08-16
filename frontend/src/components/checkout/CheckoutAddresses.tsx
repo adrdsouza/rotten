@@ -1,7 +1,8 @@
 import { $, component$, useContext, useSignal, useTask$, QRL, useVisibleTask$, useComputed$ } from '@builder.io/qwik';
-import { APP_STATE } from '~/constants';
+import { APP_STATE, CUSTOMER_NOT_DEFINED_ID } from '~/constants';
 import AddressForm from '~/components/address-form/AddressForm';
 import BillingAddressForm from '~/components/billing-address-form/BillingAddressForm';
+// LoginModal moved to parent component
 import {
   setCustomerForOrderMutation,
   setOrderBillingAddressMutation,
@@ -14,6 +15,7 @@ import { isActiveCustomerValid, isShippingAddressValid, isBillingAddressValid } 
 import { validateEmail, validateName, validatePhone, filterPhoneInput } from '~/utils/validation';
 import { useLocalCart } from '~/contexts/CartContext';
 import { useCheckoutValidationActions } from '~/contexts/CheckoutValidationContext';
+import { useLoginModalActions } from '~/contexts/LoginModalContext';
 // Import shared addressState instead of defining it here
 import { addressState } from '~/utils/checkout-state';
 
@@ -26,9 +28,12 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   const appState = useContext(APP_STATE);
   const localCart = useLocalCart();
   const validationActions = useCheckoutValidationActions();
+  const { openLoginModal } = useLoginModalActions();
   const useDifferentBilling = useSignal<boolean>(false);
   const isLoading = useSignal<boolean>(false);
   const billingHasBeenActivated = useSignal<boolean>(false); // Track if billing was ever activated
+  
+  // Login modal state is now handled by parent component
   
   // Individual error signals like the old implementation
   const emailValidationError = useSignal<string>('');
@@ -262,16 +267,16 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     const customerValid = isActiveCustomerValid(customerForValidation as any);
     
     // Validation debug logging (development only)
-    if (import.meta.env.DEV) {
-      console.log('[CheckoutAddresses] Customer validation debug:', {
-        customerData: customer,
-        customerValid,
-        emailResult: { isValid: emailResult.isValid, message: emailResult.message },
-        firstNameResult: { isValid: firstNameResult.isValid, message: firstNameResult.message },
-        lastNameResult: { isValid: lastNameResult.isValid, message: lastNameResult.message },
-        phoneResult: { isValid: phoneResult.isValid, message: phoneResult.message }
-      });
-    }
+    // if (import.meta.env.DEV) {
+    //   console.log('[CheckoutAddresses] Customer validation debug:', {
+    //     customerData: customer,
+    //     customerValid,
+    //     emailResult: { isValid: emailResult.isValid, message: emailResult.message },
+    //     firstNameResult: { isValid: firstNameResult.isValid, message: firstNameResult.message },
+    //     lastNameResult: { isValid: lastNameResult.isValid, message: lastNameResult.message },
+    //     phoneResult: { isValid: phoneResult.isValid, message: phoneResult.message }
+    //   });
+    // }
     
     // Phone requirement validation (non-US/PR countries require phone)
     const phoneRequirementValid = isPhoneOptional || phoneResult.isValid;
@@ -287,15 +292,15 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     
     const overallValid = customerValid && phoneResult.isValid && phoneRequirementValid && shippingAddressValid && billingAddressValid;
 
-    console.log('[CheckoutAddresses] Validation results:', {
-      customerValid,
-      phoneValid: phoneResult.isValid,
-      phoneRequirementValid,
-      shippingAddressValid,
-      billingAddressValid,
-      overallValid,
-      phoneMessage: phoneResult.message
-    });
+    // console.log('[CheckoutAddresses] Validation results:', {
+    //   customerValid,
+    //   phoneValid: phoneResult.isValid,
+    //   phoneRequirementValid,
+    //   shippingAddressValid,
+    //   billingAddressValid,
+    //   overallValid,
+    //   phoneMessage: phoneResult.message
+    // });
     
     // Update individual error signals - use empty strings for signal clearing
     emailValidationError.value = emailResult.isValid ? '' : (emailResult.message || 'Invalid email');
@@ -337,9 +342,9 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     // Don't sync to appState here to prevent circular dependency
     // State synchronization will be handled by the form submission process
     if (overallValid) {
-      console.log('[CheckoutAddresses] Customer validation passed');
+      // console.log('[CheckoutAddresses] Customer validation passed');
     } else {
-      console.log('[CheckoutAddresses] Customer validation failed');
+      // console.log('[CheckoutAddresses] Customer validation failed');
     }
   });
 
@@ -352,11 +357,11 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     
     // PREVENT VALIDATION ON INITIAL LOAD - only validate after user interaction
     if (!hasInitializedValidation.value) {
-      console.log('[CheckoutAddresses] Skipping validation - not initialized yet');
+      // console.log('[CheckoutAddresses] Skipping validation - not initialized yet');
       return;
     }
 
-    console.log('[CheckoutAddresses] Triggering validation due to form data change');
+    // console.log('[CheckoutAddresses] Triggering validation due to form data change');
 
     // 🚀 SOPHISTICATED DEBOUNCING: Use different timing based on validation type
     if (validationTimer.value) {
@@ -379,18 +384,18 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
     const customerPhoneNumber = (appState.customer?.phoneNumber || '') as string;
 
-    if (import.meta.env.DEV) {
-      console.log(`📍 [CheckoutAddresses] Country changed to: ${countryCode}, Phone optional: ${isPhoneOptional}`);
-    }
+    // if (import.meta.env.DEV) {
+    //   console.log(`📍 [CheckoutAddresses] Country changed to: ${countryCode}, Phone optional: ${isPhoneOptional}`);
+    // }
 
     // Immediately re-validate phone with new country rules
     if (customerPhoneNumber && phoneTouched.value) {
       const phoneResult = validatePhone(customerPhoneNumber, countryCode, isPhoneOptional);
       phoneValidationError.value = phoneResult.isValid ? '' : (phoneResult.message || 'Invalid phone number');
 
-      if (import.meta.env.DEV) {
-        console.log(`📞 [CheckoutAddresses] Phone re-validated for ${countryCode}: ${phoneResult.isValid ? 'valid' : (phoneResult.message || 'Invalid phone number')}`);
-      }
+      // if (import.meta.env.DEV) {
+      //   console.log(`📞 [CheckoutAddresses] Phone re-validated for ${countryCode}: ${phoneResult.isValid ? 'valid' : (phoneResult.message || 'Invalid phone number')}`);
+      // }
     }
 
     // Trigger immediate complete validation for country changes
@@ -564,7 +569,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   useVisibleTask$(() => {
     if (typeof window !== 'undefined') {
       (window as any).submitCheckoutAddressForm = submitAddresses;
-      console.log('[CheckoutAddresses] Exposed submitCheckoutAddressForm to window object');
+      // console.log('[CheckoutAddresses] Exposed submitCheckoutAddressForm to window object');
     }
 
     // 🚀 MEMORY MANAGEMENT: Cleanup function for timers and global references
@@ -573,13 +578,13 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
       if (validationTimer.value) {
         clearTimeout(validationTimer.value);
         validationTimer.value = null;
-        console.log('[CheckoutAddresses] Cleaned up validation timer');
+        // console.log('[CheckoutAddresses] Cleaned up validation timer');
       }
 
       // Clean up global function reference
       if (typeof window !== 'undefined') {
         delete (window as any).submitCheckoutAddressForm;
-        console.log('[CheckoutAddresses] Cleaned up global function reference');
+        // console.log('[CheckoutAddresses] Cleaned up global function reference');
       }
     };
   });
@@ -833,6 +838,26 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
           <p class="text-sm text-red-800">{error.value}</p>
         </div>
       )}
+
+      {/* Title with Clean Sign-in Option */}
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">
+          Shipping and Payment Info
+        </h3>
+
+        {/* Simple Login Option for Guest Users */}
+        {appState.customer?.id === CUSTOMER_NOT_DEFINED_ID && (
+          <div class="flex items-center text-sm">
+            <span class="text-gray-600 mr-2">Have an account?</span>
+            <button
+              onClick$={$(() => openLoginModal())}
+              class="text-[#8a6d4a] hover:text-[#4F3B26] font-medium transition-colors underline cursor-pointer"
+            >
+              Sign in
+            </button>
+          </div>
+        )}
+      </div>
       
       {/* Customer Information - Direct implementation without title */}
       <section>
@@ -974,6 +999,8 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
           </div>
         )}
       </section>
+
+      {/* LoginModal moved to parent checkout component for proper full-screen rendering */}
     </div>
   );
 });

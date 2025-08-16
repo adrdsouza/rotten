@@ -21,6 +21,8 @@ import Cart from '../components/cart/Cart';
 import Header from '../components/header/header';
 import Footer from '../components/footer/footer';
 import { CartProvider } from '~/contexts/CartContext';
+import { LoginModalProvider, useLoginModalState, useLoginModalActions } from '~/contexts/LoginModalContext';
+import LoginModal from '~/components/auth/LoginModal';
 
 export const onGet: RequestHandler = async ({ cacheControl, url, headers }) => {
 	// 🚀 ADVANCED CACHING: Intelligent cache strategies based on page type and user agent
@@ -113,6 +115,20 @@ export const onRequest: RequestHandler = () => {
 	// Handler for request processing
 };
 
+// Component to render the global login modal
+const LoginModalComponent = component$(() => {
+	const loginModalState = useLoginModalState();
+	const { closeLoginModal } = useLoginModalActions();
+
+	return (
+		<LoginModal
+			isOpen={loginModalState.isOpen}
+			onClose$={closeLoginModal}
+			onLoginSuccess$={loginModalState.onLoginSuccess}
+		/>
+	);
+});
+
 export default component$(() => {
 	const location = useLocation();
 	const isHomePage = location.url.pathname === '/';
@@ -190,30 +206,34 @@ export default component$(() => {
 		})
 	);
 	return (
-		<CartProvider>
-			<div>
-				<Header />
-				{/* 🚀 DEMAND-BASED: Conditional Cart Loading following Damned Designs pattern */}
-				{!isHomePage ? (
-					// Non-homepage: Load cart immediately for better UX
-					<Cart />
-				) : (
-					// Homepage: Lazy load cart only when showCart is true (user clicks cart icon)
-					state.showCart && <Cart />
-				)}
-				<Menu />
-				<div class="min-h-screen flex flex-col">
-					<main class={`flex-1 ${isHomePage ? '' : 'pt-16'}`}>
-						<Slot />
-					</main>
-					{/* Footer - now directly imported for reliability */}
-					<Footer />
+		<LoginModalProvider>
+			<CartProvider>
+				<div>
+					<Header />
+					{/* 🚀 DEMAND-BASED: Conditional Cart Loading following Damned Designs pattern */}
+					{!isHomePage ? (
+						// Non-homepage: Load cart immediately for better UX
+						<Cart />
+					) : (
+						// Homepage: Lazy load cart only when showCart is true (user clicks cart icon)
+						state.showCart && <Cart />
+					)}
+					<Menu />
+					<div class="min-h-screen flex flex-col">
+						<main class={`flex-1 ${isHomePage ? '' : 'pt-16'}`}>
+							<Slot />
+						</main>
+						{/* Footer - now directly imported for reliability */}
+						<Footer />
+					</div>
+					{/* Global Login Modal */}
+					<LoginModalComponent />
+					{/* 🚀 OPTIMIZED: CSS-based body overflow control */}
+					{(state.showCart || state.showMenu) && (
+						<style dangerouslySetInnerHTML="body { overflow: hidden !important; }" />
+					)}
 				</div>
-				{/* 🚀 OPTIMIZED: CSS-based body overflow control */}
-				{(state.showCart || state.showMenu) && (
-					<style dangerouslySetInnerHTML="body { overflow: hidden !important; }" />
-				)}
-			</div>
-		</CartProvider>
+			</CartProvider>
+		</LoginModalProvider>
 	);
 });

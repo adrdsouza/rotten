@@ -10,7 +10,7 @@
     "dev:server": "ts-node ./src/index.ts",
     "dev:worker": "ts-node ./src/index-worker.ts",
     "dev": "concurrently pnpm:dev:*",
-    "build": "tsc",
+    "build": "tsc && pm2 restart admin worker",
     "start:server": "node ./dist/index.js",
     "start:worker": "node ./dist/index-worker.js",
     "start": "concurrently pnpm:start:*"

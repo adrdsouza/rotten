@@ -9,6 +9,7 @@ import { isCheckoutPage } from '~/utils';
 // This provides immediate rendering without HTTP requests or loading states
 // DO NOT CHANGE to ?url - logos should be inlined for instant availability
 import LogoImage from '~/media/logo.svg?jsx';
+import LoginModal from '~/components/auth/LoginModal';
 
 import MenuIcon from '../icons/MenuIcon';
 import ShoppingBagIcon from '../icons/ShoppingBagIcon';
@@ -18,6 +19,7 @@ export default component$(() => {
 	const appState = useContext(APP_STATE);
 	const location = useLocation();
 	const isScrolled = useSignal(false);
+	const showLoginModal = useSignal(false);
 
 	// 🚀 OPTIMIZED: Direct localStorage check for badge - no cart context loading
 	const cartQuantitySignal = useSignal(0);
@@ -159,7 +161,7 @@ export default component$(() => {
 										if (appState.customer.id !== CUSTOMER_NOT_DEFINED_ID) {
 											appState.showUserMenu = !appState.showUserMenu;
 										} else {
-											window.location.href = '/sign-in';
+											showLoginModal.value = true;
 										}
 									}}
 								>
@@ -242,7 +244,7 @@ export default component$(() => {
 									if (appState.customer.id !== CUSTOMER_NOT_DEFINED_ID) {
 										appState.showMobileUserMenu = !appState.showMobileUserMenu;
 									} else {
-										window.location.href = '/sign-in';
+										showLoginModal.value = true;
 										appState.showMenu = false;
 									}
 								}}
@@ -271,6 +273,18 @@ export default component$(() => {
 						</nav>
 					</div>
 				)}
+				
+				{/* Login Modal */}
+				<LoginModal
+					isOpen={showLoginModal.value}
+					onClose$={$(() => {
+						showLoginModal.value = false;
+					})}
+					onLoginSuccess$={$(() => {
+						// Modal will handle closing itself and updating app state
+						// Customer data is automatically updated in the modal
+					})}
+				/>
 		</header>
 	);
 });

@@ -4,6 +4,7 @@ import { APP_STATE } from '~/constants';
 import { isCheckoutPage } from '~/utils';
 import CartContents from '../cart-contents/CartContents';
 import CartPrice from '../cart-totals/CartPrice';
+import FreeShippingProgress from '../free-shipping-progress/FreeShippingProgress';
 import { EligibleShippingMethods } from '~/types';
 import { formatPrice } from '~/utils';
 import { useLocalCart } from '~/contexts/CartContext';
@@ -286,7 +287,9 @@ export default component$(() => {
 											{(localCart.isLocalMode
 												? (localCart.hasLoadedOnce && localCart.localCart.totalQuantity > 0)
 												: (appState.activeOrder?.totalQuantity || 0) > 0) ? (
-												<CartContents />
+												<>
+													<CartContents />
+												</>
 											) : (
 												<div class="flex flex-col items-center justify-center h-64 text-center">
 													<div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
@@ -324,6 +327,16 @@ export default component$(() => {
 										? (localCart.hasLoadedOnce && localCart.localCart.totalQuantity > 0)
 										: (appState.activeOrder?.totalQuantity || 0) > 0) && isInEditableUrl && (
 										<div class="border-t border-slate-200 bg-[#F5F5F5] py-6 px-6 w-full rounded-lg">
+											{/* Free Shipping Progress Bar */}
+											<FreeShippingProgress 
+												countryCode={appState.shippingAddress.countryCode}
+												subTotal={localCart.isLocalMode 
+													? localCart.localCart.subTotal 
+													: appState.activeOrder?.subTotalWithTax || 0}
+												currencyCode={localCart.isLocalMode 
+													? localCart.localCart.currencyCode 
+													: appState.activeOrder?.currencyCode || 'USD'}
+											/>
 											<div class="flex justify-between text-lg font-semibold text-slate-900 mb-2">
 												<p>Subtotal</p>
 												<p>

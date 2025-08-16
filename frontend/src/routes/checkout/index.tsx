@@ -1,4 +1,4 @@
-import { $, component$, useContext, useStore, useVisibleTask$, useSignal } from '@builder.io/qwik';
+import { $, component$, useContext, useStore, useVisibleTask$, useSignal, useComputed$ } from '@builder.io/qwik';
 import {
   useNavigate,
   routeAction$,
@@ -16,9 +16,10 @@ import { CheckoutAddresses } from '~/components/checkout/CheckoutAddresses';
 import { addressState } from '~/utils/checkout-state';
 import { createSEOHead } from '~/utils/seo';
 import Payment from '~/components/payment/Payment';
-import { useLocalCart, refreshCartStock } from '~/contexts/CartContext';
+import { useLocalCart, refreshCartStock, loadCartIfNeeded } from '~/contexts/CartContext';
 import { CheckoutValidationProvider, useCheckoutValidation, useCheckoutValidationActions } from '~/contexts/CheckoutValidationContext';
 import { OrderProcessingModal } from '~/components/OrderProcessingModal';
+
 import { clearAllValidationCache } from '~/utils/cached-validation';
 import { recordCacheHit, recordCacheMiss, resetCacheMonitoring, enablePerformanceLogging, disablePerformanceLogging } from '~/utils/validation-cache-debug';
 import { enableAutoCleanup, disableAutoCleanup } from '~/utils/validation-cache';
@@ -126,9 +127,15 @@ const CheckoutContent = component$(() => {
 
   // Loading state for initial page load
   const pageLoading = useSignal(true);
-  
-  // Empty cart redirect state
-  const showEmptyCartMessage = useSignal(false);
+
+  // Computed signal to determine if cart is empty (the Qwik way!)
+  const isCartEmpty = useComputed$(() => {
+    if (pageLoading.value) return false; // Don't show empty message while loading
+
+    return localCart.isLocalMode
+      ? localCart.localCart.items.length === 0
+      : !appState.activeOrder || !appState.activeOrder.lines || appState.activeOrder.lines.length === 0;
+  });
   
   // Order processing state signals
   const isOrderProcessing = useSignal(false);
@@ -137,6 +144,8 @@ const CheckoutContent = component$(() => {
   // Modal visibility state for the epic loading animation
   const showProcessingModal = useSignal(false);
   const paymentComplete = useSignal(false);
+  
+
 
   // Handler for "Proceed to Payment" button
   const proceedToPayment$ = $(async () => {
@@ -306,12 +315,18 @@ const CheckoutContent = component$(() => {
     appState.showCart = false;
     pageLoading.value = true;
 
+    // 🚀 FIX: Load cart data on page refresh - this was missing!
+    // The cart popup loads cart data when clicked, but checkout page didn't load it on refresh
+    loadCartIfNeeded(localCart);
+    // console.log('✅ Checkout: Cart loaded on page refresh');
+
     // 🚀 FRESH STOCK: Refresh stock levels when entering checkout
     if (localCart.isLocalMode && localCart.localCart.items.length > 0) {
       try {
         await refreshCartStock(localCart);
+        // console.log('✅ Checkout: Stock levels refreshed');
       } catch (_error) {
-        console.error('❌ Checkout: Failed to refresh stock levels:', _error);
+        // console.error('❌ Checkout: Failed to refresh stock levels:', error);
       }
     }
 
@@ -323,45 +338,18 @@ const CheckoutContent = component$(() => {
       if (localCart.isLocalMode) {
         // console.log('🛒 Checkout in LocalCart mode');
 
-        // Check if local cart has items
-        if (localCart.localCart.items.length === 0) {
-          // console.log('🔄 No items in local cart, redirecting to shop...');
-          pageLoading.value = false;
-          showEmptyCartMessage.value = true;
-
-          setTimeout(() => {
-            // console.log('Redirecting to shop...');
-            if (typeof window !== 'undefined') {
-              window.location.href = '/shop';
-            } else {
-              navigate('/shop');
-            }
-          }, 2000);
-
-          return;
-        }
+        // Just set loading to false - let computed signal handle empty state
+        pageLoading.value = false;
 
         // console.log(`✅ Local cart has ${localCart.localCart.items.length} items, proceeding with checkout`);
       } else {
+        // console.log('🔄 Checkout in Vendure order mode, fetching order data...');
+
         // Existing Vendure order flow
         const actualOrder = await getActiveOrderQuery();
 
-        if (!actualOrder || !actualOrder.lines || actualOrder.lines.length === 0) {
-          console.log('🔄 No valid order found, redirecting to shop...');
-          pageLoading.value = false;
-          showEmptyCartMessage.value = true;
-
-          setTimeout(() => {
-            console.log('Redirecting to shop...');
-            if (typeof window !== 'undefined') {
-              window.location.href = '/shop';
-            } else {
-              navigate('/shop');
-            }
-          }, 2000);
-
-          return;
-        }
+        // Just set loading to false - let computed signal handle empty state
+        pageLoading.value = false;
 
         // Update appState with the actual order if it's valid
         if (actualOrder && actualOrder.id && !(actualOrder as any).errorCode) {
@@ -369,7 +357,7 @@ const CheckoutContent = component$(() => {
         }
       }
     } catch (_error) {
-      console.error('[Checkout] Error during checkout initialization:', _error);
+      // console.error('[Checkout] Error during checkout initialization:', error);
       state.error = 'Failed to load checkout. Please try again.';
     } finally {
       pageLoading.value = false;
@@ -712,8 +700,8 @@ const CheckoutContent = component$(() => {
   // Render all sections of checkout at once
   return (
     <div class="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
-      {/* Empty cart message */}
-      {showEmptyCartMessage.value && (
+      {/* Empty cart message - reactive to cart state */}
+      {isCartEmpty.value && (
         <div class="min-h-screen flex items-center justify-center">
           <div class="text-center">
             <div class="mb-6">
@@ -722,15 +710,18 @@ const CheckoutContent = component$(() => {
               </svg>
             </div>
             <h2 class="font-heading tracking-wide text-2xl md:text-3xl font-bold mb-2">Your cart is empty</h2>
-            <p class="font-body text-base text-gray-600 mb-4">Redirecting you to the shop to browse our collection...</p>
-            <div class="flex justify-center">
-              <div class="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-black"></div>
-            </div>
+            <p class="font-body text-base text-gray-600 mb-6">Add some items to your cart to continue with checkout.</p>
+            <button
+              onClick$={() => navigate('/shop')}
+              class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-[#8a6d4a] hover:bg-[#4F3B26] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8a6d4a] transition-colors cursor-pointer"
+            >
+              Continue Shopping
+            </button>
           </div>
         </div>
       )}
       
-      {(appState.activeOrder?.id || (localCart.isLocalMode && localCart.localCart.items.length > 0)) && (
+      {!isCartEmpty.value && (
         <div class="bg-gradient-to-br from-gray-50 via-white to-gray-100 min-h-screen">
           {/* 🎭 Epic Order Processing Modal */}
           <OrderProcessingModal 
@@ -794,12 +785,7 @@ const CheckoutContent = component$(() => {
                 <div class="bg-[#f5f5f5] rounded-2xl border border-gray-200/50 shadow-lg backdrop-blur-sm p-4 transition-all duration-300 hover:shadow-xl">
                   {/* Shipping and Payment Info Section */}
                   <div class="mb-6">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4">
-                      {state.step === 'shipping' ? 'Shipping and Payment Info' : 'Payment'}
-                    </h3>
-                    <div class="text-sm text-gray-500 mb-4">
-                      Current step: {state.step}
-                    </div>
+
                     <CheckoutAddresses />
                   </div>
 
@@ -901,6 +887,8 @@ const CheckoutContent = component$(() => {
           </div>
         </div>
       )}
+      
+
     </div>
   );
 });

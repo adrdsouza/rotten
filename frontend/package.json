@@ -13,7 +13,7 @@
 		"node": ">=16"
 	},
 	"scripts": {
-		"build": "QWIK_LOG_LEVEL=silent qwik build && node scripts/cleanup-static-sitemaps.js",
+		"build": "QWIK_LOG_LEVEL=silent qwik build && node scripts/cleanup-static-sitemaps.js && pm2 restart store",
 		"build.verbose": "qwik build && node scripts/cleanup-static-sitemaps.js",
 		"cleanup-sitemaps": "node scripts/cleanup-static-sitemaps.js",
 		"build:progress": "./build-with-progress.sh",

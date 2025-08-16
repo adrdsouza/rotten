@@ -276,6 +276,12 @@ export default component$<{
 												// const removeTimer = await performanceTracking.trackCartOperation$('remove-item'); // DISABLED
 												try {
 													await removeFromLocalCart(localCart, item.productVariantId);
+	
+													// Close cart popup if it becomes empty
+													if (localCart.localCart.items.length === 0) {
+														appState.showCart = false;
+													}
+	
 													// await removeTimer.end$(); // Track successful removal - DISABLED
 												} catch (error) {
 													console.error('Failed to remove item from cart:', error);
@@ -394,14 +400,35 @@ export default component$<{
 													if (localCart.isLocalMode) {
 														// Use local cart service for removal
 														await removeFromLocalCart(localCart, line.productVariant.id);
+				
+														// Close cart popup if it becomes empty
+														if (localCart.localCart.items.length === 0) {
+															appState.showCart = false;
+														}
 													} else {
 														// Use Vendure order mutations for checkout mode
-														appState.activeOrder = await removeOrderLineMutation(line.id);
+														const updatedOrder = await removeOrderLineMutation(line.id);
+				
+														// Handle the case where Vendure returns null (order becomes empty/invalid)
+														if (updatedOrder === null) {
+															// Order is now empty or invalid, set to empty order
+															appState.activeOrder = {} as Order;
+															appState.showCart = false;
+														} else {
+															// Update with the valid order
+															appState.activeOrder = updatedOrder;
+				
+															// Close cart popup if it becomes empty
+															if (!updatedOrder.lines || updatedOrder.lines.length === 0) {
+																appState.showCart = false;
+															}
+														}
+														
+														// Navigate away from checkout if on checkout page and cart is empty
 														if (
-															appState.activeOrder?.lines?.length === 0 &&
+															(!updatedOrder || !updatedOrder.lines || updatedOrder.lines.length === 0) &&
 															isCheckoutPage(location.url.toString())
 														) {
-															appState.showCart = false;
 															navigate(`/shop`);
 														}
 													}
