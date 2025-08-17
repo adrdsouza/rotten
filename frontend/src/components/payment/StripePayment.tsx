@@ -192,7 +192,7 @@ export default component$(() => {
 			)}
 
 			<button
-				class="w-full flex px-6 bg-[#8a6d4a] hover:bg-[#4F3B26] items-center justify-center space-x-2 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8a6d4a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+				class="w-full flex px-6 bg-[#8a6d4a] hover:bg-[#4F3B26] items-center justify-center space-x-2 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8a6d4a] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors duration-200"
 				disabled={!store.clientSecret || !!store.error}
 				onClick$={$(async () => {
 					try {

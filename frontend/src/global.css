@@ -1,13 +1,12 @@
 /* Font faces */
 @import 'tailwindcss';
+/* 🚀 ENHANCED: Modern CSS scroll animations */
+@import './styles/scroll-animations.css';
 
 :root {
   --form-control-color: #8a6d4a;
   --form-control-disabled: #959495;
 }
-
-/* 🚀 ENHANCED: Modern CSS scroll animations */
-@import './styles/scroll-animations.css';
 
 /* Font rendering improvements to fix ghosting */
 

@@ -20,6 +20,7 @@ export default component$(() => {
 	const location = useLocation();
 	const isScrolled = useSignal(false);
 	const showLoginModal = useSignal(false);
+	const userMenuRef = useSignal<Element>();
 
 	// 🚀 OPTIMIZED: Direct localStorage check for badge - no cart context loading
 	const cartQuantitySignal = useSignal(0);
@@ -72,6 +73,18 @@ export default component$(() => {
 		// Always add scroll listener
 		window.addEventListener('scroll', handleScroll);
 		return () => window.removeEventListener('scroll', handleScroll);
+	});
+
+	// Click outside to close user menu
+	useVisibleTask$(() => {
+		const handleClickOutside = (event: MouseEvent) => {
+			if (appState.showUserMenu && userMenuRef.value && !userMenuRef.value.contains(event.target as Node)) {
+				appState.showUserMenu = false;
+			}
+		};
+
+		document.addEventListener('mousedown', handleClickOutside);
+		return () => document.removeEventListener('mousedown', handleClickOutside);
 	});
 	
 	// Logout functionality
@@ -156,13 +169,13 @@ export default component$(() => {
 								>
 									<ShoppingBagIcon />
 									{totalQuantity > 0 && (
-										<span class="absolute -top-1 -right-1 bg-black text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-medium">
+										<span class="absolute -top-1 -right-1 bg-[#8a6d4a] text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-medium">
 											{totalQuantity}
 										</span>
 									)}
 								</button>
 							)}
-									{/* User Icon - Hidden on mobile, shown on desktop */}							<div class="relative hidden md:block">
+									{/* User Icon - Hidden on mobile, shown on desktop */}						<div class="relative hidden md:block" ref={userMenuRef}>
 								<button
 									class={`p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer flex items-center justify-center ${
 										appState.customer.id !== CUSTOMER_NOT_DEFINED_ID 

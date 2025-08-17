@@ -51,7 +51,7 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 									This is a dummy payment for demonstration purposes only
 								</p>
 								<button
-									class="flex px-6 bg-[#8a6d4a] hover:bg-[#4F3B26] items-center justify-center space-x-2 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8a6d4a]"
+									class="flex px-6 bg-[#8a6d4a] hover:bg-[#4F3B26] items-center justify-center space-x-2 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8a6d4a] cursor-pointer"
 									onClick$={$(async () => {
 										_onForward$('dummy-order-code');
 									})}
