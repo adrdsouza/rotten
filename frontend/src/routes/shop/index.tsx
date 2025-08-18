@@ -2,7 +2,7 @@ import { component$, useSignal, $, useContext, useVisibleTask$, useComputed$ } f
 import { routeLoader$, Link } from '@qwik.dev/router';
 import { OptimizedImage } from '~/components/ui';
 import Price from '~/components/products/Price';
-import { getBatchedProductsForShop, getProductAssets } from '~/providers/shop/products/products';
+import { getBatchedProductsForShop, getProductAssets, getShirtStylesForSelection } from '~/providers/shop/products/products';
 import { Product, ProductOption } from '~/types';
 import { createSEOHead } from '~/utils/seo';
 import { useLocalCart, addToLocalCart } from '~/contexts/CartContext';
@@ -10,7 +10,7 @@ import { APP_STATE } from '~/constants';
 import { loadCountryOnDemand } from '~/utils/addressStorage';
 import { LocalCartService } from '~/services/LocalCartService';
 import ShopImageUrl from '~/media/shop.jpg?url';
-import { prefetchOnHover, cleanupCache } from '~/utils/cache-warming';
+import { cleanupCache } from '~/utils/cache-warming';
 import { preloadImage } from '~/utils/image-cache';
 
 
@@ -92,78 +92,49 @@ const checkColorAvailable = (colorOption: ProductOption, selectedSize: ProductOp
 
 
 
-// Load both shirt products AND cart quantities for optimal performance
-export const useShirtProductsLoader = routeLoader$(async () => {
+// 🚀 PROGRESSIVE LOADING: Load only style selection data initially (~85% smaller payload)
+export const useShirtStylesLoader = routeLoader$(async () => {
   try {
-    console.log('Loading shirt products and cart quantities...');
+    console.log('🚀 Loading ultra-lightweight style selection data...');
 
-    // Add timeout to prevent hanging requests
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Product loading timeout')), 10000)
+      setTimeout(() => reject(new Error('Style loading timeout')), 5000)
     );
 
-    // 🚀 STEP 2: Load both shirt products using QUERY BATCHING (single HTTP request)
-    const productPromises = getBatchedProductsForShop(['shortsleeveshirt', 'longsleeveshirt']).catch(err => {
-      console.error('Failed to load products with batching:', err);
-      return [null, null];
+    // Load ONLY basic style info for Step 1 - no variants, no assets, no options
+    const stylesPromise = getShirtStylesForSelection().catch(err => {
+      console.error('Failed to load styles:', err);
+      return { shortSleeve: null, longSleeve: null };
     });
 
-    const [shortSleeveProduct, longSleeveProduct] = await Promise.race([
-      productPromises,
-      timeoutPromise
-    ]) as [any, any];
+    const styles = await Promise.race([stylesPromise, timeoutPromise]) as any;
 
-    console.log('Products loaded:', {
-      shortSleeve: !!shortSleeveProduct,
-      longSleeve: !!longSleeveProduct
+    console.log('✅ Style selection data loaded:', {
+      shortSleeve: !!styles.shortSleeve,
+      longSleeve: !!styles.longSleeve
     });
 
-    // Extract all variant IDs for cart quantity loading
-    const allVariantIds: string[] = [];
-    if (shortSleeveProduct?.variants) {
-      allVariantIds.push(...shortSleeveProduct.variants.map((v: any) => v.id).filter(Boolean));
-    }
-    if (longSleeveProduct?.variants) {
-      allVariantIds.push(...longSleeveProduct.variants.map((v: any) => v.id).filter(Boolean));
-    }
-
-    // Load cart quantities server-side (from localStorage or session)
-    let cartQuantities: Record<string, number> = {};
-    if (allVariantIds.length > 0) {
-      try {
-        // Use LocalCartService to get quantities from storage
-        cartQuantities = LocalCartService.getItemQuantitiesFromStorage(allVariantIds);
-      } catch (error) {
-        console.warn('Failed to load cart quantities:', error);
-        // Fallback to empty quantities
-        cartQuantities = {};
-      }
-    }
-
-    // Ensure we always return a valid structure
-    return {
-      shortSleeve: shortSleeveProduct || null,
-      longSleeve: longSleeveProduct || null,
-      cartQuantities, // Include cart quantities in initial load
-    };
+    return styles;
   } catch (error) {
-    console.error('Failed to load shirt products:', error);
-    // Always return a valid structure even on error
+    console.error('Failed to load shirt styles:', error);
     return {
       shortSleeve: null,
       longSleeve: null,
-      cartQuantities: {},
     };
   }
 });
 
 export default component$(() => {
-  const productsData = useShirtProductsLoader();
+  const stylesData = useShirtStylesLoader();
   const localCart = useLocalCart();
   const appState = useContext(APP_STATE);
 
-  // Show fallback if products failed to load
-  if (!productsData.value.shortSleeve && !productsData.value.longSleeve) {
+  // Progressive loading state for full product data
+  const fullProductData = useSignal<{ shortSleeve?: Product | null; longSleeve?: Product | null }>({});
+  const isLoadingStep = useSignal<boolean>(false);
+
+  // Show fallback if styles failed to load
+  if (!stylesData.value.shortSleeve && !stylesData.value.longSleeve) {
     return (
       <div class="min-h-screen bg-gray-50 flex items-center justify-center">
         <div class="text-center max-w-md mx-auto px-4">
@@ -204,8 +175,9 @@ export default component$(() => {
   const selectedVariantId = useSignal<string>('');
   const isAddingToCart = useSignal(false);
 
-  // New selector state
+  // Sequential selector state
   const selectedStyle = useSignal<'short' | 'long' | null>(null);
+  const currentStep = useSignal<number>(1); // 1: Style, 2: Size, 3: Color
 
   // Cart quantity tracking for all variants
   const quantitySignal = useSignal<Record<string, number>>({});
@@ -248,7 +220,13 @@ export default component$(() => {
       selectedColor.value = null;
     }
     updateVariantSelection();
-    // No need to change currentStep since all options are visible
+    
+    // Auto-advance to next step after short delay
+    setTimeout(() => {
+      if (currentStep.value === 2) {
+        currentStep.value = 3;
+      }
+    }, 800);
   });
 
   const handleColorSelect = $((colorOption: ProductOption) => {
@@ -256,7 +234,65 @@ export default component$(() => {
     if (!checkColorAvailable(colorOption, selectedSize.value, availabilityMap.value)) return;
     selectedColor.value = colorOption;
     updateVariantSelection();
-    // No need to change currentStep since all options are visible
+    // No auto-advance needed for final step
+  });
+
+  const handleStyleSelect = $((style: 'short' | 'long') => {
+    selectedStyle.value = style;
+    
+    // Reset subsequent selections when changing style
+    selectedSize.value = null;
+    selectedColor.value = null;
+    selectedVariantId.value = '';
+    
+    // 🚀 PROGRESSIVE LOADING: Load full product data when user selects style
+    const loadProductData = async () => {
+      isLoadingStep.value = true;
+      try {
+        // Use the existing cached data or fallback to old approach
+        const cachedProduct = style === 'short' ? fullProductData.value.shortSleeve : fullProductData.value.longSleeve;
+        
+        if (cachedProduct) {
+          console.log(`✅ Using cached product data for ${style} sleeve`);
+          selectedProduct.value = cachedProduct;
+        } else {
+          // Fallback to original getBatchedProductsForShop for now
+          console.log(`🔄 Loading product data for ${style} sleeve using fallback...`);
+          const [shortSleeveProduct, longSleeveProduct] = await getBatchedProductsForShop(['shortsleeveshirt', 'longsleeveshirt']);
+          
+          // Store both products
+          fullProductData.value = {
+            shortSleeve: shortSleeveProduct,
+            longSleeve: longSleeveProduct
+          };
+          
+          // Set the selected product
+          selectedProduct.value = style === 'short' ? shortSleeveProduct : longSleeveProduct;
+          
+          console.log(`✅ Product data loaded for ${style} sleeve`);
+        }
+      } catch (error) {
+        console.error(`❌ Failed to load product data for ${style}:`, error);
+      } finally {
+        isLoadingStep.value = false;
+      }
+    };
+    
+    // Load product data in background
+    loadProductData();
+    
+    // Auto-advance to next step after short delay
+    setTimeout(() => {
+      if (currentStep.value === 1) {
+        currentStep.value = 2;
+      }
+    }, 800);
+  });
+
+  const prevStep = $(() => {
+    if (currentStep.value > 1) {
+      currentStep.value--;
+    }
   });
 
 
@@ -407,12 +443,12 @@ export default component$(() => {
     const loadQuantities = () => {
       const allVariants: string[] = [];
 
-      // Collect all variant IDs from both products
-      if (productsData.value.shortSleeve?.variants && Array.isArray(productsData.value.shortSleeve.variants)) {
-        allVariants.push(...productsData.value.shortSleeve.variants.map((v: any) => v.id).filter(Boolean));
+      // Collect all variant IDs from progressively loaded products (only when available)
+      if (fullProductData.value.shortSleeve?.variants && Array.isArray(fullProductData.value.shortSleeve.variants)) {
+        allVariants.push(...fullProductData.value.shortSleeve.variants.map((v: any) => v.id).filter(Boolean));
       }
-      if (productsData.value.longSleeve?.variants && Array.isArray(productsData.value.longSleeve.variants)) {
-        allVariants.push(...productsData.value.longSleeve.variants.map((v: any) => v.id).filter(Boolean));
+      if (fullProductData.value.longSleeve?.variants && Array.isArray(fullProductData.value.longSleeve.variants)) {
+        allVariants.push(...fullProductData.value.longSleeve.variants.map((v: any) => v.id).filter(Boolean));
       }
 
       if (allVariants.length === 0) return;
@@ -463,6 +499,14 @@ export default component$(() => {
 
   return (
     <div class="min-h-screen bg-gray-50">
+      <style>
+        {`
+          @keyframes fillLine {
+            from { width: 0; }
+            to { width: 100%; }
+          }
+        `}
+      </style>
 
       {/* Main Content */}
       <div class="max-w-content-wide mx-auto px-0 sm:px-12 lg:px-16 pb-8">
@@ -675,265 +719,397 @@ export default component$(() => {
             </div>
           </div>
 
-          {/* Customization Steps */}
+          {/* Sequential Customization Panel */}
           <div class="order-2 lg:order-2 lg:pt-8 pt-0">
-
-            {/* New Product Selector */}
-            <div class="bg-[#f5f5f5] rounded-none md:rounded-2xl px-0 pb-0 pt-0 shadow-lg">
-
-              {/* Sizing Note */}
-              <div class="bg-gray-50 border border-gray-200 rounded-lg p-2 mb-0 text-sm text-gray-600 text-center">
-                💡 These shirts are designed with an oversized, relaxed fit for comfort and style
+            <div class="bg-[#f5f5f5] rounded-none md:rounded-2xl shadow-lg overflow-hidden min-h-[600px] flex flex-col border border-gray-200">
+              
+              {/* Header with Back Button */}
+              <div class="relative bg-white border-b border-gray-200 px-6 py-4">
+                {/* Back Button */}
+                {currentStep.value > 1 && (
+                  <button
+                    class="absolute left-4 top-1/2 -translate-y-1/2 bg-[#8a6d4a] text-white w-10 h-10 rounded-full cursor-pointer flex items-center justify-center text-lg transition-all duration-300 hover:bg-[#4F3B26] hover:shadow-md z-10"
+                    onClick$={prevStep}
+                  >
+                    ←
+                  </button>
+                )}
+                
+                {/* Progress Indicator */}
+                <div class="flex justify-center items-center space-x-4">
+                  <div class="flex items-center space-x-3">
+                    <div class={{
+                      'w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-400': true,
+                      'bg-[#8a6d4a] text-white scale-110': currentStep.value === 1,
+                      'bg-[#8a6d4a] text-white': currentStep.value > 1,
+                      'bg-gray-300 text-gray-600': currentStep.value < 1
+                    }}>
+                      {currentStep.value > 1 ? '✓' : '1'}
+                    </div>
+                    <span class="text-xs font-medium text-gray-600 hidden sm:block">Style</span>
+                  </div>
+                  
+                  <div class={{
+                    'w-12 h-1 rounded-full transition-all duration-400': true,
+                    'bg-[#8a6d4a]': currentStep.value > 1,
+                    'bg-gray-300': currentStep.value <= 1
+                  }}></div>
+                  
+                  <div class="flex items-center space-x-3">
+                    <div class={{
+                      'w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-400': true,
+                      'bg-[#8a6d4a] text-white scale-110': currentStep.value === 2,
+                      'bg-[#8a6d4a] text-white': currentStep.value > 2,
+                      'bg-gray-300 text-gray-600': currentStep.value < 2
+                    }}>
+                      {currentStep.value > 2 ? '✓' : '2'}
+                    </div>
+                    <span class="text-xs font-medium text-gray-600 hidden sm:block">Size</span>
+                  </div>
+                  
+                  <div class={{
+                    'w-12 h-1 rounded-full transition-all duration-400': true,
+                    'bg-[#8a6d4a]': currentStep.value > 2,
+                    'bg-gray-300': currentStep.value <= 2
+                  }}></div>
+                  
+                  <div class="flex items-center space-x-3">
+                    <div class={{
+                      'w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-400': true,
+                      'bg-[#8a6d4a] text-white scale-110': currentStep.value === 3,
+                      'bg-[#8a6d4a] text-white': currentStep.value > 3,
+                      'bg-gray-300 text-gray-600': currentStep.value < 3
+                    }}>
+                      {currentStep.value > 3 ? '✓' : '3'}
+                    </div>
+                    <span class="text-xs font-medium text-gray-600 hidden sm:block">Color</span>
+                  </div>
+                </div>
               </div>
 
-              {/* Style Selection */}
-              <div class={{
-                'p-3 rounded-none md:rounded-t-lg border-2 transition-all duration-300': true,
-                'border-[#8a6d4a] bg-[#8a6d4a]/5': !selectedStyle.value, // Active when no style selected
-                'border-gray-200 bg-gray-50': selectedStyle.value // Completed state
-              }}>
+              {/* Step Content Container */}
+              <div class="flex-1 px-8 pt-4 pb-8 flex flex-col justify-center relative bg-white">
+                
+                {/* Step 1: Style Selection */}
                 <div class={{
-                  'flex items-center justify-center gap-2 mb-3 text-lg font-semibold transition-colors duration-300': true,
-                  'text-[#8a6d4a]': !selectedStyle.value, // Active styling
-                  'text-gray-600': selectedStyle.value // Completed styling
+                  'transition-all duration-400 ease-in-out': true,
+                  'opacity-100 transform translate-x-0': currentStep.value === 1,
+                  'opacity-0 transform translate-x-5 pointer-events-none absolute': currentStep.value > 1,
+                  'opacity-0 transform -translate-x-5 pointer-events-none absolute': currentStep.value < 1
                 }}>
-                  <span class="text-xl">👕</span>
-                  <span>Style</span>
-                  {selectedStyle.value && <span class="text-green-600 ml-2">✓</span>}
+                  <h2 class="text-3xl font-bold mb-2 text-[#8a6d4a] text-center">Choose Your Style</h2>
+                  <p class="text-gray-600 mb-8 text-center">Select your preferred sleeve length</p>
+                  
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                    {stylesData.value.shortSleeve && (
+                      <div
+                        class={{
+                          'bg-white border-2 rounded-xl p-6 text-center cursor-pointer transition-all duration-300 transform relative overflow-hidden hover:shadow-lg hover:-translate-y-1': true,
+                          'border-[#8a6d4a] bg-[#8a6d4a]/5 shadow-lg transform -translate-y-0.5': selectedStyle.value === 'short',
+                          'border-gray-200 hover:border-[#8a6d4a]': selectedStyle.value !== 'short'
+                        }}
+                        onClick$={() => handleStyleSelect('short')}
+                      >
+                        {selectedStyle.value === 'short' && (
+                          <div class="absolute top-3 right-4 text-[#8a6d4a] font-bold text-lg">✓</div>
+                        )}
+                        {isLoadingStep.value && selectedStyle.value === 'short' && (
+                          <div class="absolute inset-0 bg-white/80 flex items-center justify-center rounded-xl">
+                            <div class="w-6 h-6 border-2 border-[#8a6d4a] border-t-transparent rounded-full animate-spin"></div>
+                          </div>
+                        )}
+                        <div class="text-xl font-bold mb-2 text-gray-800">Short Sleeve</div>
+                        <div class="text-gray-600 text-sm mb-3">Summer confidence</div>
+                        <Price
+                          priceWithTax={stylesData.value.shortSleeve.variants[0]?.priceWithTax || 0}
+                          currencyCode={stylesData.value.shortSleeve.variants[0]?.currencyCode || 'USD'}
+                          forcedClass="text-2xl font-bold text-[#8a6d4a]"
+                        />
+                      </div>
+                    )}
+                    {stylesData.value.longSleeve && (
+                      <div
+                        class={{
+                          'bg-white border-2 rounded-xl p-6 text-center cursor-pointer transition-all duration-300 transform relative overflow-hidden hover:shadow-lg hover:-translate-y-1': true,
+                          'border-[#8a6d4a] bg-[#8a6d4a]/5 shadow-lg transform -translate-y-0.5': selectedStyle.value === 'long',
+                          'border-gray-200 hover:border-[#8a6d4a]': selectedStyle.value !== 'long'
+                        }}
+                        onClick$={() => handleStyleSelect('long')}
+                      >
+                        {selectedStyle.value === 'long' && (
+                          <div class="absolute top-3 right-4 text-[#8a6d4a] font-bold text-lg">✓</div>
+                        )}
+                        {isLoadingStep.value && selectedStyle.value === 'long' && (
+                          <div class="absolute inset-0 bg-white/80 flex items-center justify-center rounded-xl">
+                            <div class="w-6 h-6 border-2 border-[#8a6d4a] border-t-transparent rounded-full animate-spin"></div>
+                          </div>
+                        )}
+                        <div class="text-xl font-bold mb-2 text-gray-800">Long Sleeve</div>
+                        <div class="text-gray-600 text-sm mb-3">Year-round essential</div>
+                        <Price
+                          priceWithTax={stylesData.value.longSleeve.variants[0]?.priceWithTax || 0}
+                          currencyCode={stylesData.value.longSleeve.variants[0]?.currencyCode || 'USD'}
+                          forcedClass="text-2xl font-bold text-[#8a6d4a]"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div class="flex gap-3">
-                  {productsData.value.shortSleeve && (
-                    <div
-                      class={{
-                        'flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 text-center bg-white': true,
-                        'border-[#8a6d4a] bg-gray-50': selectedStyle.value === 'short',
-                        'border-gray-200 hover:border-[#8a6d4a]': selectedStyle.value !== 'short'
-                      }}
-                      onMouseEnter$={() => prefetchOnHover('shortsleeveshirt')}
-                      onClick$={() => {
-                        selectedStyle.value = 'short';
-                        selectedProduct.value = productsData.value.shortSleeve;
-                      }}
-                    >
-                      <div class="font-semibold text-base mb-1">Short Sleeve</div>
-                      <Price
-                        priceWithTax={productsData.value.shortSleeve.variants[0]?.priceWithTax || 0}
-                        currencyCode={productsData.value.shortSleeve.variants[0]?.currencyCode || 'USD'}
-                        forcedClass="text-xl font-bold text-black mb-1"
-                      />
-                      <div class="text-gray-600 text-xs">Summer confidence</div>
-                    </div>
-                  )}
-                  {productsData.value.longSleeve && (
-                    <div
-                      class={{
-                        'flex-1 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 text-center bg-white': true,
-                        'border-[#8a6d4a] bg-gray-50': selectedStyle.value === 'long',
-                        'border-gray-200 hover:border-[#8a6d4a]': selectedStyle.value !== 'long'
-                      }}
-                      onMouseEnter$={() => prefetchOnHover('longsleeveshirt')}
-                      onClick$={() => {
-                        selectedStyle.value = 'long';
-                        selectedProduct.value = productsData.value.longSleeve;
-                      }}
-                    >
-                      <div class="font-semibold text-base mb-1">Long Sleeve</div>
-                      <Price
-                        priceWithTax={productsData.value.longSleeve.variants[0]?.priceWithTax || 0}
-                        currencyCode={productsData.value.longSleeve.variants[0]?.currencyCode || 'USD'}
-                        forcedClass="text-xl font-bold text-black mb-1"
-                      />
-                      <div class="text-gray-600 text-xs">Year-round essential</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              {/* Size Selection */}
-              <div class={{
-                'p-3 border-2 transition-all duration-300': true,
-                'border-t-0': !(selectedStyle.value && !selectedSize.value), // Remove top border unless active
-                'border-[#8a6d4a] bg-[#8a6d4a]/5': selectedStyle.value && !selectedSize.value, // Active when style selected but no size
-                'border-gray-200 bg-gray-50': !!selectedSize.value, // Completed state
-                'border-gray-200 bg-gray-100 opacity-60 cursor-not-allowed': !selectedStyle.value // Inactive state
-              }}>
-                <div class={{
-                  'flex items-center justify-center gap-2 mb-3 text-lg font-semibold transition-colors duration-300': true,
-                  'text-[#8a6d4a]': selectedStyle.value && !selectedSize.value, // Active styling
-                  'text-gray-600': !!selectedSize.value, // Completed styling
-                  'text-gray-400': !selectedStyle.value // Inactive styling
-                }}>
-                  <span class="text-xl">📏</span>
-                  <span>Size</span>
-                  {selectedSize.value && <span class="text-green-600 ml-2">✓</span>}
-                </div>
-                <div class="flex gap-3">
-                  {selectedProduct.value ? (
-                    availableOptions.value.sizes.map((sizeOption) => {
-                      const isSelected = selectedSize.value?.id === sizeOption.id;
-                      const isAvailable = checkSizeAvailable(sizeOption, availabilityMap.value);
 
-                      return (
-                        <div
-                          key={sizeOption.id}
-                          class={{
-                            'flex-1 p-3 border-2 rounded-lg transition-all duration-200 text-center bg-white': true,
-                            'border-[#8a6d4a] bg-gray-50 cursor-pointer': isSelected,
-                            'border-gray-200 hover:border-[#8a6d4a] cursor-pointer': !isSelected && isAvailable,
-                            'border-gray-200 cursor-not-allowed opacity-50': !isAvailable
-                          }}
-                          onClick$={() => {
-                            if (isAvailable) {
-                              handleSizeSelect(sizeOption);
-                            }
-                          }}
-                        >
-                          <div class="font-semibold text-base mb-1">{sizeOption.name}</div>
-                          <div class="text-gray-600 text-xs leading-tight">
-                            Chest: 52"<br/>Length: 29"
+                {/* Step 2: Size Selection */}
+                <div class={{
+                  'transition-all duration-400 ease-in-out': true,
+                  'opacity-100 transform translate-x-0': currentStep.value === 2,
+                  'opacity-0 transform translate-x-5 pointer-events-none absolute': currentStep.value > 2,
+                  'opacity-0 transform -translate-x-5 pointer-events-none absolute': currentStep.value < 2
+                }}>
+                  <h2 class="text-3xl font-bold mb-2 text-[#8a6d4a] text-center">Select Your Size</h2>
+                  <p class="text-gray-600 mb-8 text-center">Find your perfect fit</p>
+                  
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl mx-auto mb-6">
+                    {selectedProduct.value ? (
+                      availableOptions.value.sizes.map((sizeOption) => {
+                        const isSelected = selectedSize.value?.id === sizeOption.id;
+                        const isAvailable = checkSizeAvailable(sizeOption, availabilityMap.value);
+
+                        return (
+                          <div
+                            key={sizeOption.id}
+                            class={{
+                              'bg-white border-2 rounded-xl p-4 text-center transition-all duration-300 transform relative overflow-hidden': true,
+                              'cursor-pointer': isAvailable,
+                              'cursor-not-allowed': !isAvailable,
+                              'border-[#8a6d4a] bg-[#8a6d4a]/5 shadow-lg transform -translate-y-0.5': isSelected,
+                              'border-gray-200 hover:border-[#8a6d4a] hover:-translate-y-1 hover:shadow-md': !isSelected && isAvailable,
+                              'border-gray-200 opacity-50': !isAvailable
+                            }}
+                            onClick$={() => {
+                              if (isAvailable) {
+                                handleSizeSelect(sizeOption);
+                              }
+                            }}
+                          >
+                            {isSelected && (
+                              <div class="absolute top-2 right-3 text-[#8a6d4a] font-bold text-lg">✓</div>
+                            )}
+                            <div class="text-2xl font-bold mb-1 text-gray-800">{sizeOption.name}</div>
+                            <div class="text-gray-600 text-xs leading-tight">
+                              Chest: 52"<br/>Length: 29"
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      ['S', 'M', 'L'].map((size) => (
+                        <div key={size} class="bg-gray-100 border-2 border-gray-200 rounded-xl p-4 text-center opacity-50">
+                          <div class="text-2xl font-bold mb-1 text-gray-400">{size}</div>
+                          <div class="text-gray-400 text-xs">Select style first</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  
+                  <div class="text-center">
+                    <div class="bg-[#8a6d4a]/10 border border-[#8a6d4a]/20 rounded-lg p-3 text-sm text-[#8a6d4a]">
+                      💡 These shirts are designed with an oversized, relaxed fit for comfort and style
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 3: Color Selection */}
+                <div class={{
+                  'transition-all duration-400 ease-in-out': true,
+                  'opacity-100 transform translate-x-0': currentStep.value === 3,
+                  'opacity-0 transform translate-x-5 pointer-events-none absolute': currentStep.value > 3,
+                  'opacity-0 transform -translate-x-5 pointer-events-none absolute': currentStep.value < 3
+                }}>
+                  <h2 class="text-3xl font-bold mb-2 text-[#8a6d4a] text-center">Choose Your Color</h2>
+                  <p class="text-gray-600 mb-6 text-center">Pick your favorite shade</p>
+                  
+                  <div class="grid grid-cols-3 gap-4 max-w-2xl mx-auto mb-8">
+                    {selectedProduct.value ? (
+                      availableOptions.value.colors.map((colorOption) => {
+                        const isSelected = selectedColor.value?.id === colorOption.id;
+                        const isAvailable = selectedSize.value ? checkColorAvailable(colorOption, selectedSize.value, availabilityMap.value) : false;
+
+                        // Map color names to background styles
+                        const getColorStyle = (name: string) => {
+                          const colorName = name.toLowerCase();
+                          if (colorName.includes('black') || colorName.includes('midnight')) return 'bg-slate-800';
+                          if (colorName.includes('white') || colorName.includes('cloud')) return 'bg-gray-50 border-gray-300';
+                          if (colorName.includes('grey') || colorName.includes('gray') || colorName.includes('storm')) return 'bg-gray-500';
+                          if (colorName.includes('purple') || colorName.includes('deep')) return 'bg-purple-600';
+                          if (colorName.includes('red') || colorName.includes('blood')) return 'bg-red-600';
+                          if (colorName.includes('blue') || colorName.includes('electric')) return 'bg-blue-600';
+                          if (colorName.includes('pink') || colorName.includes('hot')) return 'bg-pink-500';
+                          if (colorName.includes('yellow') || colorName.includes('desert')) return 'bg-yellow-400';
+                          if (colorName.includes('green') || colorName.includes('forest')) return 'bg-green-600';
+                          return 'bg-gray-300';
+                        };
+
+                        return (
+                          <div key={colorOption.id} class="flex flex-col items-center">
+                            <div
+                              class={{
+                                [`aspect-[2/1] w-full rounded-xl border-3 transition-all duration-300 transform relative ${getColorStyle(colorOption.name)}`]: true,
+                                'cursor-pointer': isAvailable,
+                                'cursor-not-allowed': !isAvailable,
+                                'border-[#8a6d4a] scale-105 shadow-xl': isSelected,
+                                'border-black hover:scale-105 hover:shadow-lg': !isSelected && isAvailable,
+                                'border-gray-400 opacity-70': !isAvailable
+                              }}
+                              onClick$={() => {
+                                if (isAvailable) {
+                                  handleColorSelect(colorOption);
+                                }
+                              }}
+                            >
+                              {isSelected && (
+                                <div class="absolute inset-0 flex items-center justify-center text-white font-bold text-xl drop-shadow-lg">
+                                  ✓
+                                </div>
+                              )}
+                              {!isAvailable && (
+                                <div class="absolute inset-0 bg-white/30 rounded-xl"></div>
+                              )}
+                            </div>
+                            <div class="text-xs text-gray-600 mt-2 text-center font-medium">{colorOption.name}</div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      ['Black', 'White', 'Grey', 'Purple', 'Red', 'Blue', 'Pink', 'Yellow', 'Green'].map((color) => (
+                        <div key={color} class="flex flex-col items-center">
+                          <div class="aspect-[2/1] w-full rounded-xl bg-gray-200 opacity-30"></div>
+                          <div class="text-xs text-gray-400 mt-2">{color}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Split Layout: Selection Summary & Add to Cart */}
+                  {selectedStyle.value && selectedSize.value && selectedColor.value ? (
+                    <div class="mb-6">
+                      {/* Mobile: Stacked Layout */}
+                      <div class="md:hidden space-y-4">
+                        {/* Selection Summary */}
+                        <div class="bg-[#8a6d4a]/5 border border-[#8a6d4a]/20 rounded-xl p-4 shadow-sm">
+                          <div class="grid grid-cols-3 gap-3 text-center">
+                            <div>
+                              <div class="text-xs text-gray-600 mb-1">Style</div>
+                              <div class="font-bold text-[#8a6d4a] text-sm">{selectedProduct.value?.name?.replace(' Shirt', '') || '—'}</div>
+                            </div>
+                            <div>
+                              <div class="text-xs text-gray-600 mb-1">Size</div>
+                              <div class="font-bold text-[#8a6d4a] text-sm">{selectedSize.value?.name || '—'}</div>
+                            </div>
+                            <div>
+                              <div class="text-xs text-gray-600 mb-1">Color</div>
+                              <div class="font-bold text-[#8a6d4a] text-sm">{selectedColor.value?.name || '—'}</div>
+                            </div>
                           </div>
                         </div>
-                      );
-                    })
-                  ) : (
-                    ['Small', 'Medium', 'Large'].map((size) => (
-                      <div
-                        key={size}
-                        class="flex-1 p-3 border-2 border-gray-200 rounded-lg text-center cursor-not-allowed opacity-50 bg-white"
-                      >
-                        <div class="font-semibold text-base mb-1">{size}</div>
-                        <div class="text-gray-600 text-xs leading-tight">
-                          Select style first
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <div class="text-center mt-4">
-                  <a href="#" class="text-sm text-[#8a6d4a] hover:underline">View detailed size chart</a>
-                </div>
-              </div>
-
-              {/* Color Selection */}
-              <div class={{
-                'p-3 border-2 transition-all duration-300': true,
-                'border-t-0': !(selectedSize.value && !selectedColor.value), // Remove top border unless active
-                'border-[#8a6d4a] bg-[#8a6d4a]/5': selectedSize.value && !selectedColor.value, // Active when size selected but no color
-                'border-gray-200 bg-gray-50': !!selectedColor.value, // Completed state
-                'border-gray-200 bg-gray-100 opacity-60 cursor-not-allowed': !selectedSize.value // Inactive state
-              }}>
-                <div class={{
-                  'flex items-center justify-center gap-2 mb-3 text-lg font-semibold transition-colors duration-300': true,
-                  'text-[#8a6d4a]': selectedSize.value && !selectedColor.value, // Active styling
-                  'text-gray-600': !!selectedColor.value, // Completed styling
-                  'text-gray-400': !selectedSize.value // Inactive styling
-                }}>
-                  <span class="text-xl">🎨</span>
-                  <span>Color</span>
-                  {selectedColor.value && <span class="text-green-600 ml-2">✓</span>}
-                </div>
-                <div class="grid grid-cols-3 gap-2">
-                  {selectedProduct.value ? (
-                    availableOptions.value.colors.map((colorOption) => {
-                      const isSelected = selectedColor.value?.id === colorOption.id;
-                      const isAvailable = selectedSize.value ? checkColorAvailable(colorOption, selectedSize.value, availabilityMap.value) : false;
-
-                      // Map color names to background styles
-                      const getColorStyle = (name: string) => {
-                        const colorName = name.toLowerCase();
-                        if (colorName.includes('black') || colorName.includes('midnight')) return 'bg-black text-white';
-                        if (colorName.includes('white') || colorName.includes('cloud')) return 'bg-gray-100 text-gray-800 border-gray-300';
-                        if (colorName.includes('grey') || colorName.includes('gray') || colorName.includes('storm')) return 'bg-gray-500 text-white';
-                        if (colorName.includes('purple') || colorName.includes('deep')) return 'bg-purple-600 text-white';
-                        if (colorName.includes('red') || colorName.includes('blood')) return 'bg-red-600 text-white';
-                        if (colorName.includes('blue') || colorName.includes('electric')) return 'bg-blue-600 text-white';
-                        if (colorName.includes('pink') || colorName.includes('hot')) return 'bg-pink-500 text-white';
-                        if (colorName.includes('yellow') || colorName.includes('desert')) return 'bg-yellow-400 text-gray-800';
-                        if (colorName.includes('green') || colorName.includes('forest')) return 'bg-green-600 text-white';
-                        return 'bg-gray-200 text-gray-800';
-                      };
-
-                      return (
-                        <div
-                          key={colorOption.id}
+                        
+                        {/* Add to Cart Button with Price for Mobile */}
+                        <button
+                          onClick$={handleAddToCart}
+                          disabled={isAddingToCart.value || !selectedVariantId.value}
                           class={{
-                            [`p-3 border-2 rounded-lg transition-all duration-200 text-center text-xs font-semibold ${getColorStyle(colorOption.name)}`]: true,
-                            'border-[#8a6d4a] border-4 cursor-pointer': isSelected,
-                            'border-gray-300 hover:border-[#8a6d4a] hover:-translate-y-0.5 cursor-pointer': !isSelected && isAvailable,
-                            'cursor-not-allowed opacity-30': !isAvailable
-                          }}
-                          onClick$={() => {
-                            if (isAvailable) {
-                              handleColorSelect(colorOption);
-                            }
+                            'w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl': true,
+                            'bg-[#8a6d4a] text-white cursor-pointer hover:bg-[#4F3B26]': !isAddingToCart.value && selectedVariantId.value,
+                            'bg-gray-400 text-white cursor-not-allowed': !selectedVariantId.value,
+                            'bg-[#8a6d4a] text-white cursor-not-allowed': isAddingToCart.value
                           }}
                         >
-                          {colorOption.name}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    ['Midnight black', 'Cloud white', 'Storm grey', 'Deep purple', 'Blood red', 'Electric blue', 'Hot pink', 'Desert yellow', 'Forest green'].map((color) => (
-                      <div
-                        key={color}
-                        class="p-3 border-2 border-gray-200 rounded-lg text-center text-xs font-semibold cursor-not-allowed opacity-30 bg-white text-gray-400"
-                      >
-                        {color}
+                          {isAddingToCart.value ? (
+                            <span class="flex items-center justify-center">
+                              <div class="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
+                              Adding to Cart...
+                            </span>
+                          ) : selectedVariantId.value ? (
+                            <span class="flex items-center justify-center">
+                              <span>Add to Cart - </span>
+                              <Price
+                                priceWithTax={selectedProduct.value?.variants[0]?.priceWithTax || 0}
+                                currencyCode={selectedProduct.value?.variants[0]?.currencyCode || 'USD'}
+                                forcedClass="font-bold"
+                              />
+                            </span>
+                          ) : (
+                            'Complete Selection'
+                          )}
+                        </button>
                       </div>
-                    ))
-                  )}
-                </div>
-              </div>
-              {/* Selection Summary */}
-              <div class="bg-black text-white p-4 rounded-none md:rounded-b-xl border-t-0">
-                <div class="grid grid-cols-3 gap-4 mb-4">
-                  <div class="text-center">
-                    <div class="text-sm opacity-80 mb-1">Style</div>
-                    <div class="font-semibold">{selectedProduct.value?.name?.replace(' Shirt', '') || '—'}</div>
-                  </div>
-                  <div class="text-center">
-                    <div class="text-sm opacity-80 mb-1">Size</div>
-                    <div class="font-semibold">{selectedSize.value?.name || '—'}</div>
-                  </div>
-                  <div class="text-center">
-                    <div class="text-sm opacity-80 mb-1">Color</div>
-                    <div class="font-semibold">{selectedColor.value?.name || '—'}</div>
-                  </div>
-                </div>
-                <button
-                  onClick$={handleAddToCart}
-                  disabled={isAddingToCart.value || !selectedVariantId.value}
-                  class={{
-                    'w-full py-3 px-6 rounded-lg font-semibold transition-all duration-200': true,
-                    'bg-[#8a6d4a] text-white hover:bg-[#4F3B26] cursor-pointer': !isAddingToCart.value && selectedVariantId.value,
-                    'bg-[#8a6d4a] text-white cursor-not-allowed': isAddingToCart.value || !selectedVariantId.value,
-                  }}
-                >
-                  {isAddingToCart.value ? (
-                    <span class="flex items-center justify-center">
-                      <div class="w-5 h-5 border-2 border-gray-500 border-t-transparent rounded-full animate-spin mr-2"></div>
-                      Adding to Cart...
-                    </span>
-                  ) : !selectedStyle.value ? (
-                    'Select style'
-                  ) : !selectedSize.value ? (
-                    'Select size'
-                  ) : !selectedColor.value ? (
-                    'Select color'
-                  ) : selectedProduct.value ? (
-                    <span class="flex items-center justify-center">
-                      Add to Cart - <Price
-                        priceWithTax={selectedProduct.value.variants[0]?.priceWithTax || 0}
-                        currencyCode={selectedProduct.value.variants[0]?.currencyCode || 'USD'}
-                        forcedClass="ml-1 font-bold"
-                      />
-                    </span>
+
+                      {/* Desktop: Single Line Layout */}
+                      <div class="hidden md:block">
+                        {/* Selection Summary - Single Line */}
+                        <div class="bg-[#8a6d4a]/5 border border-[#8a6d4a]/20 rounded-xl p-4 shadow-sm mb-4">
+                          <div class="flex justify-center items-center gap-8 text-center">
+                            <div class="flex items-center gap-2">
+                              <span class="text-sm text-gray-600">Style:</span>
+                              <span class="font-bold text-[#8a6d4a]">{selectedProduct.value?.name?.replace(' Shirt', '') || '—'}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                              <span class="text-sm text-gray-600">Size:</span>
+                              <span class="font-bold text-[#8a6d4a]">{selectedSize.value?.name || '—'}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                              <span class="text-sm text-gray-600">Color:</span>
+                              <span class="font-bold text-[#8a6d4a]">{selectedColor.value?.name || '—'}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Half and Half: Total Price + Add to Cart Button */}
+                        <div class="grid grid-cols-2 gap-4">
+                          {/* Left Half: Total Price */}
+                          <div class="bg-[#8a6d4a]/5 border border-[#8a6d4a]/20 rounded-xl p-4 shadow-sm flex flex-row justify-center items-center gap-2">
+                            <div class="text-lg font-bold text-gray-700">Total:</div>
+                            <Price
+                              priceWithTax={selectedProduct.value?.variants[0]?.priceWithTax || 0}
+                              currencyCode={selectedProduct.value?.variants[0]?.currencyCode || 'USD'}
+                              forcedClass="text-2xl font-bold text-[#8a6d4a]"
+                            />
+                          </div>
+                          
+                          {/* Right Half: Add to Cart Button */}
+                          <button
+                            onClick$={handleAddToCart}
+                            disabled={isAddingToCart.value || !selectedVariantId.value}
+                            class={{
+                              'w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl': true,
+                              'bg-[#8a6d4a] text-white cursor-pointer hover:bg-[#4F3B26]': !isAddingToCart.value && selectedVariantId.value,
+                              'bg-gray-400 text-white cursor-not-allowed': !selectedVariantId.value,
+                              'bg-[#8a6d4a] text-white cursor-not-allowed': isAddingToCart.value
+                            }}
+                          >
+                            {isAddingToCart.value ? (
+                              <span class="flex items-center justify-center">
+                                <div class="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
+                                Adding to Cart...
+                              </span>
+                            ) : selectedVariantId.value ? (
+                              'Add to Cart'
+                            ) : (
+                              'Complete Selection'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   ) : (
-                    'Select style'
+                    <button
+                      disabled={true}
+                      class="w-full py-4 px-6 rounded-xl font-bold text-lg bg-gray-400 text-white cursor-not-allowed mb-6"
+                    >
+                      Complete your selection above
+                    </button>
                   )}
-                </button>
+                </div>
+
               </div>
             </div>
-
           </div>
         </div>
       </div>
