@@ -1,11 +1,12 @@
-import { $, component$, noSerialize, useStore, useVisibleTask$ } from '@qwik.dev/core';
+import { component$, noSerialize, useStore, useVisibleTask$ } from '@qwik.dev/core';
 import { useLocation } from '@qwik.dev/router';
 import { Stripe, StripeElements, loadStripe } from '@stripe/stripe-js';
-import { createStripePaymentIntentMutation } from '~/providers/shop/checkout/checkout';
-import { getActiveOrderQuery, getOrderByCodeQuery } from '~/providers/shop/orders/order';
+import {
+	createPreOrderStripePaymentIntentMutation,
+	linkPaymentIntentToOrderMutation
+} from '~/providers/shop/checkout/checkout';
+import { useLocalCart } from '~/contexts/CartContext';
 
-
-import CreditCardIcon from '../icons/CreditCardIcon';
 import XCircleIcon from '../icons/XCircleIcon';
 
 let _stripe: Promise<Stripe | null>;
@@ -19,32 +20,206 @@ const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 console.log('[StripePayment] Using Stripe key:', stripeKey);
 const stripePromise = getStripe(stripeKey);
 
+// Utility function to extract PaymentIntent ID from client secret
+const extractPaymentIntentId = (clientSecret: string): string => {
+	return clientSecret.split('_secret_')[0];
+};
+
+// Utility function to calculate estimated total from local cart
+const calculateCartTotal = (localCart: any): number => {
+	console.log('[calculateCartTotal] Input localCart:', localCart);
+	
+	// Check if cart has items
+	if (!localCart || !localCart.isLocalMode || !localCart.localCart || !localCart.localCart.items || localCart.localCart.items.length === 0) {
+		console.log('[calculateCartTotal] No items found, returning default $50');
+		return 5000; // $50 default
+	}
+
+	console.log('[calculateCartTotal] Cart items:', localCart.localCart.items);
+
+	const subtotal = localCart.localCart.items.reduce((total: number, item: any) => {
+		// Fix: LocalCart items store price as item.productVariant.price, not item.unitPrice
+		const itemTotal = (item.productVariant?.price || 0) * (item.quantity || 0);
+		console.log('[calculateCartTotal] Item:', item.productVariant?.name || 'Unknown', 'Price:', item.productVariant?.price, 'Quantity:', item.quantity, 'Total:', itemTotal);
+		return total + itemTotal;
+	}, 0);
+
+	console.log('[calculateCartTotal] Subtotal:', subtotal);
+
+	// Add estimated tax/shipping (10% estimation)
+	const estimatedTotal = Math.round(subtotal * 1.1);
+	console.log('[calculateCartTotal] Final estimated total:', estimatedTotal);
+
+	return Math.max(estimatedTotal, 100); // Minimum $1.00
+};
+
 export default component$(() => {
 	const baseUrl = useLocation().url.origin;
+	const localCart = useLocalCart();
+	
 	const store = useStore({
 		clientSecret: '',
+		paymentIntentId: '',
+		isPreOrder: true, // Flag to track pre-order state
 		resolvedStripe: noSerialize({} as Stripe),
 		stripeElements: noSerialize({} as StripeElements),
 		error: '',
+		isProcessing: false,
+		debugInfo: 'Initializing...',
+	});
+
+	// Expose both submit and payment confirmation functions to window for checkout flow
+	useVisibleTask$(() => {
+		if (typeof window !== 'undefined') {
+			// Function to submit elements immediately when user clicks pay
+			(window as any).submitStripeElements = async () => {
+				console.log('[StripePayment] Submitting elements for form validation...');
+				const { error: submitError } = await store.stripeElements?.submit() || { error: new Error('Elements not initialized') };
+				
+				if (submitError) {
+					console.error('[StripePayment] Elements submit failed:', submitError);
+					throw new Error(submitError?.message || 'Form validation failed');
+				}
+				
+				console.log('[StripePayment] Elements submitted successfully');
+				return { success: true };
+			};
+			
+			// Function to confirm payment after order is created and linked
+			(window as any).confirmStripePreOrderPayment = async (order: any) => {
+				try {
+					store.isProcessing = true;
+					console.log('[StripePayment] Confirming payment for order:', order.code);
+
+					// Link our pre-existing PaymentIntent to the newly created order
+					try {
+						console.log('[StripePayment] Linking PaymentIntent', store.paymentIntentId, 'to order', order.id);
+						await linkPaymentIntentToOrderMutation(
+							store.paymentIntentId,
+							order.id,
+							order.code,
+							order.totalWithTax,
+							order.customer?.emailAddress || 'guest'
+						);
+						console.log('[StripePayment] PaymentIntent successfully linked to order');
+					} catch (linkError) {
+						console.error('[StripePayment] Failed to link PaymentIntent to order:', linkError);
+						throw new Error('Failed to link payment to order');
+					}
+
+					// Elements already submitted earlier, now just confirm payment with Stripe
+					console.log('[StripePayment] Confirming payment...');
+					const { error } = await store.resolvedStripe?.confirmPayment({
+						elements: store.stripeElements,
+						clientSecret: store.clientSecret,
+						confirmParams: {
+							return_url: `${baseUrl}/checkout/confirmation/${order.code}`,
+						},
+					}) || { error: new Error('Stripe not initialized') };
+
+					// Check for payment confirmation errors
+					if (error) {
+						console.error('[StripePayment] Payment confirmation failed:', error);
+						throw new Error(error?.message || 'Payment confirmation failed');
+					}
+
+					// Payment successful - now add payment to Vendure order to complete the flow
+					console.log('[StripePayment] Stripe payment confirmed successfully - adding payment to Vendure order...');
+					
+					try {
+						// Import the addPaymentToOrder function directly
+						const { addPaymentToOrderMutation } = await import('~/providers/shop/checkout/checkout');
+						
+						// Add payment to order with Stripe payment method using standard Vendure approach
+						const addPaymentResult = await addPaymentToOrderMutation({
+							method: 'stripe',
+							metadata: {
+								paymentIntentId: store.paymentIntentId,
+							}
+						});
+						
+						console.log('[StripePayment] Payment successfully added to Vendure order:', addPaymentResult);
+						
+						// Order should now be in PaymentSettled state and redirect will happen
+						return { success: true };
+						
+					} catch (addPaymentError) {
+						console.error('[StripePayment] Failed to add payment to Vendure order:', addPaymentError);
+						throw new Error('Payment processed but failed to complete order. Please contact support.');
+					}
+
+				} catch (error) {
+					console.error('[StripePayment] Payment confirmation error:', error);
+					store.error = error instanceof Error ? error.message : 'Payment failed';
+					store.isProcessing = false;
+					throw error;
+				}
+			};
+		}
 	});
 
 	useVisibleTask$(async () => {
-		console.log('[StripePayment] Creating payment intent for current order...');
-
-		try {
-			store.clientSecret = await createStripePaymentIntentMutation();
-		} catch (error) {
-			console.error('[StripePayment] Failed to create payment intent:', error);
-			store.error = 'Failed to initialize payment. Please try again.';
+		store.debugInfo = 'Initializing payment form...';
+		
+		if (!localCart || !localCart.isLocalMode || !localCart.localCart || !localCart.localCart.items || localCart.localCart.items.length === 0) {
+			store.debugInfo = 'Waiting for cart items...';
+			store.error = 'Cart is empty. Please add items to continue.';
 			return;
 		}
 
-		await stripePromise.then((stripe) => {
-			store.resolvedStripe = noSerialize(stripe as Stripe);
-			store.stripeElements = noSerialize(stripe?.elements({
+		try {
+			// Calculate estimated total from local cart
+			const estimatedTotal = calculateCartTotal(localCart);
+			store.debugInfo = `Calculating total: $${(estimatedTotal / 100).toFixed(2)} (${localCart.localCart.items.length} items)`;
+
+			// Validate estimated total
+			if (!estimatedTotal || estimatedTotal < 50) {
+				store.error = `Invalid total calculated: $${(estimatedTotal / 100).toFixed(2)}`;
+				store.debugInfo = 'Error: Invalid cart total - please refresh the page';
+				return;
+			}
+
+			store.debugInfo = 'Calling GraphQL mutation...';
+			
+			// Create pre-order PaymentIntent immediately - no order dependency
+			store.clientSecret = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');
+			
+			if (!store.clientSecret) {
+				store.error = 'Failed to initialize payment. Please try again.';
+				store.debugInfo = 'Error: No client secret returned from server';
+				return;
+			}
+
+			store.paymentIntentId = extractPaymentIntentId(store.clientSecret);
+			store.debugInfo = `PaymentIntent created: ${store.paymentIntentId}`;
+			
+			// Clear any previous errors
+			store.error = '';
+
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+			store.error = `Failed to initialize payment: ${errorMessage}`;
+			store.debugInfo = `Error: ${errorMessage}`;
+			return;
+		}
+
+		// Initialize Stripe Elements
+		try {
+			store.debugInfo = 'Loading Stripe...';
+			const stripe = await stripePromise;
+			
+			if (!stripe) {
+				store.error = 'Failed to load Stripe';
+				store.debugInfo = 'Error: Stripe failed to load';
+				return;
+			}
+			
+			store.debugInfo = 'Creating Stripe Elements...';
+			store.resolvedStripe = noSerialize(stripe);
+			
+			const elements = stripe.elements({
 				clientSecret: store.clientSecret,
 				locale: 'en',
-				// Configure which payment methods to show
 				appearance: {
 					theme: 'stripe',
 					variables: {
@@ -57,123 +232,77 @@ export default component$(() => {
 						spacingUnit: '4px',
 						borderRadius: '6px',
 						fontSizeBase: '16px',
-						fontWeightNormal: '400',
-						fontWeightBold: '500',
-						focusBoxShadow: '0 0 0 2px rgba(176, 153, 131, 0.2)',
-						focusOutline: 'none',
-					},
-					rules: {
-						// Force full width for the entire payment element
-						'.PaymentElement': {
-							width: '100%',
-							maxWidth: '100%',
-						},
-						'.Tabs': {
-							width: '100%',
-							maxWidth: '100%',
-						},
-						// Tab styling for Stripe's native tabs layout
-						'.Tab': {
-							border: '1px solid #e5e7eb',
-							borderRadius: '8px 8px 0 0',
-							backgroundColor: '#f9fafb',
-							padding: '12px 16px',
-							fontWeight: '500',
-							fontSize: '14px',
-							color: '#374151',
-							transition: 'all 0.2s ease',
-							cursor: 'pointer',
-							marginRight: '2px',
-						},
-						'.Tab:hover': {
-							backgroundColor: '#f3f4f6',
-							borderColor: '#8a6d4a',
-						},
-						'.Tab--selected': {
-							backgroundColor: '#ffffff',
-							borderColor: '#8a6d4a',
-							borderBottomColor: '#ffffff',
-							color: '#8a6d4a',
-							fontWeight: '600',
-							position: 'relative',
-							zIndex: '10',
-						},
-						'.Tab--selected:hover': {
-							backgroundColor: '#ffffff',
-						},
-						'.TabContent': {
-							backgroundColor: '#ffffff',
-							border: '1px solid #8a6d4a',
-							borderTop: 'none',
-							borderRadius: '0 8px 8px 8px',
-							padding: '20px',
-							marginTop: '-1px',
-							width: '100%',
-							maxWidth: '100%',
-							boxSizing: 'border-box',
-						},
-						'.Input': {
-							borderRadius: '6px',
-							border: '1px solid #d1d5db',
-							padding: '12px 16px',
-							fontSize: '16px',
-							backgroundColor: '#ffffff',
-							transition: 'border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out',
-						},
-						'.Input:hover': {
-							borderColor: '#9ca3af',
-						},
-						'.Input:focus': {
-							borderColor: '#8a6d4a',
-							boxShadow: '0 0 0 2px rgba(176, 153, 131, 0.2)',
-							outline: 'none',
-						},
-						'.Input--invalid': {
-							borderColor: '#ef4444',
-							boxShadow: '0 0 0 2px rgba(239, 68, 68, 0.2)',
-						},
-						'.Label': {
-							fontSize: '14px',
-							fontWeight: '500',
-							color: '#374151',
-							marginBottom: '6px',
-						},
-						'.Error': {
-							fontSize: '14px',
-							color: '#ef4444',
-							marginTop: '6px',
-						}
 					}
 				}
-			}));
-
-			// Create payment element with tabs layout
-			store.stripeElements?.create('payment', {
+			});
+			
+			store.stripeElements = noSerialize(elements);
+			store.debugInfo = 'Mounting payment element...';
+			
+			// Check if mount target exists
+			const mountTarget = document.getElementById('payment-form');
+			if (!mountTarget) {
+				store.error = 'Payment form mount target not found';
+				store.debugInfo = 'Error: #payment-form element missing';
+				return;
+			}
+			
+			// Create and mount payment element
+			const paymentElement = elements.create('payment', {
 				layout: {
 					type: 'tabs',
 					defaultCollapsed: false
-				},
-				fields: {
-					billingDetails: {
-						name: 'auto',
-						email: 'auto',
-						phone: 'auto',
-						address: {
-							country: 'auto',
-							line1: 'auto',
-							line2: 'auto',
-							city: 'auto',
-							state: 'auto',
-							postalCode: 'auto',
-						}
-					}
 				}
-			}).mount('#payment-form');
-		});
+			});
+			
+			try {
+				await paymentElement.mount('#payment-form');
+				store.debugInfo = 'Payment form mounted successfully!';
+				
+				// Add event listeners for better debugging
+				paymentElement.on('ready', () => {
+					store.debugInfo = 'Payment element is ready and interactive!';
+				});
+				
+				paymentElement.on('change', (event: any) => {
+					if (event.error) {
+						store.error = event.error.message || 'Payment validation error';
+						store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
+					} else {
+						store.error = '';
+						store.debugInfo = 'Payment form is valid and ready!';
+					}
+				});
+				
+			} catch (mountError) {
+				const errorMsg = mountError instanceof Error ? mountError.message : 'Unknown mount error';
+				store.error = `Failed to mount payment form: ${errorMsg}`;
+				store.debugInfo = `Mount error: ${errorMsg}`;
+			}
+			
+		} catch (elementsError) {
+			const errorMsg = elementsError instanceof Error ? elementsError.message : 'Unknown Elements error';
+			store.error = `Failed to initialize payment form: ${errorMsg}`;
+			store.debugInfo = `Elements error: ${errorMsg}`;
+		}
 	});
 
 	return (
 		<div class="w-full max-w-full">
+			{/* Debug Info Panel */}
+			{store.debugInfo && (
+				<div class="rounded-md bg-blue-50 p-3 mb-4 border border-blue-200">
+					<div class="flex items-center">
+						<div class="flex-shrink-0">
+							<div class="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+						</div>
+						<div class="ml-3">
+							<p class="text-sm text-blue-700 font-mono">{store.debugInfo}</p>
+						</div>
+					</div>
+				</div>
+			)}
+			
 			<div class="payment-tabs-container relative">
 				<div id="payment-form" class="mb-8 w-full max-w-full"></div>
 			</div>
@@ -191,147 +320,8 @@ export default component$(() => {
 				</div>
 			)}
 
-			<button
-				class="w-full flex px-6 bg-[#8a6d4a] hover:bg-[#4F3B26] items-center justify-center space-x-2 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8a6d4a] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors duration-200"
-				disabled={!store.clientSecret || !!store.error}
-				onClick$={$(async () => {
-					try {
-						console.log('[StripePayment] Starting payment process...');
-
-						// Step 1: Submit the Stripe elements to validate payment method
-						const submitResult = await store.stripeElements?.submit();
-						if (submitResult?.error) {
-							store.error = submitResult.error.message as string;
-							return;
-						}
-
-						// Store order code for redirect-based payment methods
-						const activeOrder = await getActiveOrderQuery();
-						if (activeOrder?.code) {
-							sessionStorage.setItem('pendingOrderCode', activeOrder.code);
-						}
-
-						// Step 2: Confirm payment with Stripe to get payment method
-						const confirmResult = await store.resolvedStripe?.confirmPayment({
-							elements: store.stripeElements,
-							clientSecret: store.clientSecret,
-							confirmParams: {
-								return_url: `${baseUrl}/checkout/confirmation`, // Required for redirect-based payment methods (Alipay, WeChat, SEPA, etc.)
-							},
-						});
-
-						if (confirmResult?.error) {
-							console.error('[StripePayment] Stripe confirmation failed:', confirmResult.error);
-							store.error = confirmResult.error.message as string;
-							return;
-						}
-
-						console.log('[StripePayment] Stripe payment confirmed! Waiting for webhook to process...');
-
-						// The Stripe webhook will automatically add the payment to the Vendure order
-						// We need to poll the order status until it transitions to PaymentSettled
-						const paymentIntentId = (confirmResult as any)?.paymentIntent?.id;
-						const paymentIntent = (confirmResult as any)?.paymentIntent;
-						console.log('[StripePayment] Payment Intent ID:', paymentIntentId);
-						console.log('[StripePayment] Full Payment Intent:', paymentIntent);
-
-						// Extract payment method information for display
-						// payment_method can be either a string (ID) or PaymentMethod object
-						const paymentMethod = typeof paymentIntent?.payment_method === 'object'
-							? paymentIntent.payment_method
-							: null;
-
-						const paymentMethodInfo = {
-							type: paymentMethod?.type || 'card',
-							card: paymentMethod?.card || null,
-							wallet: paymentMethod?.card?.wallet || null
-						};
-						console.log('[StripePayment] Payment Method Info:', paymentMethodInfo);
-
-						// First, get the current order code while it's still active
-						const currentActiveOrder = await getActiveOrderQuery();
-						if (!currentActiveOrder || !currentActiveOrder.code) {
-							console.error('[StripePayment] No active order found to poll');
-							store.error = 'Unable to confirm payment status';
-							return;
-						}
-
-						const orderCode = currentActiveOrder.code;
-						console.log('[StripePayment] Polling order by code:', orderCode);
-
-						// Poll order status for up to 30 seconds
-						let attempts = 0;
-						const maxAttempts = 30; // 30 seconds
-
-						const pollOrderStatus = async (): Promise<void> => {
-							attempts++;
-							console.log(`[StripePayment] Polling order status (attempt ${attempts}/${maxAttempts})...`);
-
-							try {
-								// Get order by code (works even after it's no longer "active")
-								const order = await getOrderByCodeQuery(orderCode);
-
-								if (order && order.state === 'PaymentSettled') {
-									console.log('[StripePayment] Order payment settled! Passing order data to confirmation...');
-
-									// 🚀 PREFETCH OPTIMIZATION: Prefetch confirmation page before redirect
-									const confirmationUrl = `${baseUrl}/checkout/confirmation/${order.code}`;
-									if (typeof document !== 'undefined') {
-										const link = document.createElement('link');
-										link.rel = 'prefetch';
-										link.href = confirmationUrl;
-										link.as = 'document';
-										document.head.appendChild(link);
-										console.log(`🔗 Prefetched confirmation page: ${order.code}`);
-									}
-
-									// Pass complete order data + payment method info to confirmation page
-									const orderData = encodeURIComponent(JSON.stringify({
-										order: order,
-										paymentIntentId: paymentIntentId,
-										paymentMethodInfo: paymentMethodInfo, // Include payment method details
-										completedAt: Date.now(),
-										source: 'stripe_payment'
-									}));
-
-									// Small delay to allow prefetch to start
-									setTimeout(() => {
-										window.location.href = `${baseUrl}/checkout/confirmation/${order.code}?orderData=${orderData}`;
-									}, 100);
-									return;
-								}
-
-								console.log(`[StripePayment] Order state: ${order?.state || 'unknown'}`);
-
-								if (attempts < maxAttempts) {
-									// Wait 1 second and try again
-									setTimeout(pollOrderStatus, 1000);
-								} else {
-									console.error('[StripePayment] Timeout waiting for payment confirmation');
-									store.error = 'Payment is processing. Please check your email for confirmation.';
-								}
-							} catch (error) {
-								console.error('[StripePayment] Error polling order status:', error);
-								if (attempts < maxAttempts) {
-									setTimeout(pollOrderStatus, 1000);
-								} else {
-									store.error = 'Payment is processing. Please check your email for confirmation.';
-								}
-							}
-						};
-
-						// Start polling
-						pollOrderStatus();
-
-					} catch (error) {
-						console.error('[StripePayment] Payment error:', error);
-						store.error = error instanceof Error ? error.message : 'Payment failed';
-					}
-				})}
-			>
-				<CreditCardIcon />
-				<span>Place Order</span>
-			</button>
+			{/* Button removed - payment is handled by the main checkout flow */}
+			{/* The checkout flow calls confirmStripePreOrderPayment() after order creation */}
 		</div>
 	);
 });

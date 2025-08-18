@@ -28,6 +28,7 @@ import { OrderDeduplicationPlugin } from './plugins/order-deduplication.plugin';
 import { CustomShippingPlugin } from './plugins/custom-shipping';
 import { StripePlugin } from '@vendure/payments-plugin/package/stripe';
 import { StripeExtensionPlugin } from './plugins/stripe-extension';
+import { StripePreOrderPlugin } from './plugins/stripe-pre-order';
 // REMOVED: SezzlePaymentPlugin - not available for this clothing brand
 import { orderFulfillmentHandler } from './email-handlers/order-fulfillment-handler';
 import { orderConfirmationHandler } from './email-handlers/order-confirmation-handler';
@@ -326,6 +327,7 @@ export const config: VendureConfig = {
             },
         }),
         StripeExtensionPlugin, // 💳 Stripe extensions: payment method capture + refund webhooks
+        StripePreOrderPlugin, // 🚀 Stripe pre-order: PaymentIntent creation before order creation
         // REMOVED: NmiPaymentPlugin - not available for this clothing brand
         // REMOVED: SezzlePaymentPlugin - not available for this clothing brand
         CustomShippingPlugin,

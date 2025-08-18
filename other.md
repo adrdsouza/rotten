@@ -15,7 +15,8 @@ import { CheckoutAddresses } from '~/components/checkout/CheckoutAddresses';
 // Import addressState from separate lightweight module
 import { addressState } from '~/utils/checkout-state';
 import { createSEOHead } from '~/utils/seo';
-import Payment from '~/components/payment/Payment';
+// Payment component no longer needed - using StripePaymentModal instead
+import { StripePaymentModal } from '~/components/payment/StripePaymentModal';
 import { useLocalCart, refreshCartStock, loadCartIfNeeded } from '~/contexts/CartContext';
 import { CheckoutValidationProvider, useCheckoutValidation, useCheckoutValidationActions } from '~/contexts/CheckoutValidationContext';
 import { OrderProcessingModal } from '~/components/OrderProcessingModal';
@@ -23,10 +24,10 @@ import { OrderProcessingModal } from '~/components/OrderProcessingModal';
 import { clearAllValidationCache } from '~/utils/cached-validation';
 import { recordCacheHit, recordCacheMiss, resetCacheMonitoring, enablePerformanceLogging, disablePerformanceLogging } from '~/utils/validation-cache-debug';
 import { enableAutoCleanup, disableAutoCleanup } from '~/utils/validation-cache';
-import {
-  secureCartConversion,
-  secureSetOrderShippingMethod,
-  secureOrderStateTransition
+import { 
+  secureCartConversion, 
+  secureOrderStateTransition,
+  secureSetOrderShippingMethod
 } from '~/utils/secure-api';
 
 // 🚀 PREFETCH OPTIMIZATION: Removed invalid prefetch for /checkout/confirmation/
@@ -105,7 +106,7 @@ export const useCheckoutAction = routeAction$(async (formData, { fail }) => {
 interface CheckoutState {
   loading: boolean;
   error: string | null;
-  step: 'unified' | 'processing'; // Simplified to unified single-step checkout
+  step: 'shipping' | 'payment' | 'processing';
 }
 
 // Main checkout content component that uses validation context
@@ -118,12 +119,20 @@ const CheckoutContent = component$(() => {
   const state = useStore<CheckoutState>({
     loading: false,
     error: null,
-    step: 'unified', // Start with unified single-step checkout
+    step: 'shipping',
   });
 
   // Signals to trigger payment processing
   const stripeTriggerSignal = useSignal(0);
   const selectedPaymentMethod = useSignal<string>('stripe'); // Track selected payment method
+
+  // Modal state for Stripe payment
+  const showStripeModal = useSignal(false);
+
+  // Handler to close the Stripe modal
+  const closeStripeModal$ = $(() => {
+    showStripeModal.value = false;
+  });
 
   // Loading state for initial page load
   const pageLoading = useSignal(true);
@@ -143,11 +152,158 @@ const CheckoutContent = component$(() => {
   
   // Modal visibility state for the epic loading animation
   const showProcessingModal = useSignal(false);
-  const paymentComplete = useSignal(false);
   
 
 
-  // Removed proceedToPayment$ handler - no longer needed for single-step checkout
+  // Handler for "Proceed to Payment" button - now opens modal
+  const proceedToPayment$ = $(async () => {
+    try {
+      state.loading = true;
+      state.error = null;
+
+      // 🚀 ENHANCED ERROR RECOVERY: Create Vendure order with retry mechanism
+      let vendureOrder;
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      while (retryCount < maxRetries) {
+        try {
+          vendureOrder = await secureCartConversion(localCart);
+          if (vendureOrder) break;
+        } catch (conversionError) {
+          retryCount++;
+          console.log(`Cart conversion attempt ${retryCount}/${maxRetries} failed:`, conversionError);
+
+          if (retryCount === maxRetries) {
+            throw new Error(`Failed to create order after ${maxRetries} attempts: ${conversionError instanceof Error ? conversionError.message : 'Unknown error'}`);
+          }
+
+          // Wait before retry with exponential backoff
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+        }
+      }
+
+      if (!vendureOrder) {
+        throw new Error('Failed to create order from cart');
+      }
+
+      // Update app state with the new Vendure order
+      appState.activeOrder = vendureOrder;
+
+      // 🚀 ENHANCED ERROR RECOVERY: Submit address form with retry mechanism
+      let addressSubmissionSuccess = false;
+      let addressRetryCount = 0;
+      const maxAddressRetries = 2;
+
+      while (addressRetryCount < maxAddressRetries && !addressSubmissionSuccess) {
+        try {
+          if (typeof window !== 'undefined' && (window as any).submitCheckoutAddressForm) {
+            await (window as any).submitCheckoutAddressForm();
+            addressSubmissionSuccess = true;
+          } else {
+            throw new Error('Address form submission function not available');
+          }
+        } catch (addressError) {
+          addressRetryCount++;
+          console.log(`Address submission attempt ${addressRetryCount}/${maxAddressRetries} failed:`, addressError);
+
+          if (addressRetryCount === maxAddressRetries) {
+            throw new Error(`Failed to submit address form after ${maxAddressRetries} attempts: ${addressError instanceof Error ? addressError.message : 'Unknown error'}`);
+          }
+
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      // Wait for address submission to complete
+      const waitForAddressSubmission = new Promise<void>((resolve, reject) => {
+        const maxWaitTime = 10000; // 10 seconds max wait
+        const intervalTime = 100; // Check every 100ms
+        let elapsedTime = 0;
+
+        const checkInterval = setInterval(() => {
+          elapsedTime += intervalTime;
+          if (addressState.addressSubmissionComplete || !addressState.addressSubmissionInProgress) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+          if (elapsedTime >= maxWaitTime) {
+            clearInterval(checkInterval);
+            reject(new Error('Timeout waiting for address submission to complete'));
+          }
+        }, intervalTime);
+      });
+
+      await waitForAddressSubmission;
+
+      // 🚀 ENHANCED ERROR RECOVERY: Set shipping method with fallback mechanisms
+      if (appState.shippingAddress.countryCode && appState.activeOrder) {
+        const countryCode = appState.shippingAddress.countryCode;
+        const subTotal = appState.activeOrder?.subTotal || 0;
+
+        let shippingMethodId: string | undefined;
+        if (countryCode === 'US' || countryCode === 'PR') {
+          if (subTotal >= 10000) { // $100.00 or more in cents
+            shippingMethodId = '6'; // free-shipping (US_PR_OVER_100)
+          } else {
+            shippingMethodId = '3'; // usps (US_PR_UNDER_100)
+          }
+        } else {
+          shippingMethodId = '7'; // usps-int (INTERNATIONAL)
+        }
+
+        let shippingSuccess = false;
+        let shippingRetryCount = 0;
+        const maxShippingRetries = 2;
+
+        while (shippingRetryCount < maxShippingRetries && !shippingSuccess) {
+          try {
+            const shippingResult = await secureSetOrderShippingMethod([shippingMethodId]);
+            if (shippingResult && '__typename' in shippingResult && shippingResult.__typename === 'Order') {
+              appState.activeOrder = shippingResult;
+              shippingSuccess = true;
+              console.log('✅ Shipping method set successfully');
+            } else {
+              throw new Error('Invalid shipping method response');
+            }
+          } catch (shippingError) {
+            shippingRetryCount++;
+            console.log(`Shipping method attempt ${shippingRetryCount}/${maxShippingRetries} failed:`, shippingError);
+
+            if (shippingRetryCount === maxShippingRetries) {
+              console.log('⚠️ Shipping method setting failed, continuing with default options');
+              // Don't fail the entire checkout for shipping method issues
+              state.error = 'Unable to set preferred shipping method. Default shipping will be applied.';
+            } else {
+              // Wait before retry
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+        }
+      }
+
+      // NOW transition to ArrangingPayment state after all data is set
+      console.log('🔄 Transitioning order to ArrangingPayment state after all data is set...');
+      try {
+        const { transitionOrderToStateMutation } = await import('~/providers/shop/checkout/checkout');
+        const transitionResult = await transitionOrderToStateMutation('ArrangingPayment');
+        console.log('✅ Order successfully transitioned to ArrangingPayment state', transitionResult);
+      } catch (_transitionError) {
+        console.error('❌ Failed to transition order state:', _transitionError);
+        throw new Error('Failed to prepare order for payment. Please try again.');
+      }
+
+      // Open Stripe payment modal instead of switching to payment step
+      showStripeModal.value = true;
+
+    } catch (error) {
+      console.error('Failed to proceed to payment:', error);
+      state.error = error instanceof Error ? error.message : 'Failed to create order';
+    } finally {
+      state.loading = false;
+    }
+  });
   
   useVisibleTask$(async () => {
     // Setup cache monitoring for debug (expose to window for cache module)
@@ -263,24 +419,7 @@ const CheckoutContent = component$(() => {
   const _placeOrder = $(async () => {
     if (isOrderProcessing.value) return;
     
-    // CRITICAL: Call elements.submit() IMMEDIATELY when user clicks pay, before any async work
-    console.log('[Checkout] Calling elements.submit() immediately on Place Order click...');
-    if (typeof window !== 'undefined' && (window as any).submitStripeElements) {
-      try {
-        await (window as any).submitStripeElements();
-        console.log('[Checkout] Elements submitted successfully');
-      } catch (submitError) {
-        console.error('[Checkout] Elements submit failed:', submitError);
-        state.error = `Payment validation failed: ${submitError instanceof Error ? submitError.message : 'Unknown error'}`;
-        return;
-      }
-    } else {
-      console.error('[Checkout] Elements submit function not available');
-      state.error = 'Payment system not ready. Please refresh and try again.';
-      return;
-    }
-    
-    // 🎭 SHOW THE EPIC LOADING MODAL AFTER ELEMENTS SUBMIT
+    // 🎭 SHOW THE EPIC LOADING MODAL IMMEDIATELY
     showProcessingModal.value = true;
     
     isOrderProcessing.value = true;
@@ -334,10 +473,18 @@ const CheckoutContent = component$(() => {
           appState.activeOrder = vendureOrder;
           // console.log('🆔 Order ID saved within activeOrder:', vendureOrder.id);
 
-          // Don't transition state here - let it happen naturally after address submission
-          // The order starts in 'AddingItems' state and will transition to 'ArrangingPayment'
-          // automatically when addresses and shipping methods are set
-          // console.log('✅ Order created in AddingItems state, proceeding to address submission...');
+          // Transition order to ArrangingPayment state now that it's created in Vendure
+          // console.log('🔄 Transitioning order to ArrangingPayment state after creation...');
+          try {
+            await secureOrderStateTransition('ArrangingPayment');
+            // console.log('✅ Order successfully transitioned to ArrangingPayment state');
+          } catch (_transitionError) {
+            // console.error('❌ Failed to transition order state:', _transitionError);
+            state.error = 'Failed to prepare order for payment. Please try again.';
+            showProcessingModal.value = false;
+            isOrderProcessing.value = false;
+            return;
+          }
 
           // Switch to Vendure mode since we now have a real order
           // Note: This is handled automatically in the LocalCartService.convertToVendureOrder()
@@ -502,38 +649,7 @@ const CheckoutContent = component$(() => {
           state.error = 'There was an error setting the shipping method. Proceeding with default shipping options.';
         }
         
-        // CRITICAL FIX: Transition order to ArrangingPayment state for payment processing after addresses are set
-        if (appState.activeOrder && appState.activeOrder?.state !== 'ArrangingPayment') {
-          console.log('🔄 Transitioning order to ArrangingPayment state after address submission...');
-          console.log('📋 Current order details before transition:', {
-            id: appState.activeOrder.id,
-            code: appState.activeOrder.code,
-            state: appState.activeOrder.state,
-            hasCustomer: !!appState.activeOrder.customer,
-            hasShippingAddress: !!appState.activeOrder.shippingAddress,
-            hasShippingLines: appState.activeOrder.shippingLines?.length > 0,
-            totalWithTax: appState.activeOrder.totalWithTax
-          });
-
-          try {
-            const transitionResult = await secureOrderStateTransition('ArrangingPayment');
-            console.log('✅ Order transition result:', transitionResult);
-
-            // Update appState with the transitioned order
-            if (transitionResult && 'state' in transitionResult) {
-              appState.activeOrder = transitionResult as any;
-              console.log(`✅ Order state updated to: ${appState.activeOrder?.state}`);
-            }
-          } catch (transitionError) {
-            console.error('❌ Failed to transition order state:', transitionError);
-            state.error = `Failed to prepare order for payment: ${transitionError instanceof Error ? transitionError.message : 'Unknown error'}`;
-            isOrderProcessing.value = false;
-            showProcessingModal.value = false;
-            return;
-          }
-        } else {
-          console.log('✅ Order already in ArrangingPayment state, no transition needed');
-        }
+        // Address submission complete - order stays in AddingItems state until payment is initiated
         
         // Safety check: Fetch the latest order state to ensure it's in ArrangingPayment before proceeding to payment
         const latestOrder = await getActiveOrderQuery();
@@ -547,26 +663,7 @@ const CheckoutContent = component$(() => {
             // Trigger the appropriate payment method based on user selection
             if (selectedPaymentMethod.value === 'stripe' && stripeTriggerSignal.value === 0) {
               stripeTriggerSignal.value++;
-              // console.log('🚀 Stripe pre-order payment processing triggered');
-
-              // Call our pre-order payment confirmation function
-              if (typeof window !== 'undefined' && (window as any).confirmStripePreOrderPayment) {
-                try {
-                  console.log('[Checkout] Calling pre-order payment confirmation...');
-                  await (window as any).confirmStripePreOrderPayment(appState.activeOrder);
-                  console.log('[Checkout] Pre-order payment confirmed successfully');
-                } catch (paymentError) {
-                  console.error('[Checkout] Pre-order payment confirmation failed:', paymentError);
-                  state.error = `Payment failed: ${paymentError instanceof Error ? paymentError.message : 'Unknown error'}`;
-                  showProcessingModal.value = false;
-                  isOrderProcessing.value = false;
-                }
-              } else {
-                console.error('[Checkout] Pre-order payment confirmation function not available');
-                state.error = 'Payment system not ready. Please refresh and try again.';
-                showProcessingModal.value = false;
-                isOrderProcessing.value = false;
-              }
+              // console.log('🚀 Stripe payment processing triggered');
 
               // Prefetch order confirmation
               if (appState.activeOrder?.code) {
@@ -639,6 +736,12 @@ const CheckoutContent = component$(() => {
             visible={showProcessingModal.value}
           />
           
+          {/* Stripe Payment Modal */}
+          <StripePaymentModal 
+            open={showStripeModal.value}
+            onClose$={closeStripeModal$}
+          />
+          
           <div class="max-w-7xl mx-auto pt-8 mb-12 px-4 sm:px-6 lg:px-8">
             {/* Error message - shows at the top if there's an error */}
             {state.error && (
@@ -703,79 +806,37 @@ const CheckoutContent = component$(() => {
                   {/* Section divider */}
                   <div class="border-t border-gray-100 my-2"></div>
 
-                  {/* Payment Section - Always Visible in Single-Step Checkout */}
+                  {/* Payment Section - Conditional Rendering */}
                   <div class="mb-6">
-                    <div class="space-y-6">
-                      <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                        <h3 class="text-lg font-medium text-gray-900 mb-4">Payment Method</h3>
-                        <Payment
-                          triggerStripeSignal={stripeTriggerSignal}
-                          selectedPaymentMethod={selectedPaymentMethod}
-                          hideButton={false}
-                          onForward$={$(async (orderCode: string) => {
-                            // console.log('🎉 Payment successful, order code:', orderCode);
-
-                            // Trigger the ritual complete message immediately
-                            paymentComplete.value = true;
-
-                            // Navigate immediately to confirmation page (independent of modal)
-                            // console.log('🚀 Navigating to confirmation page immediately...');
-                            navigate(`/checkout/confirmation/${orderCode}`);
-
-                            // Keep loading state true until navigation completes
-                            state.loading = true;
-                          })}
-                          onError$={$(async (errorMessage: string) => {
-                            console.error('[Checkout/Payment onError] Error:', errorMessage);
-
-                            // 🚀 COMPREHENSIVE ERROR RECOVERY: Enhanced error handling with fallback mechanisms
-                            // Hide the processing modal on error
-                            showProcessingModal.value = false;
-                            state.error = errorMessage || 'Payment processing failed. Please check your details and try again.';
-                            state.loading = false; // Ensure loading is stopped on error
-                            isOrderProcessing.value = false; // Reset order processing state
-
-                            // CRITICAL: Reset the payment triggers to allow retry with different payment methods
-                            stripeTriggerSignal.value = 0;
-
-                            // For single-step checkout, we don't need to transition order states
-                            // The new pre-order flow handles this automatically
-                          })}
-                          onProcessingChange$={$(async (isProcessing: boolean) => {
-                            // console.log('Payment processing state changed:', isProcessing);
-                            state.loading = isProcessing;
-                          })}
-                          isDisabled={!checkoutValidation.isAllValid} // Disable payment until all validation complete
-                        />
-                      </div>
-                      
-                      {/* Main Place Order Button */}
-                      <div class="mt-6 pt-6 border-t border-gray-100">
+                    {state.step === 'shipping' && (
+                      <div class="text-center">
                         <button
-                          onClick$={_placeOrder}
-                          disabled={!checkoutValidation.isAllValid || isOrderProcessing.value}
-                          class={`w-full flex items-center justify-center space-x-3 py-4 px-6 text-lg font-semibold rounded-lg shadow-lg transition-all duration-200 ${
-                            !checkoutValidation.isAllValid || isOrderProcessing.value
-                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
-                              : 'bg-gradient-to-r from-[#8a6d4a] to-[#4F3B26] hover:from-[#4F3B26] hover:to-[#3a2b1a] text-white cursor-pointer transform hover:scale-105'
-                          }`}
+                          type="button"
+                          onClick$={proceedToPayment$}
+                          disabled={state.loading || !checkoutValidation.isAllValid}
+                          class="w-full flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-[#8a6d4a] hover:bg-[#4F3B26] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8a6d4a] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors duration-200"
                         >
-                          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                          </svg>
-                          <span>
-                            {isOrderProcessing.value ? 'Processing Order...' : 'Place Order'}
-                          </span>
+                          {state.loading ? (
+                            <>
+                              <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Creating Order...
+                            </>
+                          ) : (
+                            'Proceed to Payment'
+                          )}
                         </button>
-                        
-                        {/* Validation Status Indicator */}
-                        {!checkoutValidation.isAllValid && (
-                          <p class="text-sm text-gray-500 mt-2 text-center">
-                            Please complete all required fields to place your order
-                          </p>
+                        {state.error && (
+                          <div class="mt-3 text-sm text-red-600 text-center">
+                            {state.error}
+                          </div>
                         )}
                       </div>
-                    </div>
+                    )}
+
+                    {/* Payment step is now handled by the StripePaymentModal */}
                   </div>
                 </div>
               </div>

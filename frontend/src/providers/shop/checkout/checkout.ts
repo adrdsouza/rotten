@@ -50,7 +50,26 @@ export const addPaymentToOrderMutation = async (
 };
 
 export const transitionOrderToStateMutation = async (state = 'ArrangingPayment') => {
-	return shopSdk.transitionOrderToState({ state });
+	const result = await shopSdk.transitionOrderToState({ state });
+	
+	// Handle the response properly - extract the actual order data
+	if (result?.transitionOrderToState) {
+		const transitionResult = result.transitionOrderToState;
+		
+		// Check if it's an error result
+		if ('errorCode' in transitionResult) {
+			console.error('[transitionOrderToState] Error:', transitionResult.errorCode, transitionResult.message);
+			throw new Error(`Order state transition failed: ${transitionResult.message || transitionResult.errorCode}`);
+		}
+		
+		// Return the order if successful
+		if ('__typename' in transitionResult && transitionResult.__typename === 'Order') {
+			console.log('[transitionOrderToState] Success - Order transitioned to:', transitionResult.state);
+			return transitionResult;
+		}
+	}
+	
+	throw new Error('Failed to transition order state - unexpected response format');
 };
 
 export const getEligibleShippingMethodsQuery = async () => {
@@ -84,6 +103,96 @@ export const createStripePaymentIntentMutation = async () => {
 		return result.createStripePaymentIntent;
 	} catch (error) {
 		console.error('Failed to create Stripe payment intent:', error);
+		throw error;
+	}
+};
+
+// New Pre-Order Stripe PaymentIntent Mutations
+
+export const createPreOrderStripePaymentIntentMutation = async (
+	estimatedTotal: number,
+	currency: string = 'usd'
+) => {
+	try {
+		const { requester } = await import('~/utils/api');
+		const result = await requester<
+			{ createPreOrderStripePaymentIntent: string },
+			{ estimatedTotal: number; currency: string }
+		>(
+			gql`
+				mutation createPreOrderStripePaymentIntent($estimatedTotal: Int!, $currency: String!) {
+					createPreOrderStripePaymentIntent(estimatedTotal: $estimatedTotal, currency: $currency)
+				}
+			`,
+			{ estimatedTotal, currency }
+		);
+		return result.createPreOrderStripePaymentIntent;
+	} catch (error) {
+		console.error('Failed to create pre-order Stripe payment intent:', error);
+		throw error;
+	}
+};
+
+export const linkPaymentIntentToOrderMutation = async (
+	paymentIntentId: string,
+	orderId: string,
+	orderCode: string,
+	finalTotal: number,
+	customerEmail?: string
+) => {
+	try {
+		const { requester } = await import('~/utils/api');
+		const result = await requester<
+			{ linkPaymentIntentToOrder: boolean },
+			{ paymentIntentId: string; orderId: string; orderCode: string; finalTotal: number; customerEmail?: string }
+		>(
+			gql`
+				mutation linkPaymentIntentToOrder(
+					$paymentIntentId: String!,
+					$orderId: String!,
+					$orderCode: String!,
+					$finalTotal: Int!,
+					$customerEmail: String
+				) {
+					linkPaymentIntentToOrder(
+						paymentIntentId: $paymentIntentId,
+						orderId: $orderId,
+						orderCode: $orderCode,
+						finalTotal: $finalTotal,
+						customerEmail: $customerEmail
+					)
+				}
+			`,
+			{ paymentIntentId, orderId, orderCode, finalTotal, customerEmail }
+		);
+		return result.linkPaymentIntentToOrder;
+	} catch (error) {
+		console.error('Failed to link payment intent to order:', error);
+		throw error;
+	}
+};
+
+export const calculateEstimatedTotalQuery = async (cartItems: Array<{
+	productVariantId: string;
+	quantity: number;
+	unitPrice: number;
+}>) => {
+	try {
+		const { requester } = await import('~/utils/api');
+		const result = await requester<
+			{ calculateEstimatedTotal: number },
+			{ cartItems: Array<{ productVariantId: string; quantity: number; unitPrice: number }> }
+		>(
+			gql`
+				query calculateEstimatedTotal($cartItems: [PreOrderCartItemInput!]!) {
+					calculateEstimatedTotal(cartItems: $cartItems)
+				}
+			`,
+			{ cartItems }
+		);
+		return result.calculateEstimatedTotal;
+	} catch (error) {
+		console.error('Failed to calculate estimated total:', error);
 		throw error;
 	}
 };
