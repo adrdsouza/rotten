@@ -11,7 +11,13 @@ import {
 import { RequestHandler, routeLoader$, useLocation } from '@qwik.dev/router';
 import { ImageTransformerProps, useImageProvider } from 'qwik-image';
 import Menu from '~/components/menu/Menu';
-import { APP_STATE, CUSTOMER_NOT_DEFINED_ID, IMAGE_RESOLUTIONS, AUTH_TOKEN } from '~/constants';
+import {
+	APP_STATE,
+	CUSTOMER_NOT_DEFINED_ID,
+	IMAGE_RESOLUTIONS,
+	AUTH_TOKEN,
+	COUNTRY_COOKIE,
+} from '~/constants';
 import { Order } from '~/generated/graphql';
 import { getAvailableCountriesQuery } from '~/providers/shop/checkout/checkout';
 import { getCollections } from '~/providers/shop/collections/collections';
@@ -78,6 +84,7 @@ export const useActiveOrderLoader = routeLoader$(async () => {
 // SSR Authentication and Customer Data Loading
 export const useLayoutLoader = routeLoader$(async ({ cookie }) => {
 	const authToken = cookie.get(AUTH_TOKEN)?.value;
+	const countryCode = cookie.get(COUNTRY_COOKIE)?.value;
 	let customer: ActiveCustomer | null = null;
 	let activeOrder: Order | null = null;
 
@@ -108,7 +115,8 @@ export const useLayoutLoader = routeLoader$(async ({ cookie }) => {
 	return {
 		customer,
 		activeOrder,
-		isAuthenticated: !!customer
+		isAuthenticated: !!customer,
+		countryCode,
 	};
 });
 
@@ -163,7 +171,7 @@ export default component$(() => {
 			id: '',
 			city: '',
 			company: '',
-			countryCode: '', // Start with empty, let Shipping component set the default
+			countryCode: layoutData.value.countryCode || '', // SSR-seeded country
 			fullName: '',
 			phoneNumber: '',
 			postalCode: '',
@@ -187,7 +195,7 @@ export default component$(() => {
 	useContextProvider(APP_STATE, state);
 
 	// Sync customer data between SSR and client, and re-validate authentication on client side
-	useVisibleTask$(async () => {
+	useVisibleTask$(async ({ cleanup }) => {
 		// If SSR provided customer data, sync it to the client state
 		if (layoutData.value.customer) {
 			state.customer = layoutData.value.customer;
@@ -207,10 +215,23 @@ export default component$(() => {
 						phoneNumber: customerData.phoneNumber ?? '',
 					};
 				}
-			} catch (error) {
-				console.error('Failed to fetch customer data on client:', error);
+			} catch (_error) {
+				// Do not log error, as it is expected for guest users
 			}
 		}
+
+		// Client-side fallback to restore country from sessionStorage if it's still empty after hydration
+		if (!state.shippingAddress.countryCode) {
+			const storedCountry = sessionStorage.getItem('countryCode');
+			if (storedCountry) {
+				state.shippingAddress.countryCode = storedCountry;
+			}
+		}
+
+		// Cleanup function to run when the component is unmounted
+		cleanup(() => {
+			// You can add cleanup logic here if needed
+		});
 	});
 
 	// Simplified: Remove loading state that causes unnecessary re-renders

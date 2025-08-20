@@ -9,8 +9,8 @@ import {
   setOrderShippingAddressMutation,
   getActiveOrderQuery
 } from '~/providers/shop/orders/order';
-import { getActiveCustomerAddressesQuery, getActiveCustomerQuery } from '~/providers/shop/customer/customer';
-import { Address, Order } from '~/generated/graphql';
+import { getActiveCustomerQuery } from '~/providers/shop/customer/customer';
+import { Order } from '~/generated/graphql';
 import { isActiveCustomerValid, isShippingAddressValid, isBillingAddressValid } from '~/utils';
 import { validateEmail, validateName, validatePhone, filterPhoneInput } from '~/utils/validation';
 import { useLocalCart } from '~/contexts/CartContext';
@@ -53,7 +53,6 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   const error = useSignal('');
   const isFormValidSignal = useSignal(false);
   const hasProceeded = useSignal(false);
-  const countryInitialized = useSignal(false);
   const validationTimer = useSignal<NodeJS.Timeout | null>(null);
   const hasInitializedValidation = useSignal(false);
 
@@ -64,18 +63,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     return `Phone number${isOptional ? ' (optional)' : ' *'}` as string;
   });
 
-  // Initialize country code synchronously from sessionStorage if available
-  if (!countryInitialized.value) {
-    countryInitialized.value = true;
-    const storedCountry = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('countryCode') : null;
-    if (storedCountry) {
-      // console.log(`🔄 Initializing country synchronously from sessionStorage: ${storedCountry}`);
-      appState.shippingAddress.countryCode = storedCountry;
-      // console.log(`📍 Country code set to: ${appState.shippingAddress.countryCode}`);
-    } else {
-      // console.log('No country code found in sessionStorage');
-    }
-  }
+  // Country initialization removed - now handled by layout.tsx
 
   // Sync local signals with exported state and track validation
   useVisibleTask$(({ track }) => {
@@ -102,7 +90,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
         city: appState.shippingAddress.city || '',
         province: appState.shippingAddress.province || '',
         postalCode: appState.shippingAddress.postalCode || '',
-        countryCode: appState.shippingAddress.countryCode || 'US',
+        countryCode: appState.shippingAddress.countryCode || '',
       };
       // console.log('[CheckoutAddresses] Billing address inheriting from shipping (checkbox OFF)');
     } else {
@@ -118,7 +106,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
           city: '',
           province: '',
           postalCode: '',
-          countryCode: appState.shippingAddress.countryCode || 'US',
+          countryCode: appState.shippingAddress.countryCode || '',
         };
         // console.log('[CheckoutAddresses] Billing address initialized with only name and country (checkbox first activation)');
       } else if (!appState.billingAddress) {
@@ -131,7 +119,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
           city: '',
           province: '',
           postalCode: '',
-          countryCode: appState.shippingAddress.countryCode || 'US',
+          countryCode: appState.shippingAddress.countryCode || '',
         };
         // console.log('[CheckoutAddresses] Billing address safety initialization with only name and country');
       }
@@ -147,96 +135,34 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     // Only update billing address country if checkbox is OFF (inherit mode)
     if (!useDifferentBilling.value) {
       if (appState.billingAddress) {
-        appState.billingAddress.countryCode = appState.shippingAddress.countryCode || 'US';
+        appState.billingAddress.countryCode = appState.shippingAddress.countryCode || '';
         // console.log('[CheckoutAddresses] Updated billing country to match shipping (inherit mode):', appState.billingAddress.countryCode);
       }
     }
     // If checkbox is ON, preserve user's billing country selection - don't interfere
   });
   
-  // Load customer and address data from active order
-  useVisibleTask$(async () => {
-    const activeOrder = await getActiveOrderQuery();
-    if (activeOrder?.customer) {
-      const customer = activeOrder.customer;
-      appState.customer = {
-        title: customer.title ?? '',
-        firstName: customer.firstName,
-        id: customer.id,
-        lastName: customer.lastName,
-        emailAddress: customer.emailAddress,
-        phoneNumber: customer.phoneNumber ?? '',
-      };
-      const shippingAddress = activeOrder?.shippingAddress;
-      if (shippingAddress) {
-        appState.shippingAddress = {
-          city: shippingAddress.city ?? '',
-          company: shippingAddress.company ?? '',
-          country: shippingAddress.country ?? '',
-          countryCode: shippingAddress.countryCode || '',
-          fullName: shippingAddress.fullName ?? '',
-          phoneNumber: shippingAddress.phoneNumber ?? '',
-          postalCode: shippingAddress.postalCode ?? '',
-          province: shippingAddress.province ?? '',
-          streetLine1: shippingAddress.streetLine1 ?? '',
-          streetLine2: shippingAddress.streetLine2 ?? '',
-        };
-      }
-    }
+  // Country initialization removed - will be handled by layout.tsx or user selection
+
+  // Clear validation errors when customer data is updated (e.g., after login)
+  useTask$(({ track }) => {
+    track(() => appState.customer?.emailAddress);
+    track(() => appState.customer?.firstName);
+    track(() => appState.customer?.lastName);
+    track(() => appState.customer?.phoneNumber);
     
-    // Load default shipping address from customer if available
-    const activeCustomer = await getActiveCustomerAddressesQuery();
-    if (activeCustomer?.addresses) {
-      const [defaultShippingAddress] = activeCustomer.addresses.filter(
-        (address: Address) => !!address.defaultShippingAddress
-      );
-      if (defaultShippingAddress) {
-        const appStateDefaultShippingAddress = {
-          city: defaultShippingAddress.city ?? '',
-          company: defaultShippingAddress.company ?? '',
-          country: defaultShippingAddress.country.code ?? '',
-          countryCode: defaultShippingAddress.country.code ?? '',
-          fullName: defaultShippingAddress.fullName ?? '',
-          phoneNumber: defaultShippingAddress.phoneNumber ?? '',
-          postalCode: defaultShippingAddress.postalCode ?? '',
-          province: defaultShippingAddress.province ?? '',
-          streetLine1: defaultShippingAddress.streetLine1 ?? '',
-          streetLine2: defaultShippingAddress.streetLine2 ?? '',
-        };
-        appState.shippingAddress = {
-          ...appState.shippingAddress,
-          ...appStateDefaultShippingAddress,
-        };
-      }
+    // Clear validation errors for fields that now have valid data from login
+    if (appState.customer?.emailAddress && !emailTouched.value) {
+      emailValidationError.value = '';
     }
-    
-    // Use country code from sessionStorage if available, otherwise use defaults
-    if (!countryInitialized.value && !appState.shippingAddress.countryCode && appState.availableCountries.length > 0) {
-      countryInitialized.value = true;
-      
-      const storedCountry = sessionStorage.getItem('countryCode');
-      let countryToUse = '';
-      
-      if (storedCountry) {
-        const isAvailable = appState.availableCountries.some(country => country.code === storedCountry);
-        if (isAvailable) {
-          countryToUse = storedCountry;
-          // console.log(`📍 Using country from session storage: ${countryToUse}`);
-        } else {
-          // console.log(`Stored country ${storedCountry} not available in this store, using fallback`);
-        }
-      }
-      
-      if (!countryToUse) {
-        const usCountry = appState.availableCountries.find(country => country.code === 'US');
-        countryToUse = usCountry?.code || appState.availableCountries[0].code;
-        // console.log(`📍 No stored country, using fallback: ${countryToUse}`);
-      }
-      
-      appState.shippingAddress = {
-        ...appState.shippingAddress,
-        countryCode: countryToUse,
-      };
+    if (appState.customer?.firstName && !firstNameTouched.value) {
+      firstNameValidationError.value = '';
+    }
+    if (appState.customer?.lastName && !lastNameTouched.value) {
+      lastNameValidationError.value = '';
+    }
+    if (appState.customer?.phoneNumber && !phoneTouched.value) {
+      phoneValidationError.value = '';
     }
   });
 
@@ -501,6 +427,12 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
 
         // Set shipping address first to ensure compatibility with Vendure session
         // console.log('📍 Setting shipping address before billing address to ensure sequence compatibility...');
+        
+        // Ensure country code is defined before proceeding
+        if (!appState.shippingAddress.countryCode) {
+          throw new Error('Country code is required for shipping address');
+        }
+        
         const shippingResult = await setOrderShippingAddressMutation({
           fullName: `${appState.customer.firstName || ''} ${appState.customer.lastName || ''}`.trim(),
           streetLine1: appState.shippingAddress.streetLine1 || '',
@@ -508,7 +440,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
           city: appState.shippingAddress.city || '',
           province: appState.shippingAddress.province || '',
           postalCode: appState.shippingAddress.postalCode || '',
-          countryCode: appState.shippingAddress.countryCode || 'US',
+          countryCode: appState.shippingAddress.countryCode,
           phoneNumber: appState.customer.phoneNumber || '',
           company: appState.shippingAddress.company || ''
         });
@@ -525,6 +457,12 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
         let billingResult = null;
         if (useDifferentBilling.value) {
           // console.log('📍 Setting billing address after shipping address to ensure sequence compatibility...');
+          
+          // Ensure country code is defined for billing address
+          if (!appState.billingAddress.countryCode) {
+            throw new Error('Country code is required for billing address');
+          }
+          
           billingResult = await setOrderBillingAddressMutation({
             fullName: `${appState.billingAddress.firstName || ''} ${appState.billingAddress.lastName || ''}`.trim(),
             streetLine1: appState.billingAddress.streetLine1 || '',
@@ -532,7 +470,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
             city: appState.billingAddress.city || '',
             province: appState.billingAddress.province || '',
             postalCode: appState.billingAddress.postalCode || '',
-            countryCode: appState.billingAddress.countryCode || 'US',
+            countryCode: appState.billingAddress.countryCode,
           });
           if (billingResult.__typename !== 'Order') {
             // console.error('❌ Failed to set billing address. Detailed error:', JSON.stringify(billingResult, null, 2));
@@ -624,31 +562,45 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
         return;
       }
 
+      // Only set touched states and show errors if the user has already interacted with the form
+      // This prevents showing errors for autofilled fields from login
       if (!emailResultCheck.isValid) {
         // console.log('❌ Email validation failed at auto-forward:', emailResultCheck.message);
-        emailTouched.value = true;
-        emailValidationError.value = emailResultCheck.message || 'Invalid email address';
+        // Only show error if field was already touched by user interaction
+        if (emailTouched.value || hasInitializedValidation.value) {
+          emailTouched.value = true;
+          emailValidationError.value = emailResultCheck.message || 'Invalid email address';
+        }
         hasProceeded.value = false;
         return;
       }
       if (!firstNameResultCheck.isValid) {
         // console.log('❌ First name validation failed at auto-forward:', firstNameResultCheck.message);
-        firstNameTouched.value = true;
-        firstNameValidationError.value = firstNameResultCheck.message || 'Invalid first name';
+        // Only show error if field was already touched by user interaction
+        if (firstNameTouched.value || hasInitializedValidation.value) {
+          firstNameTouched.value = true;
+          firstNameValidationError.value = firstNameResultCheck.message || 'Invalid first name';
+        }
         hasProceeded.value = false;
         return;
       }
       if (!lastNameResultCheck.isValid) {
         // console.log('❌ Last name validation failed at auto-forward:', lastNameResultCheck.message);
-        lastNameTouched.value = true;
-        lastNameValidationError.value = lastNameResultCheck.message || 'Invalid last name';
+        // Only show error if field was already touched by user interaction
+        if (lastNameTouched.value || hasInitializedValidation.value) {
+          lastNameTouched.value = true;
+          lastNameValidationError.value = lastNameResultCheck.message || 'Invalid last name';
+        }
         hasProceeded.value = false;
         return;
       }
       if (!phoneResultCheck.isValid && !currentIsPhoneOptional) {
         // console.log('❌ Phone validation failed at auto-forward:', phoneResultCheck.message);
-        phoneTouched.value = true;
-        phoneValidationError.value = phoneResultCheck.message || 'Invalid phone number';
+        // Only show error if field was already touched by user interaction
+        if (phoneTouched.value || hasInitializedValidation.value) {
+          phoneTouched.value = true;
+          phoneValidationError.value = phoneResultCheck.message || 'Invalid phone number';
+        }
         hasProceeded.value = false;
         return;
       }
@@ -782,45 +734,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     }
   });
 
-  // Auto-validate customer data when it's loaded (for auto-populated fields)
-  useTask$(({ track }) => {
-    // Track customer data to detect when it's auto-loaded
-    track(() => appState.customer?.emailAddress);
-    track(() => appState.customer?.firstName);
-    track(() => appState.customer?.lastName);
-    track(() => appState.customer?.phoneNumber);
-    
-    // Only auto-validate if we have customer data AND validation hasn't been initialized by user yet
-    // This prevents validation on initial load before user interaction, but allows it for auto-loaded data
-    const hasCustomerData = appState.customer?.emailAddress || appState.customer?.firstName || 
-                           appState.customer?.lastName || appState.customer?.phoneNumber;
-    
-    if (hasCustomerData && !hasInitializedValidation.value) {
-      // Check if this looks like pre-loaded customer data (not empty/default values)
-      const isPreloadedData = appState.customer?.emailAddress && 
-                              appState.customer?.emailAddress.length > 0 &&
-                              appState.customer?.firstName &&
-                              appState.customer?.firstName.length > 0;
-      
-      if (isPreloadedData) {
-        // console.log('[CheckoutAddresses] Auto-loaded customer data detected, marking fields as touched and validating');
-        
-        // Mark all customer fields as touched so validation will run
-        emailTouched.value = true;
-        firstNameTouched.value = true;
-        lastNameTouched.value = true;
-        phoneTouched.value = true;
-        
-        // Initialize validation since we're now validating auto-loaded data
-        hasInitializedValidation.value = true;
-        
-        // Trigger validation for auto-loaded data
-        setTimeout(() => {
-          validateCompleteForm$();
-        }, 100); // Small delay to ensure all data is loaded
-      }
-    }
-  });
+  // Auto-validation removed - validation will only occur on user interaction
 
   // Callback to mark validation as initialized when user interacts with address forms
   const handleAddressInteraction$ = $(() => {
@@ -992,7 +906,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
                 city: '',
                 province: '',
                 postalCode: '',
-                countryCode: appState.shippingAddress.countryCode || 'US',
+                countryCode: appState.shippingAddress.countryCode || '',
               }}
               onUserInteraction$={handleAddressInteraction$}
             />

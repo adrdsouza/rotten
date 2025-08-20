@@ -33,7 +33,6 @@ type IProps = {
 export default component$<IProps>(({ onForward$, isReviewMode }) => {
 	const appState = useContext(APP_STATE);
 	const isFormValidSignal = useSignal(false);
-	const countryInitialized = useSignal(false);
 	const emailValidationError = useSignal<string>('');
 	const emailTouched = useSignal(false);
 	const firstNameValidationError = useSignal<string>('');
@@ -43,21 +42,6 @@ export default component$<IProps>(({ onForward$, isReviewMode }) => {
 	const phoneValidationError = useSignal<string>('');
 	const phoneTouched = useSignal(false);
 	const hasProceeded = useSignal(false); // New signal to prevent multiple onForward$ calls
-	
-	// Initialize country code synchronously from sessionStorage if available
-	// This ensures the correct country is shown immediately on page load
-	if (!countryInitialized.value) {
-		countryInitialized.value = true;
-		const storedCountry = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('countryCode') : null;
-		if (storedCountry) {
-			console.log(`🔄 Initializing country synchronously from sessionStorage: ${storedCountry}`);
-			// Force update the country code regardless of current value
-			appState.shippingAddress.countryCode = storedCountry;
-			console.log(`📍 Country code set to: ${appState.shippingAddress.countryCode}`);
-		} else {
-			console.log('No country code found in sessionStorage');
-		}
-	}
 
 	useVisibleTask$(async () => {
 		// Clear all validation cache when form initializes
@@ -116,39 +100,7 @@ export default component$<IProps>(({ onForward$, isReviewMode }) => {
 			}
 		}
 		
-		// Use country code from sessionStorage if available, otherwise use defaults
-		if (!countryInitialized.value && !appState.shippingAddress.countryCode && appState.availableCountries.length > 0) {
-			countryInitialized.value = true; // Set this first to prevent re-entry
-			
-			// Try to get country from sessionStorage (set by product page or cart)
-			const storedCountry = sessionStorage.getItem('countryCode');
-			let countryToUse = '';
-			
-			if (storedCountry) {
-				// Check if stored country is available in the store
-				const isAvailable = appState.availableCountries.some(country => country.code === storedCountry);
-				if (isAvailable) {
-					countryToUse = storedCountry;
-					console.log(`📍 Using country from session storage: ${countryToUse}`);
-				} else {
-					console.log(`Stored country ${storedCountry} not available in this store, using fallback`);
-				}
-			}
-			
-			// If no valid stored country, fall back to defaults
-			if (!countryToUse) {
-				// Fallback to US, then first available
-				const usCountry = appState.availableCountries.find(country => country.code === 'US');
-				countryToUse = usCountry?.code || appState.availableCountries[0].code;
-				console.log(`📍 No stored country, using fallback: ${countryToUse}`);
-			}
-			
-			// Update shipping address with the country code
-			appState.shippingAddress = {
-				...appState.shippingAddress,
-				countryCode: countryToUse,
-			};
-		}
+
 	});
 
 	useTask$(({ track }) => {
@@ -267,13 +219,15 @@ export default component$<IProps>(({ onForward$, isReviewMode }) => {
 	// Phone validation handlers (NEW)
 	const handlePhoneChange$ = $((value: string) => {
 		// Clear cache for phone validation when value changes
-		const countryCode = appState.shippingAddress.countryCode || 'US';
-		clearFieldValidationCache(countryCode, 'phone');
+		const countryCode = appState.shippingAddress.countryCode;
+		if (countryCode) {
+			clearFieldValidationCache(countryCode, 'phone');
+		}
 		
 		// Filter input to only allow valid phone characters
 		const filteredValue = filterPhoneInput(value);
 		appState.customer = { ...appState.customer, phoneNumber: filteredValue };
-		if (phoneTouched.value) {
+		if (phoneTouched.value && countryCode) {
 			const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
 			const phoneResult = validatePhone(filteredValue, countryCode, isPhoneOptional);
 			phoneValidationError.value = phoneResult.isValid ? '' : (phoneResult.message || 'Invalid phone number');
@@ -283,10 +237,12 @@ export default component$<IProps>(({ onForward$, isReviewMode }) => {
 	const handlePhoneBlur$ = $(() => {
 		phoneTouched.value = true;
 		const phoneNumber = appState.customer?.phoneNumber || '';
-		const countryCode = appState.shippingAddress.countryCode || 'US'; // Default to US if not set
-		const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
-		const phoneResult = validatePhone(phoneNumber, countryCode, isPhoneOptional);
-		phoneValidationError.value = phoneResult.isValid ? '' : (phoneResult.message || 'Invalid phone number');
+		const countryCode = appState.shippingAddress.countryCode;
+		if (countryCode) {
+			const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
+			const phoneResult = validatePhone(phoneNumber, countryCode, isPhoneOptional);
+			phoneValidationError.value = phoneResult.isValid ? '' : (phoneResult.message || 'Invalid phone number');
+		}
 
 		// REMOVED onForward$ call from here
 	});
@@ -312,7 +268,14 @@ export default component$<IProps>(({ onForward$, isReviewMode }) => {
 			const shippingCity = appState.shippingAddress?.city || '';
 			const shippingProvince = appState.shippingAddress?.province || '';
 			const shippingPostalCode = appState.shippingAddress?.postalCode || '';
-			const shippingCountryCode = appState.shippingAddress?.countryCode || 'US'; // Default to US
+			const shippingCountryCode = appState.shippingAddress?.countryCode;
+
+			// Skip validation if no country code is set
+			if (!shippingCountryCode) {
+				console.log('❌ No country code set, cannot proceed');
+				hasProceeded.value = false;
+				return;
+			}
 
 			const emailResultCheck = validateEmail(customerEmail);
 			const firstNameResultCheck = validateName(customerFirstName, 'First name');
@@ -370,7 +333,7 @@ export default component$<IProps>(({ onForward$, isReviewMode }) => {
 				city: shippingCity,
 				province: shippingProvince,
 				postalCode: shippingPostalCode,
-				countryCode: shippingCountryCode,
+				countryCode: shippingCountryCode, // Already validated above
 				// customFields: appState.shippingAddress.customFields || {}, // Property 'customFields' does not exist on type 'ShippingAddress'.
 				phoneNumber: customerPhoneNumber, // Also include phone in shipping address if available
 				fullName: `${customerFirstName} ${customerLastName}`,

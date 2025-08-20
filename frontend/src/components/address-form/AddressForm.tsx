@@ -1,4 +1,4 @@
-import { component$, useContext, useSignal, $, type QRL, type Signal, useStore } from '@builder.io/qwik';
+import { component$, useContext, useSignal, $, type QRL, type Signal, useStore, useVisibleTask$ } from '@builder.io/qwik';
 import { APP_STATE } from '~/constants';
 import { ShippingAddress } from '~/types';
 import { 
@@ -58,14 +58,8 @@ export default component$<IProps>(({ shippingAddress, formApi, isReviewMode, onU
 	const isFormValid = useSignal(false);
 	const validationTimer = useSignal<NodeJS.Timeout | null>(null);
 	
-	// Force update country code from sessionStorage if it exists
-	if (typeof sessionStorage !== 'undefined') {
-		const storedCountry = sessionStorage.getItem('countryCode');
-		if (storedCountry && storedCountry !== appState.shippingAddress.countryCode) {
-			// console.log(`🔄 AddressForm: Updating country from sessionStorage: ${storedCountry}`);
-			appState.shippingAddress.countryCode = storedCountry;
-		}
-	}
+	// Local signal for country code to manage UI reactivity independently
+	const localCountryCode = useSignal(shippingAddress.countryCode || '');
 	
 	// Local state for form fields to avoid circular reactivity
 	const localFormData = useSignal<{
@@ -82,9 +76,6 @@ export default component$<IProps>(({ shippingAddress, formApi, isReviewMode, onU
 		postalCode: shippingAddress.postalCode || '',
 	});
 	
-	// Local signal for country code to manage UI reactivity independently
-	const localCountryCode = useSignal(shippingAddress.countryCode || 'US');
-	
 	// Local state for debouncing dropdown selection
 	const dropdownState = useStore({
 		pendingCountryCode: '',
@@ -94,6 +85,18 @@ export default component$<IProps>(({ shippingAddress, formApi, isReviewMode, onU
 
 	// Track if user has interacted with form
 	const hasUserInteracted = useSignal(false);
+
+	// Force update country code from sessionStorage if it exists - moved to useVisibleTask for proper timing
+	useVisibleTask$(() => {
+		if (typeof sessionStorage !== 'undefined') {
+			const storedCountry = sessionStorage.getItem('countryCode');
+			if (storedCountry && storedCountry !== appState.shippingAddress.countryCode) {
+				// console.log(`🔄 AddressForm: Updating country from sessionStorage: ${storedCountry}`);
+				appState.shippingAddress.countryCode = storedCountry;
+				localCountryCode.value = storedCountry; // Also update the local signal for dropdown UI
+			}
+		}
+	});
 
 	// Individual field validation
 	const validateField$ = $((fieldName: string, value: string, countryCode: string = 'US') => {
