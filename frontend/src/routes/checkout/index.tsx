@@ -173,7 +173,9 @@ const CheckoutContent = component$(() => {
     // console.log('✅ Checkout: Cart loaded on page refresh');
 
     // 🚀 FRESH STOCK: Refresh stock levels when entering checkout
-    if (localCart.isLocalMode && localCart.localCart.items.length > 0) {
+    // Always refresh stock if in local mode, regardless of current item count
+    // This ensures stock validation happens even if cart appears empty due to loading
+    if (localCart.isLocalMode) {
       try {
         await refreshCartStock(localCart);
         // console.log('✅ Checkout: Stock levels refreshed');

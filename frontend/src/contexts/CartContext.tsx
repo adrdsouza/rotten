@@ -4,6 +4,7 @@ import {
   useContext,
   useContextProvider,
   useStore,
+  useVisibleTask$,
   $,
   Slot
 } from '@qwik.dev/core';
@@ -29,6 +30,7 @@ export interface CartContextState {
   isLoading: boolean;
   lastError: string | null;
   hasLoadedOnce: boolean; // Track if cart has been loaded from localStorage
+  isRefreshingStock: boolean; // Track if stock refresh is in progress
 
   // Stock validation results
   lastStockValidation: Record<string, StockValidationResult>;
@@ -54,13 +56,37 @@ export const CartProvider = component$(() => {
     isLoading: false,
     lastError: null,
     hasLoadedOnce: false,
+    isRefreshingStock: false,
     lastStockValidation: {},
     appliedCoupon: null
   });
 
-  // 🚀 OPTIMIZED: Removed computed values - cart totals calculated in LocalCartService
+  // 🔄 CROSS-TAB SYNC: Setup storage listeners and cart update callbacks
+  useVisibleTask$(() => {
+    // Setup cross-tab synchronization
+    LocalCartService.setupCrossTabSync();
+    
+    // Register callback to refresh cart state when changes occur in other tabs
+    const unsubscribe = LocalCartService.onCartUpdate(() => {
+      // Reload cart from localStorage when updated in another tab
+      if (cartState.hasLoadedOnce) {
+        cartState.localCart = LocalCartService.getCart();
+        cartState.lastError = null;
+        
+        // Trigger header badge update
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('cart-updated', {
+            detail: { totalQuantity: cartState.localCart.totalQuantity }
+          }));
+        }
+      }
+    });
+    
+    // Cleanup on component unmount
+    return unsubscribe;
+  });
 
-  // 🚀 OPTIMIZED: Removed useVisibleTask$ - cart now loads on-demand
+  // 🚀 OPTIMIZED: Removed computed values - cart totals calculated in LocalCartService
 
   // Provide context
   useContextProvider(CartContextId, cartState);
@@ -92,8 +118,14 @@ export const refreshCartStock = $(async (cartState: CartContextState) => {
   // Only refresh if we have items in cart
   if (!cartState.localCart.items.length) return;
 
+  // Prevent duplicate refreshes - if already refreshing, skip
+  if (cartState.isRefreshingStock) {
+    return;
+  }
+
   try {
     cartState.isLoading = true;
+    cartState.isRefreshingStock = true;
 
     // Get fresh stock data for all cart items
     const updatedCart = await LocalCartService.refreshAllStockLevels();
@@ -105,6 +137,7 @@ export const refreshCartStock = $(async (cartState: CartContextState) => {
     cartState.lastError = 'Failed to refresh stock levels';
   } finally {
     cartState.isLoading = false;
+    cartState.isRefreshingStock = false;
   }
 });
 

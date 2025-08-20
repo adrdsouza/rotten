@@ -75,6 +75,14 @@ export default component$(() => {
 		return () => window.removeEventListener('scroll', handleScroll);
 	});
 
+	// 🚀 FRESH STOCK: Refresh stock levels on page load/refresh
+	useVisibleTask$(() => {
+		// Only refresh stock if we have items in cart
+		if (localCart.localCart.items.length > 0) {
+			refreshCartStock(localCart);
+		}
+	});
+
 	// Click outside to close user menu
 	useVisibleTask$(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -152,11 +160,12 @@ export default component$(() => {
 											}
 										}
 
-										// 🚀 FRESH STOCK: Refresh stock levels when opening cart
+										// 🚀 FRESH STOCK: Refresh stock levels when opening cart (before showing)
 										if (!appState.showCart && localCart.localCart.items.length > 0) {
 											await refreshCartStock(localCart);
 										}
 
+										// Only show cart after stock refresh is complete
 										appState.showCart = !appState.showCart;
 										// Sync badge with loaded cart state
 										if (localCart.hasLoadedOnce) {

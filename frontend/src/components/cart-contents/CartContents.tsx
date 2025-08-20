@@ -10,6 +10,7 @@ import { isImageCached } from '~/utils/image-cache';
 import Price from '../products/Price';
 import TrashIcon from '../icons/TrashIcon';
 import { useLocalCart, updateLocalCartQuantity, removeFromLocalCart } from '~/contexts/CartContext';
+import { StockWarning } from '../cart/StockWarning';
 // import { useCartPerformanceTracking } from '~/hooks/usePerformanceTracking'; // Removed for performance
 
 // Image preloading function for cart product links
@@ -235,64 +236,81 @@ export default component$<{
 									</div>
 								</div>
 								
-								{/* Bottom row: quantity and remove button */}
-								<div class="flex items-center justify-between mt-2">
-									{/* Quantity selector */}
-									<div>
-										{isInEditableUrl ? (
-											<select
-												disabled={!isInEditableUrl}
-												id={`quantity-${item.productVariantId}`}
-												name={`quantity-${item.productVariantId}`}
-												value={item.quantity}
-												onChange$={(_, el) => {
-													if (el.value === "10+") {
-														// Expand dropdown to show all options
-														expandedDropdowns.value = new Set([...expandedDropdowns.value, item.productVariantId]);
-													} else {
-														currentOrderLineSignal.value = { id: item.productVariantId, value: +el.value };
-													}
-												}}
-												class="rounded-md border border-gray-300 py-1.5 text-base leading-5 font-medium text-gray-700 text-left shadow-xs focus:outline-hidden focus:ring-1 focus:ring-black focus:border-black sm:text-sm"
-											>
-												{quantityOptions.map(num => (
-													<option key={num} value={num} selected={item.quantity === num}>
-														{num.toString()}
-													</option>
-												))}
-											</select>
-										) : (
-											<span class="font-medium">{item.quantity}</span>
-										)}
-									</div>
+								{/* Stock warning for out-of-stock or low stock items */}
+								<StockWarning 
+									item={item} 
+									onRemove$={$(() => removeFromLocalCart(localCart, item.productVariantId))}
+								/>
+								
+								{/* Bottom row: quantity and remove button - hidden for out of stock items */}
+								{(() => {
+									const stockLevel = parseInt(item.productVariant.stockLevel || '0');
+									const isOutOfStock = stockLevel === 0;
 									
-									{/* Trash icon for removal */}
-									{isInEditableUrl && (
-										<button
-											value={item.productVariantId}
-											aria-label="Remove item"
-											class="p-1 rounded-full text-red-600 hover:text-red-800 hover:bg-red-50 transition-colors cursor-pointer"
-											onClick$={async () => {
-												// const removeTimer = await performanceTracking.trackCartOperation$('remove-item'); // DISABLED
-												try {
-													await removeFromLocalCart(localCart, item.productVariantId);
-	
-													// Close cart popup if it becomes empty
-													if (localCart.localCart.items.length === 0) {
-														appState.showCart = false;
-													}
-	
-													// await removeTimer.end$(); // Track successful removal - DISABLED
-												} catch (error) {
-													console.error('Failed to remove item from cart:', error);
-													// await removeTimer.end$(); // Track failed removal - DISABLED
-												}
-											}}
-										>
-											<TrashIcon />
-										</button>
-									)}
-								</div>
+									if (isOutOfStock) {
+										return null; // Hide quantity selector and delete button for out of stock items
+									}
+									
+									return (
+										<div class="flex items-center justify-between mt-2">
+											{/* Quantity selector */}
+											<div>
+												{isInEditableUrl ? (
+													<select
+														disabled={!isInEditableUrl}
+														id={`quantity-${item.productVariantId}`}
+														name={`quantity-${item.productVariantId}`}
+														value={item.quantity}
+														onChange$={(_, el) => {
+															if (el.value === "10+") {
+																// Expand dropdown to show all options
+																expandedDropdowns.value = new Set([...expandedDropdowns.value, item.productVariantId]);
+															} else {
+																currentOrderLineSignal.value = { id: item.productVariantId, value: +el.value };
+															}
+														}}
+														class="rounded-md border border-gray-300 py-1.5 text-base leading-5 font-medium text-gray-700 text-left shadow-xs focus:outline-hidden focus:ring-1 focus:ring-black focus:border-black sm:text-sm"
+													>
+														{quantityOptions.map(num => (
+															<option key={num} value={num} selected={item.quantity === num}>
+																{num.toString()}
+															</option>
+														))}
+													</select>
+												) : (
+													<span class="font-medium">{item.quantity}</span>
+												)}
+											</div>
+											
+											{/* Trash icon for removal */}
+											{isInEditableUrl && (
+												<button
+													value={item.productVariantId}
+													aria-label="Remove item"
+													class="p-1 rounded-full text-red-600 hover:text-red-800 hover:bg-red-50 transition-colors cursor-pointer"
+													onClick$={async () => {
+														// const removeTimer = await performanceTracking.trackCartOperation$('remove-item'); // DISABLED
+														try {
+															await removeFromLocalCart(localCart, item.productVariantId);
+
+															// Close cart popup if it becomes empty
+															if (localCart.localCart.items.length === 0) {
+																appState.showCart = false;
+															}
+
+															// await removeTimer.end$(); // Track successful removal - DISABLED
+														} catch (error) {
+															console.error('Failed to remove item from cart:', error);
+															// await removeTimer.end$(); // Track failed removal - DISABLED
+														}
+													}}
+												>
+													<TrashIcon />
+												</button>
+											)}
+										</div>
+									);
+								})()}
 							</div>
 						</li>
 					);

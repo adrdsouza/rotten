@@ -59,6 +59,52 @@ export class LocalCartService {
   private static cacheTimestamp: number = 0;
   private static readonly CACHE_DURATION = 1000; // 1 second cache
 
+  // 🔄 CROSS-TAB SYNC: Storage event listeners and cart update callbacks
+  private static cartUpdateCallbacks: Set<() => void> = new Set();
+  private static isStorageListenerSetup = false;
+
+  // Setup cross-tab synchronization
+  static setupCrossTabSync(): void {
+    if (typeof window === 'undefined' || this.isStorageListenerSetup) return;
+
+    window.addEventListener('storage', (event) => {
+      if (event.key === this.CART_KEY) {
+        // Clear cache when cart changes in another tab
+        this.clearCache();
+        // Notify all registered callbacks
+        this.cartUpdateCallbacks.forEach(callback => {
+          try {
+            callback();
+          } catch (error) {
+            console.error('Error in cart update callback:', error);
+          }
+        });
+      }
+    });
+
+    this.isStorageListenerSetup = true;
+  }
+
+  // Register callback for cart updates (cross-tab sync)
+  static onCartUpdate(callback: () => void): () => void {
+    this.cartUpdateCallbacks.add(callback);
+    // Return unsubscribe function
+    return () => {
+      this.cartUpdateCallbacks.delete(callback);
+    };
+  }
+
+  // Trigger cart update callbacks (for same-tab updates)
+  private static triggerCartUpdate(): void {
+    this.cartUpdateCallbacks.forEach(callback => {
+      try {
+        callback();
+      } catch (error) {
+        console.error('Error in cart update callback:', error);
+      }
+    });
+  }
+
   // 🚀 OPTIMIZED: Direct localStorage check for header badge (no context loading)
   static getCartQuantityFromStorage(): number {
     if (typeof window === 'undefined') return 0;
@@ -197,6 +243,8 @@ export class LocalCartService {
         // 🚀 OPTIMIZED: Update cache when saving
         this.cartCache = cart;
         this.cacheTimestamp = Date.now();
+        // 🔄 CROSS-TAB SYNC: Trigger cart update callbacks for same-tab updates
+        this.triggerCartUpdate();
       } catch (error) {
         console.error('Failed to save cart to localStorage:', error);
         this.clearCache(); // Clear cache on error
@@ -234,7 +282,7 @@ export class LocalCartService {
     }
   }
 
-  // Add item to cart with stock validation
+  // Add item to cart with stock validation - FAIL FAST on stock errors
   static addItem(item: LocalCartItem): { cart: LocalCart; stockResult: StockValidationResult } {
     const cart = this.getCart();
     const existingIndex = cart.items.findIndex(i => i.productVariantId === item.productVariantId);
@@ -246,15 +294,20 @@ export class LocalCartService {
     // Validate stock before adding
     const stockResult = this.validateStockLevel(item, newQuantity);
     
+    // 🚫 FAIL FAST: Don't add/update if stock validation fails
+    if (!stockResult.success) {
+      return { cart, stockResult };
+    }
+    
     if (existingIndex >= 0) {
-      // Update existing item with validated quantity
-      cart.items[existingIndex].quantity = stockResult.adjustedQuantity ?? newQuantity;
+      // Update existing item with requested quantity (no silent adjustments)
+      cart.items[existingIndex].quantity = newQuantity;
       cart.items[existingIndex].lastStockCheck = Date.now();
       // Update stock level info
       cart.items[existingIndex].productVariant.stockLevel = stockResult.availableStock.toString();
     } else {
-      // Add new item with validated quantity
-      item.quantity = stockResult.adjustedQuantity ?? newQuantity;
+      // Add new item with requested quantity (no silent adjustments)
+      item.quantity = newQuantity;
       item.lastStockCheck = Date.now();
       item.productVariant.stockLevel = stockResult.availableStock.toString();
       cart.items.push(item);
@@ -265,7 +318,7 @@ export class LocalCartService {
     return { cart, stockResult };
   }
 
-  // Update item quantity with stock validation  
+  // Update item quantity with stock validation - FAIL FAST on stock errors
   static updateItemQuantity(productVariantId: string, quantity: number): { cart: LocalCart; stockResult: StockValidationResult } {
     const cart = this.getCart();
     const itemIndex = cart.items.findIndex(item => item.productVariantId === productVariantId);
@@ -281,8 +334,13 @@ export class LocalCartService {
     // Validate stock before updating
     const stockResult = this.validateStockLevel(cart.items[itemIndex], quantity);
     
-    // Update with validated quantity
-    cart.items[itemIndex].quantity = stockResult.adjustedQuantity ?? quantity;
+    // 🚫 FAIL FAST: Don't update if stock validation fails
+    if (!stockResult.success) {
+      return { cart, stockResult };
+    }
+    
+    // Update with requested quantity (no silent adjustments)
+    cart.items[itemIndex].quantity = quantity;
     cart.items[itemIndex].lastStockCheck = Date.now();
     cart.items[itemIndex].productVariant.stockLevel = stockResult.availableStock.toString();
     
@@ -313,7 +371,9 @@ export class LocalCartService {
   static async refreshAllStockLevels(): Promise<LocalCart> {
     const cart = this.getCart();
 
-    if (!cart.items.length) return cart;
+    if (!cart.items.length) {
+      return cart;
+    }
 
     try {
       // Import GraphQL function dynamically to avoid circular dependencies
@@ -326,7 +386,7 @@ export class LocalCartService {
       const productPromises = productSlugs.map(slug => getProductBySlug(slug));
       const products = await Promise.all(productPromises);
 
-      // Update stock levels for each cart item
+      // Update stock levels for all items
       cart.items.forEach((item) => {
         const product = products.find(p => p?.slug === item.productVariant.product.slug);
         if (product) {
@@ -336,21 +396,18 @@ export class LocalCartService {
             const freshStockLevel = parseInt(variant.stockLevel || '0');
             item.productVariant.stockLevel = freshStockLevel.toString();
             item.lastStockCheck = Date.now();
-
-            // Adjust quantity if stock is insufficient
-            if (item.quantity > freshStockLevel) {
-              item.quantity = Math.max(0, freshStockLevel);
-            }
           }
         }
       });
+      
+      // Note: Items with zero stock are kept in cart for user visibility
+      // The UI should display warnings for out-of-stock items
 
       this.recalculateTotals(cart);
       this.saveCart(cart);
       return cart;
 
-    } catch (error) {
-      console.error('Failed to refresh stock levels via GraphQL:', error);
+    } catch (_error) {
       // Fallback to old method if GraphQL fails
       return this.refreshAllStockLevelsLocal();
     }
@@ -363,13 +420,11 @@ export class LocalCartService {
       if (this.isStockCheckNeeded(item)) {
         const stockResult = this.validateStockLevel(item, item.quantity);
 
-        // Update stock info and adjust quantity if needed
+        // Update stock info only (no silent quantity adjustments)
         item.productVariant.stockLevel = stockResult.availableStock.toString();
         item.lastStockCheck = Date.now();
 
-        if (!stockResult.success && stockResult.adjustedQuantity !== undefined) {
-          item.quantity = stockResult.adjustedQuantity;
-        }
+        // 🚫 NO SILENT ADJUSTMENTS: Let UI handle stock validation errors
       }
     });
 

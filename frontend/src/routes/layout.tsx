@@ -24,7 +24,7 @@ import { getCollections } from '~/providers/shop/collections/collections';
 import { getActiveOrderQuery } from '~/providers/shop/orders/order';
 import { ActiveCustomer, AppState } from '~/types';
 import { getActiveCustomerQuery } from '~/providers/shop/customer/customer';
-import Cart from '../components/cart/Cart';
+import ConditionalCart from '../components/cart/ConditionalCart';
 import Header from '../components/header/header';
 import Footer from '../components/footer/footer';
 import { CartProvider } from '~/contexts/CartContext';
@@ -260,14 +260,8 @@ export default component$(() => {
 			<CartProvider>
 				<div>
 					<Header />
-					{/* 🚀 DEMAND-BASED: Conditional Cart Loading following Damned Designs pattern */}
-					{!isHomePage ? (
-						// Non-homepage: Load cart immediately for better UX
-						<Cart />
-					) : (
-						// Homepage: Lazy load cart only when showCart is true (user clicks cart icon)
-						state.showCart && <Cart />
-					)}
+					{/* 🚀 DEMAND-BASED: Conditional Cart Loading with stock refresh */}
+					<ConditionalCart isHomePage={isHomePage} showCart={state.showCart} />
 					<Menu />
 					<div class="min-h-screen flex flex-col">
 						<main class={`flex-1 ${isHomePage ? '' : 'pt-16'}`}>

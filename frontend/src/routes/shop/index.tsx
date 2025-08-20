@@ -2,7 +2,7 @@ import { component$, useSignal, $, useContext, useVisibleTask$, useComputed$ } f
 import { routeLoader$, Link } from '@qwik.dev/router';
 import { OptimizedImage } from '~/components/ui';
 import Price from '~/components/products/Price';
-import { getBatchedProductsForShop, getProductAssets, getShirtStylesForSelection } from '~/providers/shop/products/products';
+import { getBatchedProductsForShop, getProductAssets, getShirtStylesForSelection, getStockLevelsOnly } from '~/providers/shop/products/products';
 import { Product, ProductOption } from '~/types';
 import { createSEOHead } from '~/utils/seo';
 import { useLocalCart, addToLocalCart } from '~/contexts/CartContext';
@@ -77,6 +77,17 @@ const createVariantAvailabilityMap = (product: Product | null) => {
   });
 
   return availabilityMap;
+};
+
+// 🚀 NEW: Check if a product has any available variants (not all out of stock)
+const hasAnyAvailableVariants = (product: Product | null): boolean => {
+  if (!product?.variants) return false;
+  
+  return product.variants.some(variant => {
+    const stockLevel = parseInt(String(variant.stockLevel || '0'));
+    const trackInventory = variant.trackInventory;
+    return stockLevel > 0 || trackInventory === 'FALSE';
+  });
 };
 
 // 🚀 PERFORMANCE OPTIMIZED: Fast availability checks using pre-computed map
@@ -245,41 +256,42 @@ export default component$(() => {
     selectedColor.value = null;
     selectedVariantId.value = '';
     
-    // 🚀 PROGRESSIVE LOADING: Load full product data when user selects style
-    const loadProductData = async () => {
+    // 🚀 PROGRESSIVE LOADING: Load full product data only when user selects style
+    const loadFullProductData = async () => {
       isLoadingStep.value = true;
       try {
-        // Use the existing cached data or fallback to old approach
-        const cachedProduct = style === 'short' ? fullProductData.value.shortSleeve : fullProductData.value.longSleeve;
+        console.log(`🔄 Loading full product data for ${style} sleeve...`);
         
-        if (cachedProduct) {
-          console.log(`✅ Using cached product data for ${style} sleeve`);
-          selectedProduct.value = cachedProduct;
-        } else {
-          // Fallback to original getBatchedProductsForShop for now
-          console.log(`🔄 Loading product data for ${style} sleeve using fallback...`);
-          const [shortSleeveProduct, longSleeveProduct] = await getBatchedProductsForShop(['shortsleeveshirt', 'longsleeveshirt']);
-          
-          // Store both products
+        // Load only the selected product's full data
+        const slug = style === 'short' ? 'shortsleeveshirt' : 'longsleeveshirt';
+        const [productData] = await getBatchedProductsForShop([slug]);
+        
+        // Update the full product data with the loaded product
+        if (style === 'short') {
           fullProductData.value = {
-            shortSleeve: shortSleeveProduct,
-            longSleeve: longSleeveProduct
+            ...fullProductData.value,
+            shortSleeve: productData
           };
-          
-          // Set the selected product
-          selectedProduct.value = style === 'short' ? shortSleeveProduct : longSleeveProduct;
-          
-          console.log(`✅ Product data loaded for ${style} sleeve`);
+        } else {
+          fullProductData.value = {
+            ...fullProductData.value,
+            longSleeve: productData
+          };
         }
+        
+        // Set the selected product for size/color selection
+        selectedProduct.value = productData;
+        
+        console.log(`✅ Full product data loaded for ${style} sleeve`);
       } catch (error) {
-        console.error(`❌ Failed to load product data for ${style}:`, error);
+        console.error(`❌ Failed to load full product data for ${style}:`, error);
       } finally {
         isLoadingStep.value = false;
       }
     };
     
-    // Load product data in background
-    loadProductData();
+    // Load full product data in background
+    loadFullProductData();
     
     // Auto-advance to next step after short delay
     setTimeout(() => {
@@ -436,6 +448,28 @@ export default component$(() => {
   useVisibleTask$(() => {
     // Clean up old cache entries
     cleanupCache();
+  });
+
+  // 🚀 OPTIMIZED INITIAL LOAD: Load only stock levels for immediate button state
+  useVisibleTask$(() => {
+    const loadStockLevelsOnly = async () => {
+      try {
+        console.log('🔄 Loading stock levels only on page load...');
+        const stockData = await getStockLevelsOnly();
+        
+        // Store minimal stock data for button state calculation
+        fullProductData.value = {
+          shortSleeve: stockData.shortSleeve,
+          longSleeve: stockData.longSleeve
+        };
+        
+        console.log('✅ Stock levels loaded on page load - buttons ready');
+      } catch (error) {
+        console.error('❌ Failed to load stock levels on page load:', error);
+      }
+    };
+    
+    loadStockLevelsOnly();
   });
 
   // Load cart quantities for all variants when products are available
@@ -804,11 +838,17 @@ export default component$(() => {
                     {stylesData.value.shortSleeve && (
                       <div
                         class={{
-                          'bg-white border-2 rounded-xl p-6 text-center cursor-pointer transition-all duration-300 transform relative overflow-hidden hover:shadow-lg hover:-translate-y-1': true,
+                          'bg-white border-2 rounded-xl p-6 text-center transition-all duration-300 transform relative overflow-hidden': true,
+                          'cursor-pointer hover:shadow-lg hover:-translate-y-1': fullProductData.value.shortSleeve ? hasAnyAvailableVariants(fullProductData.value.shortSleeve) : false,
+                          'cursor-not-allowed opacity-50': fullProductData.value.shortSleeve ? !hasAnyAvailableVariants(fullProductData.value.shortSleeve) : true,
                           'border-[#8a6d4a] bg-[#8a6d4a]/5 shadow-lg transform -translate-y-0.5': selectedStyle.value === 'short',
-                          'border-gray-200 hover:border-[#8a6d4a]': selectedStyle.value !== 'short'
+                          'border-gray-200 hover:border-[#8a6d4a]': selectedStyle.value !== 'short' && (fullProductData.value.shortSleeve ? hasAnyAvailableVariants(fullProductData.value.shortSleeve) : false)
                         }}
-                        onClick$={() => handleStyleSelect('short')}
+                        onClick$={() => {
+                          if (fullProductData.value.shortSleeve && hasAnyAvailableVariants(fullProductData.value.shortSleeve)) {
+                            handleStyleSelect('short');
+                          }
+                        }}
                       >
                         {selectedStyle.value === 'short' && (
                           <div class="absolute top-3 right-4 text-[#8a6d4a] font-bold text-lg">✓</div>
@@ -830,11 +870,17 @@ export default component$(() => {
                     {stylesData.value.longSleeve && (
                       <div
                         class={{
-                          'bg-white border-2 rounded-xl p-6 text-center cursor-pointer transition-all duration-300 transform relative overflow-hidden hover:shadow-lg hover:-translate-y-1': true,
+                          'bg-white border-2 rounded-xl p-6 text-center transition-all duration-300 transform relative overflow-hidden': true,
+                          'cursor-pointer hover:shadow-lg hover:-translate-y-1': fullProductData.value.longSleeve ? hasAnyAvailableVariants(fullProductData.value.longSleeve) : false,
+                          'cursor-not-allowed opacity-50': fullProductData.value.longSleeve ? !hasAnyAvailableVariants(fullProductData.value.longSleeve) : true,
                           'border-[#8a6d4a] bg-[#8a6d4a]/5 shadow-lg transform -translate-y-0.5': selectedStyle.value === 'long',
-                          'border-gray-200 hover:border-[#8a6d4a]': selectedStyle.value !== 'long'
+                          'border-gray-200 hover:border-[#8a6d4a]': selectedStyle.value !== 'long' && (fullProductData.value.longSleeve ? hasAnyAvailableVariants(fullProductData.value.longSleeve) : false)
                         }}
-                        onClick$={() => handleStyleSelect('long')}
+                        onClick$={() => {
+                          if (fullProductData.value.longSleeve && hasAnyAvailableVariants(fullProductData.value.longSleeve)) {
+                            handleStyleSelect('long');
+                          }
+                        }}
                       >
                         {selectedStyle.value === 'long' && (
                           <div class="absolute top-3 right-4 text-[#8a6d4a] font-bold text-lg">✓</div>
@@ -987,30 +1033,96 @@ export default component$(() => {
                     )}
                   </div>
 
-                  {/* Split Layout: Selection Summary & Add to Cart */}
-                  {selectedStyle.value && selectedSize.value && selectedColor.value ? (
-                    <div class="mb-6">
-                      {/* Mobile: Stacked Layout */}
-                      <div class="md:hidden space-y-4">
-                        {/* Selection Summary */}
-                        <div class="bg-[#8a6d4a]/5 border border-[#8a6d4a]/20 rounded-xl p-4 shadow-sm">
-                          <div class="grid grid-cols-3 gap-3 text-center">
-                            <div>
-                              <div class="text-xs text-gray-600 mb-1">Style</div>
-                              <div class="font-bold text-[#8a6d4a] text-sm">{selectedProduct.value?.name?.replace(' Shirt', '') || '—'}</div>
-                            </div>
-                            <div>
-                              <div class="text-xs text-gray-600 mb-1">Size</div>
-                              <div class="font-bold text-[#8a6d4a] text-sm">{selectedSize.value?.name || '—'}</div>
-                            </div>
-                            <div>
-                              <div class="text-xs text-gray-600 mb-1">Color</div>
-                              <div class="font-bold text-[#8a6d4a] text-sm">{selectedColor.value?.name || '—'}</div>
-                            </div>
+                  {/* Split Layout: Selection Summary & Add to Cart - Always Visible */}
+                  <div class="mb-6">
+                    {/* Mobile: Stacked Layout */}
+                    <div class="md:hidden space-y-4">
+                      {/* Selection Summary */}
+                      <div class="bg-[#8a6d4a]/5 border border-[#8a6d4a]/20 rounded-xl p-4 shadow-sm">
+                        <div class="grid grid-cols-3 gap-3 text-center">
+                          <div>
+                            <div class="text-xs text-gray-600 mb-1">Style</div>
+                            <div class="font-bold text-[#8a6d4a] text-sm">{selectedProduct.value?.name?.replace(' Shirt', '') || '—'}</div>
+                          </div>
+                          <div>
+                            <div class="text-xs text-gray-600 mb-1">Size</div>
+                            <div class="font-bold text-[#8a6d4a] text-sm">{selectedSize.value?.name || '—'}</div>
+                          </div>
+                          <div>
+                            <div class="text-xs text-gray-600 mb-1">Color</div>
+                            <div class="font-bold text-[#8a6d4a] text-sm">{selectedColor.value?.name || '—'}</div>
                           </div>
                         </div>
+                      </div>
+                      
+                      {/* Add to Cart Button with Price for Mobile */}
+                      <button
+                        onClick$={handleAddToCart}
+                        disabled={isAddingToCart.value || !selectedVariantId.value}
+                        class={{
+                          'w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl': true,
+                          'bg-[#8a6d4a] text-white cursor-pointer hover:bg-[#4F3B26]': !isAddingToCart.value && selectedVariantId.value,
+                          'bg-gray-400 text-white cursor-not-allowed': !selectedVariantId.value,
+                          'bg-[#8a6d4a] text-white cursor-not-allowed': isAddingToCart.value
+                        }}
+                      >
+                        {isAddingToCart.value ? (
+                          <span class="flex items-center justify-center">
+                            <div class="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
+                            Adding to Cart...
+                          </span>
+                        ) : selectedVariantId.value ? (
+                          <span class="flex items-center justify-center">
+                            <span>Add to Cart - </span>
+                            <Price
+                              priceWithTax={selectedProduct.value?.variants[0]?.priceWithTax || 0}
+                              currencyCode={selectedProduct.value?.variants[0]?.currencyCode || 'USD'}
+                              forcedClass="font-bold"
+                            />
+                          </span>
+                        ) : (
+                          'Complete Selection'
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Desktop: Single Line Layout */}
+                    <div class="hidden md:block">
+                      {/* Selection Summary - Single Line */}
+                      <div class="bg-[#8a6d4a]/5 border border-[#8a6d4a]/20 rounded-xl p-4 shadow-sm mb-4">
+                        <div class="flex justify-center items-center gap-8 text-center">
+                          <div class="flex items-center gap-2">
+                            <span class="text-sm text-gray-600">Style:</span>
+                            <span class="font-bold text-[#8a6d4a]">{selectedProduct.value?.name?.replace(' Shirt', '') || '—'}</span>
+                          </div>
+                          <div class="flex items-center gap-2">
+                            <span class="text-sm text-gray-600">Size:</span>
+                            <span class="font-bold text-[#8a6d4a]">{selectedSize.value?.name || '—'}</span>
+                          </div>
+                          <div class="flex items-center gap-2">
+                            <span class="text-sm text-gray-600">Color:</span>
+                            <span class="font-bold text-[#8a6d4a]">{selectedColor.value?.name || '—'}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Half and Half: Total Price + Add to Cart Button */}
+                      <div class="grid grid-cols-2 gap-4">
+                        {/* Left Half: Total Price */}
+                        <div class="bg-[#8a6d4a]/5 border border-[#8a6d4a]/20 rounded-xl p-4 shadow-sm flex flex-row justify-center items-center gap-2">
+                          <div class="text-lg font-bold text-gray-700">Total:</div>
+                          {selectedProduct.value ? (
+                            <Price
+                              priceWithTax={selectedProduct.value?.variants[0]?.priceWithTax || 0}
+                              currencyCode={selectedProduct.value?.variants[0]?.currencyCode || 'USD'}
+                              forcedClass="text-2xl font-bold text-[#8a6d4a]"
+                            />
+                          ) : (
+                            <span class="text-2xl font-bold text-gray-400">—</span>
+                          )}
+                        </div>
                         
-                        {/* Add to Cart Button with Price for Mobile */}
+                        {/* Right Half: Add to Cart Button */}
                         <button
                           onClick$={handleAddToCart}
                           disabled={isAddingToCart.value || !selectedVariantId.value}
@@ -1027,85 +1139,14 @@ export default component$(() => {
                               Adding to Cart...
                             </span>
                           ) : selectedVariantId.value ? (
-                            <span class="flex items-center justify-center">
-                              <span>Add to Cart - </span>
-                              <Price
-                                priceWithTax={selectedProduct.value?.variants[0]?.priceWithTax || 0}
-                                currencyCode={selectedProduct.value?.variants[0]?.currencyCode || 'USD'}
-                                forcedClass="font-bold"
-                              />
-                            </span>
+                            'Add to Cart'
                           ) : (
                             'Complete Selection'
                           )}
                         </button>
                       </div>
-
-                      {/* Desktop: Single Line Layout */}
-                      <div class="hidden md:block">
-                        {/* Selection Summary - Single Line */}
-                        <div class="bg-[#8a6d4a]/5 border border-[#8a6d4a]/20 rounded-xl p-4 shadow-sm mb-4">
-                          <div class="flex justify-center items-center gap-8 text-center">
-                            <div class="flex items-center gap-2">
-                              <span class="text-sm text-gray-600">Style:</span>
-                              <span class="font-bold text-[#8a6d4a]">{selectedProduct.value?.name?.replace(' Shirt', '') || '—'}</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                              <span class="text-sm text-gray-600">Size:</span>
-                              <span class="font-bold text-[#8a6d4a]">{selectedSize.value?.name || '—'}</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                              <span class="text-sm text-gray-600">Color:</span>
-                              <span class="font-bold text-[#8a6d4a]">{selectedColor.value?.name || '—'}</span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Half and Half: Total Price + Add to Cart Button */}
-                        <div class="grid grid-cols-2 gap-4">
-                          {/* Left Half: Total Price */}
-                          <div class="bg-[#8a6d4a]/5 border border-[#8a6d4a]/20 rounded-xl p-4 shadow-sm flex flex-row justify-center items-center gap-2">
-                            <div class="text-lg font-bold text-gray-700">Total:</div>
-                            <Price
-                              priceWithTax={selectedProduct.value?.variants[0]?.priceWithTax || 0}
-                              currencyCode={selectedProduct.value?.variants[0]?.currencyCode || 'USD'}
-                              forcedClass="text-2xl font-bold text-[#8a6d4a]"
-                            />
-                          </div>
-                          
-                          {/* Right Half: Add to Cart Button */}
-                          <button
-                            onClick$={handleAddToCart}
-                            disabled={isAddingToCart.value || !selectedVariantId.value}
-                            class={{
-                              'w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl': true,
-                              'bg-[#8a6d4a] text-white cursor-pointer hover:bg-[#4F3B26]': !isAddingToCart.value && selectedVariantId.value,
-                              'bg-gray-400 text-white cursor-not-allowed': !selectedVariantId.value,
-                              'bg-[#8a6d4a] text-white cursor-not-allowed': isAddingToCart.value
-                            }}
-                          >
-                            {isAddingToCart.value ? (
-                              <span class="flex items-center justify-center">
-                                <div class="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin mr-3"></div>
-                                Adding to Cart...
-                              </span>
-                            ) : selectedVariantId.value ? (
-                              'Add to Cart'
-                            ) : (
-                              'Complete Selection'
-                            )}
-                          </button>
-                        </div>
-                      </div>
                     </div>
-                  ) : (
-                    <button
-                      disabled={true}
-                      class="w-full py-4 px-6 rounded-xl font-bold text-lg bg-gray-400 text-white cursor-not-allowed mb-6"
-                    >
-                      Complete your selection above
-                    </button>
-                  )}
+                  </div>
                 </div>
 
               </div>

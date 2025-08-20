@@ -299,14 +299,27 @@ export default component$(() => {
 								<div class="h-full flex flex-col bg-white shadow-2xl overflow-y-scroll">
 									<div class="flex-1 py-3 overflow-y-auto px-6 w-full">
 										<div class="mt-4">
-											{/* Check total quantity based on current mode and if cart is loaded */}
-											{(localCart.isLocalMode
-												? (localCart.hasLoadedOnce && localCart.localCart.totalQuantity > 0)
-												: (appState.activeOrder?.totalQuantity || 0) > 0) ? (
-												<>
-													<CartContents />
-												</>
-											) : (
+											{/* Show loading state when refreshing stock */}
+									{localCart.isRefreshingStock ? (
+										<div class="flex flex-col items-center justify-center h-64 text-center">
+											<div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+												<svg class="animate-spin h-8 w-8 text-[#8a6d4a]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+													<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+													<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+												</svg>
+											</div>
+											<h3 class="text-lg font-medium text-slate-900 mb-2">Updating stock levels...</h3>
+											<p class="text-slate-500">Please wait while we verify product availability</p>
+										</div>
+									) : (
+										/* Check total quantity based on current mode and if cart is loaded */
+										(localCart.isLocalMode
+											? (localCart.hasLoadedOnce && localCart.localCart.totalQuantity > 0)
+											: (appState.activeOrder?.totalQuantity || 0) > 0) ? (
+											<>
+												<CartContents />
+											</>
+										) : (
 												<div class="flex flex-col items-center justify-center h-64 text-center">
 													<div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
 														<svg
@@ -333,8 +346,9 @@ export default component$(() => {
 														}}
 													>
 														Continue Shopping
-													</button>
-												</div>
+														</button>
+													</div>
+												)
 											)}
 										</div>
 									</div>
