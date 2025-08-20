@@ -41,6 +41,20 @@ export default component$<{
 		// console.log('CartTotals: Subtotal calculated as', sub, 'Using local cart:', shouldUseLocalCartData.value, 'Local Cart Data:', localCart?.localCart || localCart);
 		return sub;
 	});
+	// Calculate order total after discount (but before shipping) for free shipping eligibility
+	const orderTotalAfterDiscount = useComputed$(() => {
+		if (shouldUseLocalCartData.value) {
+			let total = subtotal.value;
+			// Apply discount if a coupon is active
+			if (localCartContext.appliedCoupon) {
+				total -= localCartContext.appliedCoupon.discountAmount;
+			}
+			return total;
+		}
+		// For server mode, use the order total minus shipping
+		return (activeOrder.value?.totalWithTax || 0) - (activeOrder.value?.shippingWithTax || 0);
+	});
+
 	const shipping = useComputed$(() => {
 		if (shouldUseLocalCartData.value && appState.shippingAddress && appState.shippingAddress.countryCode) {
 			// Check if coupon provides free shipping
@@ -49,10 +63,11 @@ export default component$<{
 			}
 
 			const countryCode = appState.shippingAddress.countryCode;
-			const subTotal = localCart.localCart?.subTotal || localCart.subTotal || 0;
+			// Use order total after discount for free shipping eligibility
+			const orderTotal = orderTotalAfterDiscount.value;
 			if (countryCode === 'US' || countryCode === 'PR') {
-				const ship = subTotal >= 10000 ? 0 : 800; // Free shipping over $100, otherwise $8
-				// console.log('CartTotals: Shipping calculated for US/PR as', ship, 'Subtotal:', subTotal, 'Country:', countryCode);
+				const ship = orderTotal >= 10000 ? 0 : 800; // Free shipping over $100 after discount, otherwise $8
+				// console.log('CartTotals: Shipping calculated for US/PR as', ship, 'Order Total After Discount:', orderTotal, 'Country:', countryCode);
 				return ship;
 			}
 			// console.log('CartTotals: Shipping calculated for International as 2000, Country:', countryCode);
@@ -63,26 +78,17 @@ export default component$<{
 		return ship;
 	});
 	const total = useComputed$(() => {
-		let tot = shouldUseLocalCartData.value ? subtotal.value + shipping.value : activeOrder.value?.totalWithTax || 0;
-
-		// Apply discount if a coupon is active
 		if (shouldUseLocalCartData.value) {
-			// In local cart mode, use the applied coupon discount
-			if (localCartContext.appliedCoupon) {
-				tot -= localCartContext.appliedCoupon.discountAmount;
-				// console.log('CartTotals: Local coupon discount applied:', localCartContext.appliedCoupon.discountAmount);
-			}
+			// In local cart mode, use the order total after discount plus shipping
+			const tot = orderTotalAfterDiscount.value + shipping.value;
+			// console.log('CartTotals: Total calculated as', tot, 'Order Total After Discount:', orderTotalAfterDiscount.value, 'Shipping:', shipping.value);
+			return tot;
 		} else {
-			// In server mode, use the active order discount
-			if (activeOrder.value?.discounts && activeOrder.value.discounts.length > 0) {
-				const discount = activeOrder.value.discounts[0].amountWithTax || 0;
-				tot -= discount;
-				// console.log('CartTotals: Server discount applied:', discount);
-			}
+			// In server mode, use the active order total (already includes discounts)
+			const tot = activeOrder.value?.totalWithTax || 0;
+			// console.log('CartTotals: Server total:', tot);
+			return tot;
 		}
-
-		// console.log('CartTotals: Total calculated as', tot, 'Using local cart:', shouldUseLocalCartData.value, 'Subtotal:', subtotal.value, 'Shipping:', shipping.value);
-		return tot;
 	});
 
 	// Ensure coupon display updates even in Local Cart Mode

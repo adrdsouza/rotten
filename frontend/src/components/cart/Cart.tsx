@@ -92,21 +92,31 @@ export default component$(() => {
 			? track(() => localCart.localCart.subTotal)
 			: track(() => appState.activeOrder?.subTotalWithTax || 0);
 		
+		// Get applied coupon discount for local cart mode
+		const appliedCoupon = localCart.isLocalMode 
+			? track(() => localCart.appliedCoupon)
+			: null;
+		
+		// Calculate order total after discount for shipping eligibility
+		const orderTotalAfterDiscount = localCart.isLocalMode
+			? subTotal - (appliedCoupon?.discountAmount || 0)
+			: subTotal; // For server mode, use subtotal as-is (discount already considered in backend)
+		
 		// Only calculate when cart is visible and we have valid data
 		if (!cartVisible || !countryCode || subTotal === 0) {
 			// console.log('🚀 Resource: Skipping calculation - cartVisible:', cartVisible, 'countryCode:', countryCode, 'subTotal:', subTotal);
 			return null;
 		}
 
-		// console.log('🚀 Resource: Calculating shipping for', countryCode, 'with subtotal', subTotal);
+		// console.log('🚀 Resource: Calculating shipping for', countryCode, 'with order total after discount', orderTotalAfterDiscount);
 		
 		try {
-			// Determine shipping method based on country and total
+			// Determine shipping method based on country and order total after discount
 			let selectedShippingMethod;
 			
 			if (countryCode === 'US' || countryCode === 'PR') {
-				// US and Puerto Rico shipping logic
-				if (subTotal >= 10000) { // $100.00 or more in cents
+				// US and Puerto Rico shipping logic - use order total after discount
+				if (orderTotalAfterDiscount >= 10000) { // $100.00 or more in cents
 					selectedShippingMethod = SHIPPING_METHODS.US_PR_OVER_100;
 				} else {
 					selectedShippingMethod = SHIPPING_METHODS.US_PR_UNDER_100;
@@ -145,10 +155,10 @@ export default component$(() => {
 	});
 	
 	// Simplified shipping calculation function - MUST be defined before any code that uses it
-	const calculateShipping = $(async (countryCode: string, subTotal: number) => {
+	const calculateShipping = $(async (countryCode: string, orderTotalAfterDiscount: number) => {
 		// Protection against invalid inputs and rate limiting
-		if (!countryCode || !subTotal) {
-			// console.log('Skipping calculation - invalid inputs:', { countryCode, subTotal });
+		if (!countryCode || !orderTotalAfterDiscount) {
+			// console.log('Skipping calculation - invalid inputs:', { countryCode, orderTotalAfterDiscount });
 			return;
 		}
 
@@ -165,18 +175,18 @@ export default component$(() => {
 		shippingState.error = null;
 		
 		try {
-			// console.log(`Calculating shipping for country ${countryCode} with subtotal ${subTotal}`);
+			// console.log(`Calculating shipping for country ${countryCode} with order total after discount ${orderTotalAfterDiscount}`);
 			// console.log('Using local shipping rules, no backend query involved');
 			
-			// Apply the local shipping rules based on country code and subtotal
+			// Apply the local shipping rules based on country code and order total after discount
 			let selectedShippingMethod;
 			
 			// Check if US or PR
 			const isUSorPR = countryCode === 'US' || countryCode === 'PR';
 			
 			if (isUSorPR) {
-				// For US/PR: $8 if under $100, free if $100+
-				if (subTotal >= 10000) { // $100 in cents
+				// For US/PR: $8 if under $100, free if $100+ (based on order total after discount)
+				if (orderTotalAfterDiscount >= 10000) { // $100 in cents
 					selectedShippingMethod = SHIPPING_METHODS.US_PR_OVER_100;
 				} else {
 					selectedShippingMethod = SHIPPING_METHODS.US_PR_UNDER_100;
@@ -261,8 +271,14 @@ export default component$(() => {
 				const subtotal = localCart.isLocalMode 
 					? localCart.localCart.subTotal 
 					: appState.activeOrder?.subTotalWithTax || 0;
+				
+				// Calculate order total after discount for shipping eligibility
+				const orderTotalAfterDiscount = localCart.isLocalMode
+					? subtotal - (localCart.appliedCoupon?.discountAmount || 0)
+					: subtotal; // For server mode, use subtotal as-is (discount already considered in backend)
+				
 				if (subtotal > 0) {
-					calculateShipping(finalCountryCode, subtotal);
+					calculateShipping(finalCountryCode, orderTotalAfterDiscount);
 				}
 			}
 			
@@ -330,8 +346,8 @@ export default component$(() => {
 											{/* Free Shipping Progress Bar */}
 											<FreeShippingProgress 
 												countryCode={appState.shippingAddress.countryCode}
-												subTotal={localCart.isLocalMode 
-													? localCart.localCart.subTotal 
+												orderTotalAfterDiscount={localCart.isLocalMode 
+													? localCart.localCart.subTotal - (localCart.appliedCoupon?.discountAmount || 0)
 													: appState.activeOrder?.subTotalWithTax || 0}
 												currencyCode={localCart.isLocalMode 
 													? localCart.localCart.currencyCode 

@@ -30,6 +30,7 @@ import Footer from '../components/footer/footer';
 import { CartProvider } from '~/contexts/CartContext';
 import { LoginModalProvider, useLoginModalState, useLoginModalActions } from '~/contexts/LoginModalContext';
 import LoginModal from '~/components/auth/LoginModal';
+import { sanitizePhoneNumber } from '~/utils/validation';
 
 export const onGet: RequestHandler = async ({ cacheControl, url, headers }) => {
 	// 🚀 ADVANCED CACHING: Intelligent cache strategies based on page type and user agent
@@ -212,7 +213,7 @@ export default component$(() => {
 						id: customerData.id,
 						lastName: customerData.lastName,
 						emailAddress: customerData.emailAddress,
-						phoneNumber: customerData.phoneNumber ?? '',
+						phoneNumber: sanitizePhoneNumber(customerData.phoneNumber),
 					};
 				}
 			} catch (_error) {

@@ -3,28 +3,28 @@ import { formatPrice } from '~/utils';
 
 type Props = {
 	countryCode?: string;
-	subTotal: number;
+	orderTotalAfterDiscount: number;
 	currencyCode: string;
 };
 
 const FREE_SHIPPING_THRESHOLD = 10000; // $100.00 in cents
 const ELIGIBLE_COUNTRIES = ['US', 'PR']; // US and Puerto Rico
 
-export default component$<Props>(({ countryCode, subTotal, currencyCode }) => {
+export default component$<Props>(({ countryCode, orderTotalAfterDiscount, currencyCode }) => {
 	const isEligibleCountry = useComputed$(() => {
 		return countryCode ? ELIGIBLE_COUNTRIES.includes(countryCode) : false;
 	});
 
 	const remainingAmount = useComputed$(() => {
-		return Math.max(0, FREE_SHIPPING_THRESHOLD - subTotal);
+		return Math.max(0, FREE_SHIPPING_THRESHOLD - orderTotalAfterDiscount);
 	});
 
 	const progressPercentage = useComputed$(() => {
-		return Math.min(100, (subTotal / FREE_SHIPPING_THRESHOLD) * 100);
+		return Math.min(100, (orderTotalAfterDiscount / FREE_SHIPPING_THRESHOLD) * 100);
 	});
 
 	const hasQualified = useComputed$(() => {
-		return subTotal >= FREE_SHIPPING_THRESHOLD;
+		return orderTotalAfterDiscount >= FREE_SHIPPING_THRESHOLD;
 	});
 
 	// Only show for eligible countries and when free shipping hasn't been achieved

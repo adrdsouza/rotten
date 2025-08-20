@@ -12,7 +12,7 @@ import {
 import { getActiveCustomerQuery } from '~/providers/shop/customer/customer';
 import { Order } from '~/generated/graphql';
 import { isActiveCustomerValid, isShippingAddressValid, isBillingAddressValid } from '~/utils';
-import { validateEmail, validateName, validatePhone, filterPhoneInput } from '~/utils/validation';
+import { validateEmail, validateName, validatePhone, filterPhoneInput, sanitizePhoneNumber } from '~/utils/validation';
 import { useLocalCart } from '~/contexts/CartContext';
 import { useCheckoutValidationActions } from '~/contexts/CheckoutValidationContext';
 import { useLoginModalActions } from '~/contexts/LoginModalContext';
@@ -706,7 +706,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     }
     
     // Filter input to only allow valid phone characters
-    const filteredValue = filterPhoneInput(value);
+    const filteredValue = filterPhoneInput(sanitizePhoneNumber(value));
     appState.customer = { ...appState.customer, phoneNumber: filteredValue };
     
     if (phoneTouched.value) {
@@ -798,7 +798,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
             <div>
               <input
                 type="tel"
-                value={appState.customer?.phoneNumber}
+                value={sanitizePhoneNumber(appState.customer?.phoneNumber)}
                 placeholder={phonePlaceholder.value}
                 onChange$={(_, el) => handlePhoneChange$(el.value)}
                 onBlur$={handlePhoneBlur$}

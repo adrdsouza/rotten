@@ -53,11 +53,22 @@ export const validateEmail = (email: string): ValidationResult => {
 };
 
 /**
+ * Sanitizes phone number value to prevent "null" strings from appearing
+ * Converts null, "null", undefined, and empty strings to empty string
+ */
+export const sanitizePhoneNumber = (phone: any): string => {
+  if (phone === null || phone === undefined || phone === 'null' || phone === '') {
+    return '';
+  }
+  return String(phone);
+};
+
+/**
  * Filters phone input in real-time to only allow valid characters
  * Allows: digits (0-9), +, -, (, ), spaces
  */
 export const filterPhoneInput = (input: string): string => {
-  return input.replace(/[^0-9+\-()\s]/g, '');
+  return input.replace(/[^0-9+\-() ]/g, '');
 };
 
 /**

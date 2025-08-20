@@ -18,6 +18,7 @@ import {
 import { getActiveCustomerQuery, logoutMutation } from '~/providers/shop/customer/customer';
 import { ActiveCustomer } from '~/types';
 import { createSEOHead } from '~/utils/seo';
+import { sanitizePhoneNumber } from '~/utils/validation';
 
 export default component$(() => {
 	const appState = useContext(APP_STATE);
@@ -38,7 +39,7 @@ export default component$(() => {
 			id: activeCustomer.id,
 			lastName: activeCustomer.lastName,
 			emailAddress: activeCustomer.emailAddress,
-			phoneNumber: activeCustomer.phoneNumber ?? '',
+			phoneNumber: sanitizePhoneNumber(activeCustomer.phoneNumber),
 		};
 		newEmail.value = activeCustomer?.emailAddress as string;
 	});

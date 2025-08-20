@@ -1,6 +1,6 @@
 import { $, QRL, component$, useContext, useSignal, useTask$ } from '@builder.io/qwik';
 import { APP_STATE, CUSTOMER_NOT_DEFINED_ID } from '~/constants';
-import { validateEmail, validateName, validatePhone, filterPhoneInput } from '~/utils/validation';
+import { validateEmail, validateName, validatePhone, filterPhoneInput, sanitizePhoneNumber } from '~/utils/validation';
 
 export interface CustomerInfoErrors {
   firstName: string;
@@ -133,7 +133,7 @@ export const CustomerInfoForm = component$<CustomerInfoFormProps>(({ updateValid
       appState.customer = { id: CUSTOMER_NOT_DEFINED_ID, phoneNumber: '', firstName: '', lastName: '', emailAddress: '' };
     }
     // Filter input to only allow valid phone characters
-    const filteredValue = filterPhoneInput(value);
+    const filteredValue = filterPhoneInput(sanitizePhoneNumber(value));
     appState.customer.phoneNumber = filteredValue;
   });
 
@@ -184,7 +184,7 @@ export const CustomerInfoForm = component$<CustomerInfoFormProps>(({ updateValid
           <div>
             <input
               type="tel"
-              value={appState.customer?.phoneNumber}
+              value={sanitizePhoneNumber(appState.customer?.phoneNumber)}
               placeholder={`Phone number${(appState.shippingAddress.countryCode === 'US' || appState.shippingAddress.countryCode === 'PR') ? ' (optional)' : ' *'}`}
               onChange$={(_, el) => handlePhoneChange$(el.value)}
               onBlur$={handlePhoneBlur$}
