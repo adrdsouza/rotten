@@ -201,13 +201,19 @@ export const convertLocalCartToVendureOrder = $(async (cartState: CartContextSta
       return null;
     }
     
-    const order = await LocalCartService.convertToVendureOrder();
+    // Extract coupon from cart state
+    const appliedCoupon = cartState.appliedCoupon ? { code: cartState.appliedCoupon.code } : null;
+    
+    // Pass coupon to conversion method
+    const order = await LocalCartService.convertToVendureOrder(appliedCoupon);
     
     if (order) {
       // Switch to Vendure mode after successful conversion
       cartState.isLocalMode = false;
       cartState.localCart = LocalCartService.clearCart();
       cartState.lastStockValidation = {};
+      // Clear applied coupon after successful conversion
+      cartState.appliedCoupon = null;
     } else {
       cartState.lastError = 'Failed to create Vendure order';
     }

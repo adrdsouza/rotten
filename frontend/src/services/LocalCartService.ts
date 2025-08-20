@@ -419,7 +419,7 @@ export class LocalCartService {
   }
 
   // Convert local cart to Vendure order
-  static async convertToVendureOrder(): Promise<Order | null> {
+  static async convertToVendureOrder(appliedCoupon?: { code: string } | null): Promise<Order | null> {
     // Generate unique conversion ID to prevent duplicate processing
     const conversionId = `conversion_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     // console.log(`Starting cart to order conversion process... [${conversionId}]`);
@@ -464,7 +464,7 @@ export class LocalCartService {
       }
 
       // Dynamically import to avoid circular dependencies
-      const { addItemToOrderMutation } = await import('~/providers/shop/orders/order');
+      const { addItemToOrderMutation, applyCouponCodeMutation } = await import('~/providers/shop/orders/order');
       let order: Order | null = null;
       let successfulItems = 0;
 
@@ -491,6 +491,20 @@ export class LocalCartService {
       // Verify all items were added successfully
       if (successfulItems !== cart.items.length) {
         throw new Error(`Only ${successfulItems} of ${cart.items.length} items were added to the order`);
+      }
+
+      // Apply coupon after all items are added
+      if (order && appliedCoupon?.code) {
+        try {
+          const couponResult = await applyCouponCodeMutation(appliedCoupon.code);
+          if (couponResult && '__typename' in couponResult && couponResult.__typename === 'Order') {
+            order = couponResult as Order;
+            // console.log(`Successfully applied coupon ${appliedCoupon.code} [${conversionId}]`);
+          }
+        } catch (couponError) {
+          console.error(`Error applying coupon ${appliedCoupon.code} [${conversionId}]:`, couponError);
+          // Don't fail the entire order for coupon errors
+        }
       }
 
       // Clear local cart after successful conversion
