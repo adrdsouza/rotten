@@ -187,47 +187,37 @@ export default component$<{
 		}
 	});
 
-	// Re-validate coupon when cart changes in local mode
+	// Re-validate coupon when cart subtotal changes
 	useTask$(async ({ track }) => {
-		// Track dependencies for re-validation
-		track(() => localCartContext.localCart.items);
-		track(() => localCartContext.localCart.subTotal);
+		track(() => subtotal.value);
+		track(() => localCartContext.isLocalMode);
 
-		// Only run if in local mode and a coupon is applied
 		if (localCartContext.isLocalMode && localCartContext.appliedCoupon) {
-			try {
-				const cartItems = localCartContext.localCart.items.map(item => ({
-					productVariantId: item.productVariantId,
-					quantity: item.quantity,
-					unitPrice: item.productVariant.price
-				}));
+			const cartItems = localCartContext.localCart.items.map((item: any) => ({
+				productVariantId: item.productVariantId,
+				quantity: item.quantity,
+				unitPrice: item.productVariant.price,
+			}));
 
-				const result = await validateLocalCartCouponQuery({
-					couponCode: localCartContext.appliedCoupon.code, // Use the applied coupon code
-					cartTotal: localCartContext.localCart.subTotal,
-					cartItems,
-					customerId: appState.customer?.id
-				});
+			const result = await validateLocalCartCouponQuery({
+				couponCode: localCartContext.appliedCoupon.code,
+				cartTotal: localCartContext.localCart.subTotal,
+				cartItems,
+				customerId: appState.customer?.id,
+			});
 
-				if (result.isValid) {
-					// Update the applied coupon details in case discount amount changed
-					localCartContext.appliedCoupon = {
-						code: result.appliedCouponCode || localCartContext.appliedCoupon.code,
-						discountAmount: result.discountAmount,
-						discountPercentage: result.discountPercentage,
-						freeShipping: result.freeShipping,
-						promotionName: result.promotionName,
-						promotionDescription: result.promotionDescription
-					};
-				} else {
-					// Coupon is no longer valid, remove it and show an error
-					errorSignal.value = result.validationErrors.join(', ');
-					localCartContext.appliedCoupon = null;
-				}
-			} catch (error) {
-				console.error('Error re-validating coupon:', error);
-				errorSignal.value = 'Failed to re-validate coupon.';
-				localCartContext.appliedCoupon = null; // Remove on error
+			if (result.isValid) {
+				localCartContext.appliedCoupon = {
+					code: result.appliedCouponCode || localCartContext.appliedCoupon.code,
+					discountAmount: result.discountAmount,
+					discountPercentage: result.discountPercentage,
+					freeShipping: result.freeShipping,
+					promotionName: result.promotionName,
+					promotionDescription: result.promotionDescription,
+				};
+			} else {
+				localCartContext.appliedCoupon = null;
+				errorSignal.value = result.validationErrors.join(', ') || 'Applied coupon is no longer valid.';
 			}
 		}
 	});
@@ -275,7 +265,7 @@ export default component$<{
                     title={`Remove coupon`}
                     class="p-1 ml-2"
                   >
-                    <TrashIcon forcedClass="h-4 w-4 text-red-500 hover:text-red-700" />
+                    <TrashIcon class="h-4 w-4 text-green-600 hover:text-green-800"/>
                   </button>
                 </div>
                 <dd class="font-medium text-green-600 whitespace-nowrap">

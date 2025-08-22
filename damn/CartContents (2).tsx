@@ -1,5 +1,5 @@
 import { component$, useContext, useSignal, useTask$, useVisibleTask$, $ } from '@builder.io/qwik';
-import { Link, useLocation, useNavigate } from '@qwik.dev/router';
+import { Link, useLocation } from '@qwik.dev/router';
 import { OptimizedImage } from '~/components/ui';
 import { APP_STATE } from '~/constants';
 import { Order } from '~/generated/graphql';
@@ -29,7 +29,6 @@ const handleProductLinkClick = $((productSlug: string, featuredAssetPreview?: st
 export default component$<{
 	order?: Order;
 }>(({ order }) => {
-	const navigate = useNavigate();
 	const location = useLocation();
 	const appState = useContext(APP_STATE);
 	const localCart = useLocalCart();
@@ -93,18 +92,20 @@ export default component$<{
 
 		// Get current lines directly
 		const lines = order?.lines || appState.activeOrder?.lines || [];
-		
+		const stockValidation = track(() => localCart.lastStockValidation);
+
 		for (const line of lines) {
 			// Skip if we've already processed this line
 			if (processedLineIds.value.has(line.id)) continue;
-			
+
 			// Mark this line as processed immediately
 			processedLineIds.value = new Set([...processedLineIds.value, line.id]);
-			
+
 			// Calculate quantity options ONCE for this line
-			const stockLevel = '3'; // Hardcoded as per business logic
+			const stockLevel =
+				stockValidation[line.productVariant.id]?.availableStock.toString() || '3'; // Hardcoded as per business logic
 			let maxQty = 3;
-			
+
 			const numericStock = parseInt(stockLevel, 10);
 			if (!isNaN(numericStock)) {
 				maxQty = Math.max(numericStock, line.quantity); // Ensure current quantity is always available
@@ -237,8 +238,14 @@ export default component$<{
 								</div>
 								
 								{/* Stock warning for out-of-stock or low stock items */}
-								<StockWarning 
-									item={item} 
+								<StockWarning
+									item={{
+										...item,
+										productVariant: {
+											...item.productVariant,
+											stockLevel: item.productVariant.stockLevel || '0',
+										},
+									}}
 									onRemove$={$(() => removeFromLocalCart(localCart, item.productVariantId))}
 								/>
 								
@@ -371,9 +378,35 @@ export default component$<{
 										/>
 									</div>
 								</div>
-								
 
-								
+								<StockWarning
+									item={{
+										productVariant: {
+											...line.productVariant,
+											stockLevel: line.productVariant.stockLevel || '0',
+										},
+										quantity: line.quantity,
+										productVariantId: line.productVariant.id,
+									}}
+									onRemove$={$(async () => {
+										try {
+											const updatedOrder = await removeOrderLineMutation(line.id);
+											if (updatedOrder === null) {
+												appState.activeOrder = {} as Order;
+												appState.showCart = false;
+											} else {
+												appState.activeOrder = updatedOrder;
+												if (!updatedOrder.lines || updatedOrder.lines.length === 0) {
+													appState.showCart = false;
+												}
+											}
+											// Cart popup will close automatically when empty
+										} catch (error) {
+											console.error('Failed to remove item from cart:', error);
+										}
+									})}
+								/>
+
 								{/* Bottom row: quantity and remove button */}
 								<div class="flex items-center justify-between mt-2">
 									{/* Quantity selector with no label */}
@@ -442,13 +475,7 @@ export default component$<{
 															}
 														}
 														
-														// Navigate away from checkout if on checkout page and cart is empty
-														if (
-															(!updatedOrder || !updatedOrder.lines || updatedOrder.lines.length === 0) &&
-															isCheckoutPage(location.url.toString())
-														) {
-															navigate(`/shop`);
-														}
+														// Cart popup will close automatically when empty
 													}
 													// await removeTimer.end$(); // Track successful removal - DISABLED
 												} catch (error) {

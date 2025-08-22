@@ -1,4 +1,4 @@
-import { $, component$, useContext, useStore, useVisibleTask$, useSignal, useComputed$ } from '@builder.io/qwik';
+import { $, component$, useContext, useStore, useVisibleTask$, useSignal, useComputed$, useTask$ } from '@builder.io/qwik';
 import {
   useNavigate,
   routeAction$,
@@ -28,6 +28,19 @@ import {
   secureSetOrderShippingMethod,
   secureOrderStateTransition
 } from '~/utils/secure-api';
+
+const hasOutOfStockItems = (cart: any, appState: any): boolean => {
+	const items = cart.isLocalMode ? cart.localCart.items : appState.activeOrder?.lines;
+	if (!items) {
+		return false;
+	}
+	for (const item of items) {
+		if (item.productVariant.stockLevel === 'OUT_OF_STOCK' || item.productVariant.stockLevel <= 0) {
+			return true;
+		}
+	}
+	return false;
+};
 
 // 🚀 PREFETCH OPTIMIZATION: Removed invalid prefetch for /checkout/confirmation/
 // The confirmation route requires a specific order code: /checkout/confirmation/[code]/
@@ -120,6 +133,14 @@ const CheckoutContent = component$(() => {
     error: null,
     step: 'unified', // Start with unified single-step checkout
   });
+
+  const isOutOfStock = useSignal(false);
+
+	useTask$(({ track }) => {
+		track(() => localCart.localCart.items);
+		track(() => appState.activeOrder);
+		isOutOfStock.value = hasOutOfStockItems(localCart, appState);
+	});
 
   // Signals to trigger payment processing
   const stripeTriggerSignal = useSignal(0);
@@ -755,9 +776,9 @@ const CheckoutContent = component$(() => {
                       <div class="mt-6 pt-6 border-t border-gray-100">
                         <button
                           onClick$={_placeOrder}
-                          disabled={!checkoutValidation.isAllValid || isOrderProcessing.value}
+                          disabled={!checkoutValidation.isAllValid || isOrderProcessing.value || isOutOfStock.value}
                           class={`w-full flex items-center justify-center space-x-3 py-4 px-6 text-lg font-semibold rounded-lg shadow-lg transition-all duration-200 ${
-                            !checkoutValidation.isAllValid || isOrderProcessing.value
+                            !checkoutValidation.isAllValid || isOrderProcessing.value || isOutOfStock.value
                               ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
                               : 'bg-gradient-to-r from-[#8a6d4a] to-[#4F3B26] hover:from-[#4F3B26] hover:to-[#3a2b1a] text-white cursor-pointer transform hover:scale-105'
                           }`}
@@ -771,11 +792,14 @@ const CheckoutContent = component$(() => {
                         </button>
                         
                         {/* Validation Status Indicator */}
-                        {!checkoutValidation.isAllValid && (
+                        {!checkoutValidation.isAllValid && !isOutOfStock.value && (
                           <p class="text-sm text-gray-500 mt-2 text-center">
                             Please complete all required fields to place your order
                           </p>
                         )}
+						{isOutOfStock.value && (
+							<p class="text-sm text-red-500 mt-2 text-center">Some items are out of stock.</p>
+						)}
                       </div>
                     </div>
                   </div>

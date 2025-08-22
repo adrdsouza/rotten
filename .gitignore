@@ -17,3 +17,4 @@ database/backups
 *.jpg
 *.mp4
 *.dump
+nginx-brotli/ssl-new/

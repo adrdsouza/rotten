@@ -353,9 +353,6 @@ export class LocalCartService {
   static removeItem(productVariantId: string): LocalCart {
     const cart = this.getCart();
     cart.items = cart.items.filter(item => item.productVariantId !== productVariantId);
-    if(cart.items.length <=0 || !cart.items){
-      window.location.assign("/shop")
-    }
     this.recalculateTotals(cart);
     this.saveCart(cart);
     return cart;
@@ -397,12 +394,12 @@ export class LocalCartService {
             item.productVariant.stockLevel = freshStockLevel.toString();
             item.lastStockCheck = Date.now();
           } else {
-            // Variant not found, so it's unavailable
+            // Variant no longer exists, treat as out of stock
             item.productVariant.stockLevel = '0';
             item.lastStockCheck = Date.now();
           }
         } else {
-          // Product not found, so it's unavailable
+          // Product no longer available (e.g. disabled), treat as out of stock
           item.productVariant.stockLevel = '0';
           item.lastStockCheck = Date.now();
         }
@@ -459,6 +456,18 @@ export class LocalCartService {
       valid: errors.length === 0,
       errors
     };
+  }
+
+  static async validateCartStock(): Promise<Record<string, StockValidationResult>> {
+    const cart = this.getCart();
+    const stockValidation: Record<string, StockValidationResult> = {};
+
+    for (const item of cart.items) {
+      const stockResult = this.validateStockLevel(item, item.quantity);
+      stockValidation[item.productVariantId] = stockResult;
+    }
+
+    return stockValidation;
   }
 
   // Clear cart

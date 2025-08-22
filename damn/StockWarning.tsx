@@ -30,7 +30,7 @@ export const StockWarning = component$<StockWarningProps>(({ item, onRemove$ }) 
     );
   }
   
-  if (stockLevel <= 5) {
+  if (stockLevel > 0 && stockLevel <= 5) {
     return (
       <div class="bg-yellow-50 border-l-4 border-yellow-400 p-2 mb-2">
         <div class="flex items-center">

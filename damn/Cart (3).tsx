@@ -48,28 +48,26 @@ export default component$(() => {
 	// Performance tracking for cart operations - DISABLED for performance
 	// const performanceTracking = useCartPerformanceTracking();
 	
+	// Helper function to check if any items in cart are out of stock
+	const hasOutOfStockItems = () => {
+		if (localCart.isLocalMode) {
+			return localCart.localCart.items.some(item => {
+				const stockLevel = parseInt(item.productVariant.stockLevel || '0');
+				return stockLevel <= 0;
+			});
+		} else {
+			return appState.activeOrder?.lines?.some(line => {
+				const stockLevel = parseInt(line.productVariant.stockLevel || '0');
+				return stockLevel <= 0;
+			}) || false;
+		}
+	};
+	
 	// Loading state for checkout navigation
 	const isNavigatingToCheckout = useSignal(false);
 	
 	// Local state for country code to ensure UI reactivity
 	const countryCodeSignal = useSignal(appState.shippingAddress.countryCode);
-
-	const hasOutOfStockItems = $(() => {
-		const items = localCart.isLocalMode ? localCart.localCart.items : appState.activeOrder?.lines || [];
-		return items.some(
-			(item: any) => item.productVariant.stockLevel === 'OUT_OF_STOCK' || item.productVariant.stockLevel <= 0
-		);
-	});
-
-	const isOutOfStock = useSignal(false);
-
-	useTask$(async ({track}) => {
-		track(() => localCart.localCart.items);
-		track(() => appState.activeOrder);
-		isOutOfStock.value = await hasOutOfStockItems();
-	});
-
-	
 	
 	// 🚀 OPTIMIZED: Simple country code syncing (geolocation now demand-based)
 	useTask$(({ track }) => {
@@ -320,7 +318,7 @@ export default component$(() => {
 									{localCart.isRefreshingStock ? (
 										<div class="flex flex-col items-center justify-center h-64 text-center">
 											<div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-												<svg class="animate-spin h-8 w-8 text-[#8a6d4a]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+												<svg class="animate-spin h-8 w-8 text-brand-red" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
 													<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 													<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 												</svg>
@@ -356,7 +354,7 @@ export default component$(() => {
 													<h3 class="text-lg font-medium text-slate-900 mb-2">Your cart is empty</h3>
 													<p class="text-slate-500 mb-6">Add some items to get started</p>
 													<button
-														class="bg-[#8a6d4a] hover:bg-[#4F3B26] text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg hover:shadow-xl flex items-center justify-center uppercase font-heading text-sm cursor-pointer"
+														class="bg-[#d42838] hover:bg-black text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg hover:shadow-xl flex items-center justify-center uppercase font-heading text-sm cursor-pointer"
 														onClick$={async () => {
 															appState.showCart = false;
 															await navigate('/shop');
@@ -558,10 +556,11 @@ export default component$(() => {
 														}
 													})}
 													disabled={isNavigatingToCheckout.value || !shippingState.selectedMethod || 
-										!appState.shippingAddress.countryCode || 
-										(!localCart.isLocalMode && !appState.activeOrder?.id) ||
-										(localCart.isLocalMode && localCart.localCart.items.length === 0) || isOutOfStock.value}
-													class="w-full bg-[#8a6d4a] hover:bg-[#4F3B26] text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg hover:shadow-xl flex items-center justify-center uppercase font-heading text-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+														!appState.shippingAddress.countryCode || 
+														(!localCart.isLocalMode && !appState.activeOrder?.id) ||
+														(localCart.isLocalMode && localCart.localCart.items.length === 0) ||
+														hasOutOfStockItems()}
+													class="w-full bg-[#d42838] hover:bg-black text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg hover:shadow-xl flex items-center justify-center uppercase font-heading text-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
 												>
 													{isNavigatingToCheckout.value ? (
 														<>
