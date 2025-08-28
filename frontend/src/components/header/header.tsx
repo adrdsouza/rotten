@@ -1,6 +1,7 @@
 import { component$, useContext, useVisibleTask$, $, useSignal } from '@qwik.dev/core';
 import { useLocalCart, loadCartIfNeeded, refreshCartStock } from '~/contexts/CartContext';
 import { LocalCartService } from '~/services/LocalCartService';
+import { LocalAddressService } from '~/services/LocalAddressService';
 import { useLocation, Link } from '@qwik.dev/router';
 import { APP_STATE, CUSTOMER_NOT_DEFINED_ID } from '~/constants';
 import { logoutMutation } from '~/providers/shop/customer/customer';
@@ -98,6 +99,10 @@ export default component$(() => {
 	// Logout functionality
 	const logout = $(async () => {
 		await logoutMutation();
+		
+		// Clear address cache on logout
+		LocalAddressService.clearAddresses();
+		
 		// Use hard refresh like the old version for reliability
 		window.location.href = '/';
 	});	return (

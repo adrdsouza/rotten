@@ -16,6 +16,7 @@ import {
 	updateCustomerMutation,
 } from '~/providers/shop/account/account';
 import { getActiveCustomerQuery, logoutMutation } from '~/providers/shop/customer/customer';
+import { LocalAddressService } from '~/services/LocalAddressService';
 import { ActiveCustomer } from '~/types';
 import { createSEOHead } from '~/utils/seo';
 import { sanitizePhoneNumber } from '~/utils/validation';
@@ -138,9 +139,13 @@ export default component$(() => {
 								<button
 									class="flex items-center space-x-2 text-gray-700 hover:text-black"
 									onClick$={async () => {
-										await logoutMutation();
-										window.location.href = '/';
-									}}
+							await logoutMutation();
+							
+							// Clear address cache on logout
+							LocalAddressService.clearAddresses();
+							
+							window.location.href = '/';
+						}}
 								>
 									<LogoutIcon />
 									<span>Logout</span>

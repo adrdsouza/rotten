@@ -6,6 +6,7 @@ import { secureAuthSubmission } from '~/utils/secure-api';
 import { getActiveCustomerQuery } from '~/providers/shop/customer/customer';
 import { APP_STATE } from '~/constants';
 import { ActiveCustomer } from '~/types';
+import { LocalAddressService } from '~/services/LocalAddressService';
 
 export interface LoginModalProps {
   isOpen: boolean;
@@ -90,6 +91,14 @@ export default component$<LoginModalProps>(({
               emailAddress: customerData.emailAddress,
               phoneNumber: customerData.phoneNumber ?? '',
             } as ActiveCustomer;
+            
+            // Sync addresses after successful login
+            try {
+              await LocalAddressService.syncFromVendure(customerData.id);
+            } catch (addressError) {
+              console.error('Failed to sync addresses after login:', addressError);
+              // Don't fail login if address sync fails
+            }
           }
         } catch (error) {
           console.error('Failed to update customer data:', error);

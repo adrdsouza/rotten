@@ -16,6 +16,8 @@ import { validateEmail, validateName, validatePhone, filterPhoneInput, sanitizeP
 import { useLocalCart } from '~/contexts/CartContext';
 import { useCheckoutValidationActions } from '~/contexts/CheckoutValidationContext';
 import { useLoginModalActions } from '~/contexts/LoginModalContext';
+// import { useAddressContext } from '~/contexts/AddressContext'; // Not used in current implementation
+import { LocalAddressService } from '~/services/LocalAddressService';
 // Import shared addressState instead of defining it here
 import { addressState } from '~/utils/checkout-state';
 
@@ -29,6 +31,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   const localCart = useLocalCart();
   const validationActions = useCheckoutValidationActions();
   const { openLoginModal } = useLoginModalActions();
+  // const addressContext = useAddressContext(); // Unused variable
   const useDifferentBilling = useSignal<boolean>(false);
   const isLoading = useSignal<boolean>(false);
   const billingHasBeenActivated = useSignal<boolean>(false); // Track if billing was ever activated
@@ -63,7 +66,33 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     return `Phone number${isOptional ? ' (optional)' : ' *'}` as string;
   });
 
-  // Country initialization removed - now handled by layout.tsx
+  // Load addresses on component initialization
+  useVisibleTask$(async () => {
+    try {
+      // Setup cross-tab sync
+      LocalAddressService.setupCrossTabSync();
+      
+      // If user is logged in, sync with Vendure
+      if (appState.customer?.id && appState.customer.id !== CUSTOMER_NOT_DEFINED_ID) {
+        await LocalAddressService.syncFromVendure(appState.customer.id);
+      }
+      
+      // Apply default addresses if available and current addresses are empty
+      const defaultShipping = LocalAddressService.getDefaultShippingAddress();
+      const defaultBilling = LocalAddressService.getDefaultBillingAddress();
+      
+      if (defaultShipping && !appState.shippingAddress.streetLine1) {
+        appState.shippingAddress = { ...defaultShipping };
+      }
+      
+      if (defaultBilling && !appState.billingAddress?.streetLine1) {
+        appState.billingAddress = { ...defaultBilling };
+        useDifferentBilling.value = true;
+      }
+    } catch (error) {
+      console.error('Failed to load addresses:', error);
+    }
+  });
 
   // Sync local signals with exported state and track validation
   useVisibleTask$(({ track }) => {
@@ -607,6 +636,50 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
 
       // All validations passed, proceed with submission
       await submitAddresses();
+      
+      // Save addresses to LocalAddressService after successful submission
+       try {
+          if (appState.shippingAddress.streetLine1) {
+            LocalAddressService.saveAddress({
+              firstName: appState.customer?.firstName || '',
+              lastName: appState.customer?.lastName || '',
+              fullName: `${appState.customer?.firstName || ''} ${appState.customer?.lastName || ''}`.trim(),
+              company: appState.shippingAddress.company || '',
+              streetLine1: appState.shippingAddress.streetLine1 || '',
+              streetLine2: appState.shippingAddress.streetLine2 || '',
+              city: appState.shippingAddress.city || '',
+              province: appState.shippingAddress.province || '',
+              postalCode: appState.shippingAddress.postalCode || '',
+              countryCode: appState.shippingAddress.countryCode || '',
+              phoneNumber: appState.customer?.phoneNumber || '',
+              defaultShippingAddress: true,
+              defaultBillingAddress: false,
+              source: 'checkout' as const
+            });
+          }
+          
+          if (useDifferentBilling.value && appState.billingAddress?.streetLine1) {
+            LocalAddressService.saveAddress({
+              firstName: appState.billingAddress.firstName || '',
+              lastName: appState.billingAddress.lastName || '',
+              fullName: `${appState.billingAddress.firstName || ''} ${appState.billingAddress.lastName || ''}`.trim(),
+              company: '',
+              streetLine1: appState.billingAddress.streetLine1 || '',
+              streetLine2: appState.billingAddress.streetLine2 || '',
+              city: appState.billingAddress.city || '',
+              province: appState.billingAddress.province || '',
+              postalCode: appState.billingAddress.postalCode || '',
+              countryCode: appState.billingAddress.countryCode || '',
+              phoneNumber: '',
+              defaultShippingAddress: false,
+              defaultBillingAddress: true,
+              source: 'checkout' as const
+            });
+          }
+        } catch (error) {
+          console.error('Failed to save addresses:', error);
+          // Don't block checkout flow if address saving fails
+        }
     }
   });
 
