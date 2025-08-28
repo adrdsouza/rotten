@@ -1,5 +1,10 @@
 union ActiveOrderResult = NoActiveOrderError | Order
 
+input AddItemInput {
+  productVariantId: ID!
+  quantity: Int!
+}
+
 union AddPaymentToOrderResult = IneligiblePaymentMethodError | NoActiveOrderError | Order | OrderPaymentStateError | OrderStateTransitionError | PaymentDeclinedError | PaymentFailedError
 
 type Address implements Node {
@@ -86,6 +91,8 @@ type AuthenticationMethod implements Node {
 union AuthenticationResult = CurrentUser | InvalidCredentialsError | NotVerifiedError
 
 type BooleanCustomFieldConfig implements CustomField {
+  deprecated: Boolean
+  deprecationReason: String
   description: [LocalizedString!]
   internal: Boolean
   label: [LocalizedString!]
@@ -116,6 +123,12 @@ type BooleanStructFieldConfig implements StructField {
   name: String!
   type: String!
   ui: JSON
+}
+
+input CartItemInput {
+  productVariantId: ID!
+  quantity: Int!
+  unitPrice: Float!
 }
 
 type Channel implements Node {
@@ -328,6 +341,17 @@ type CouponCodeLimitError implements ErrorResult {
   errorCode: ErrorCode!
   limit: Int!
   message: String!
+}
+
+type CouponValidationResult {
+  appliedCouponCode: String
+  discountAmount: Float!
+  discountPercentage: Float
+  freeShipping: Boolean!
+  isValid: Boolean!
+  promotionDescription: String
+  promotionName: String
+  validationErrors: [String!]!
 }
 
 """
@@ -854,6 +878,8 @@ type CurrentUserChannel {
 }
 
 interface CustomField {
+  deprecated: Boolean
+  deprecationReason: String
   description: [LocalizedString!]
   internal: Boolean
   label: [LocalizedString!]
@@ -969,6 +995,8 @@ Expects the same validation formats as the `<input type="datetime-local">` HTML 
 See https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/datetime-local#Additional_attributes
 """
 type DateTimeCustomFieldConfig implements CustomField {
+  deprecated: Boolean
+  deprecationReason: String
   description: [LocalizedString!]
   internal: Boolean
   label: [LocalizedString!]
@@ -1225,6 +1253,8 @@ type FacetValueTranslation {
 }
 
 type FloatCustomFieldConfig implements CustomField {
+  deprecated: Boolean
+  deprecationReason: String
   description: [LocalizedString!]
   internal: Boolean
   label: [LocalizedString!]
@@ -1423,6 +1453,8 @@ type InsufficientStockError implements ErrorResult {
 }
 
 type IntCustomFieldConfig implements CustomField {
+  deprecated: Boolean
+  deprecationReason: String
   description: [LocalizedString!]
   internal: Boolean
   label: [LocalizedString!]
@@ -1945,6 +1977,8 @@ enum LanguageCode {
 }
 
 type LocaleStringCustomFieldConfig implements CustomField {
+  deprecated: Boolean
+  deprecationReason: String
   description: [LocalizedString!]
   internal: Boolean
   label: [LocalizedString!]
@@ -1960,6 +1994,8 @@ type LocaleStringCustomFieldConfig implements CustomField {
 }
 
 type LocaleTextCustomFieldConfig implements CustomField {
+  deprecated: Boolean
+  deprecationReason: String
   description: [LocalizedString!]
   internal: Boolean
   label: [LocalizedString!]
@@ -2001,6 +2037,11 @@ type Mutation {
   """
   addItemToOrder(productVariantId: ID!, quantity: Int!): UpdateOrderItemsResult!
 
+  """
+  Adds mutliple items to the Order. Returns a list of errors for each item that failed to add. It will still add successful items.
+  """
+  addItemsToOrder(inputs: [AddItemInput!]!): UpdateMultipleOrderItemsResult!
+
   """Add a Payment to the Order"""
   addPaymentToOrder(input: PaymentInput!): AddPaymentToOrderResult!
 
@@ -2017,10 +2058,12 @@ type Mutation {
 
   """Create a new Customer Address"""
   createCustomerAddress(input: CreateAddressInput!): Address!
-  createStripePaymentIntent: String
+  createPreOrderStripePaymentIntent(currency: String = "usd", estimatedTotal: Int!): String!
+  createStripePaymentIntent: String!
 
   """Delete an existing Address"""
   deleteCustomerAddress(id: ID!): Success!
+  linkPaymentIntentToOrder(customerEmail: String, finalTotal: Int!, orderCode: String!, orderId: String!, paymentIntentId: String!): Boolean!
 
   """
   Authenticates the user using the native authentication strategy. This mutation is an alias for authenticate({ native: { ... }})
@@ -2100,6 +2143,7 @@ type Mutation {
   shipping method will apply to.
   """
   setOrderShippingMethod(shippingMethodId: [ID!]!): SetOrderShippingMethodResult!
+  subscribeToNewsletter(input: NewsletterSubscriptionInput!): NewsletterSubscriptionResult!
 
   """
   Transitions an Order to a new state. Valid next states can be found by querying `nextOrderStates`
@@ -2115,6 +2159,7 @@ type Mutation {
   Unsets the shipping address for the active Order. Available since version 3.1.0
   """
   unsetOrderShippingAddress: ActiveOrderResult!
+  unsubscribeFromNewsletter(email: String!): NewsletterUnsubscribeResult!
 
   """Update an existing Customer"""
   updateCustomer(input: UpdateCustomerInput!): Customer!
@@ -2159,6 +2204,39 @@ union NativeAuthenticationResult = CurrentUser | InvalidCredentialsError | Nativ
 type NegativeQuantityError implements ErrorResult {
   errorCode: ErrorCode!
   message: String!
+}
+
+type NewsletterSubscriptionError {
+  details: String
+  errorCode: String!
+  message: String!
+}
+
+input NewsletterSubscriptionInput {
+  email: String!
+  name: String
+  source: String
+}
+
+union NewsletterSubscriptionResult = NewsletterSubscriptionError | NewsletterSubscriptionSuccess
+
+type NewsletterSubscriptionSuccess {
+  message: String!
+  subscriberId: String
+  success: Boolean!
+}
+
+type NewsletterUnsubscribeError {
+  details: String
+  errorCode: String!
+  message: String!
+}
+
+union NewsletterUnsubscribeResult = NewsletterUnsubscribeError | NewsletterUnsubscribeSuccess
+
+type NewsletterUnsubscribeSuccess {
+  message: String!
+  success: Boolean!
 }
 
 """
@@ -2938,6 +3016,12 @@ enum Permission {
   UpdateZone
 }
 
+input PreOrderCartItemInput {
+  productVariantId: String!
+  quantity: Int!
+  unitPrice: Int!
+}
+
 """The price range where the result has more than one price"""
 type PriceRange {
   max: Money!
@@ -3202,6 +3286,7 @@ type ProvinceList implements PaginatedList {
 
 type PublicPaymentMethod {
   code: String!
+  customFields: JSON
   description: String
   id: ID!
   name: String!
@@ -3210,6 +3295,7 @@ type PublicPaymentMethod {
 
 type PublicShippingMethod {
   code: String!
+  customFields: JSON
   description: String
   id: ID!
   name: String!
@@ -3238,6 +3324,7 @@ type Query {
 
   """An array of supported Countries"""
   availableCountries: [Country!]!
+  calculateEstimatedTotal(cartItems: [PreOrderCartItemInput!]!): Int!
 
   """
   Returns a Collection either by its id or slug. If neither 'id' nor 'slug' is specified, an error will result.
@@ -3262,7 +3349,6 @@ type Query {
 
   """A list of Facets available to the shop"""
   facets(options: FacetListOptions): FacetList!
-  generateBraintreeClientToken(includeCustomerId: Boolean, orderId: ID): String
 
   """Returns information about the current authenticated User"""
   me: CurrentUser
@@ -3296,6 +3382,7 @@ type Query {
 
   """Search Products based on the criteria set by the `SearchInput`"""
   search(input: SearchInput!): SearchResponse!
+  validateLocalCartCoupon(input: ValidateLocalCartCouponInput!): CouponValidationResult!
 }
 
 union RefreshCustomerVerificationResult = NativeAuthStrategyError | Success
@@ -3360,6 +3447,8 @@ input RegisterCustomerInput {
 }
 
 type RelationCustomFieldConfig implements CustomField {
+  deprecated: Boolean
+  deprecationReason: String
   description: [LocalizedString!]
   entity: String!
   internal: Boolean
@@ -3539,6 +3628,8 @@ enum SortOrder {
 }
 
 type StringCustomFieldConfig implements CustomField {
+  deprecated: Boolean
+  deprecationReason: String
   description: [LocalizedString!]
   internal: Boolean
   label: [LocalizedString!]
@@ -3589,6 +3680,8 @@ type StringStructFieldConfig implements StructField {
 }
 
 type StructCustomFieldConfig implements CustomField {
+  deprecated: Boolean
+  deprecationReason: String
   description: [LocalizedString!]
   fields: [StructFieldConfig!]!
   internal: Boolean
@@ -3677,6 +3770,8 @@ type TaxRateList implements PaginatedList {
 }
 
 type TextCustomFieldConfig implements CustomField {
+  deprecated: Boolean
+  deprecationReason: String
   description: [LocalizedString!]
   internal: Boolean
   label: [LocalizedString!]
@@ -3735,9 +3830,23 @@ input UpdateCustomerInput {
 
 union UpdateCustomerPasswordResult = InvalidCredentialsError | NativeAuthStrategyError | PasswordValidationError | Success
 
+"""
+Returned when multiple items are added to an Order.
+The errorResults array contains the errors that occurred for each item, if any.
+"""
+type UpdateMultipleOrderItemsResult {
+  errorResults: [UpdateOrderItemErrorResult!]!
+  order: Order!
+}
+
 input UpdateOrderInput {
   customFields: JSON
 }
+
+"""
+Union type of all possible errors that can occur when adding or removing items from an Order.
+"""
+union UpdateOrderItemErrorResult = InsufficientStockError | NegativeQuantityError | OrderInterceptorError | OrderLimitError | OrderModificationError
 
 union UpdateOrderItemsResult = InsufficientStockError | NegativeQuantityError | Order | OrderInterceptorError | OrderLimitError | OrderModificationError
 
@@ -3754,6 +3863,13 @@ type User implements Node {
   roles: [Role!]!
   updatedAt: DateTime!
   verified: Boolean!
+}
+
+input ValidateLocalCartCouponInput {
+  cartItems: [CartItemInput!]!
+  cartTotal: Float!
+  couponCode: String!
+  customerId: ID
 }
 
 """

@@ -385,9 +385,9 @@ export class LocalCartService {
 
       // Update stock levels for all items
       cart.items.forEach((item) => {
-        const product = products.find(p => p?.slug === item.productVariant.product.slug);
+        const product = products.find((p: { slug?: string }) => p?.slug === item.productVariant.product.slug);
         if (product) {
-          const variant = product.variants?.find((v: any) => v.id === item.productVariantId);
+          const variant = product.variants?.find((v: { id: string; stockLevel?: string }) => v.id === item.productVariantId);
           if (variant) {
             // Update with fresh stock level
             const freshStockLevel = parseInt(variant.stockLevel || '0');

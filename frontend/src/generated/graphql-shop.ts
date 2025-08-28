@@ -26,6 +26,11 @@ export type Scalars = {
 
 export type ActiveOrderResult = NoActiveOrderError | Order;
 
+export type AddItemInput = {
+  productVariantId: Scalars['ID']['input'];
+  quantity: Scalars['Int']['input'];
+};
+
 export type AddPaymentToOrderResult = IneligiblePaymentMethodError | NoActiveOrderError | Order | OrderPaymentStateError | OrderStateTransitionError | PaymentDeclinedError | PaymentFailedError;
 
 export type Address = Node & {
@@ -119,6 +124,8 @@ export type AuthenticationResult = CurrentUser | InvalidCredentialsError | NotVe
 
 export type BooleanCustomFieldConfig = CustomField & {
   __typename?: 'BooleanCustomFieldConfig';
+  deprecated?: Maybe<Scalars['Boolean']['output']>;
+  deprecationReason?: Maybe<Scalars['String']['output']>;
   description?: Maybe<Array<LocalizedString>>;
   internal?: Maybe<Scalars['Boolean']['output']>;
   label?: Maybe<Array<LocalizedString>>;
@@ -150,6 +157,12 @@ export type BooleanStructFieldConfig = StructField & {
   name: Scalars['String']['output'];
   type: Scalars['String']['output'];
   ui?: Maybe<Scalars['JSON']['output']>;
+};
+
+export type CartItemInput = {
+  productVariantId: Scalars['ID']['input'];
+  quantity: Scalars['Int']['input'];
+  unitPrice: Scalars['Float']['input'];
 };
 
 export type Channel = Node & {
@@ -375,6 +388,18 @@ export type CouponCodeLimitError = ErrorResult & {
   errorCode: ErrorCode;
   limit: Scalars['Int']['output'];
   message: Scalars['String']['output'];
+};
+
+export type CouponValidationResult = {
+  __typename?: 'CouponValidationResult';
+  appliedCouponCode?: Maybe<Scalars['String']['output']>;
+  discountAmount: Scalars['Float']['output'];
+  discountPercentage?: Maybe<Scalars['Float']['output']>;
+  freeShipping: Scalars['Boolean']['output'];
+  isValid: Scalars['Boolean']['output'];
+  promotionDescription?: Maybe<Scalars['String']['output']>;
+  promotionName?: Maybe<Scalars['String']['output']>;
+  validationErrors: Array<Scalars['String']['output']>;
 };
 
 /**
@@ -748,6 +773,8 @@ export type CurrentUserChannel = {
 };
 
 export type CustomField = {
+  deprecated?: Maybe<Scalars['Boolean']['output']>;
+  deprecationReason?: Maybe<Scalars['String']['output']>;
   description?: Maybe<Array<LocalizedString>>;
   internal?: Maybe<Scalars['Boolean']['output']>;
   label?: Maybe<Array<LocalizedString>>;
@@ -866,6 +893,8 @@ export type DateRange = {
  */
 export type DateTimeCustomFieldConfig = CustomField & {
   __typename?: 'DateTimeCustomFieldConfig';
+  deprecated?: Maybe<Scalars['Boolean']['output']>;
+  deprecationReason?: Maybe<Scalars['String']['output']>;
   description?: Maybe<Array<LocalizedString>>;
   internal?: Maybe<Scalars['Boolean']['output']>;
   label?: Maybe<Array<LocalizedString>>;
@@ -1123,6 +1152,8 @@ export type FacetValueTranslation = {
 
 export type FloatCustomFieldConfig = CustomField & {
   __typename?: 'FloatCustomFieldConfig';
+  deprecated?: Maybe<Scalars['Boolean']['output']>;
+  deprecationReason?: Maybe<Scalars['String']['output']>;
   description?: Maybe<Array<LocalizedString>>;
   internal?: Maybe<Scalars['Boolean']['output']>;
   label?: Maybe<Array<LocalizedString>>;
@@ -1322,6 +1353,8 @@ export type InsufficientStockError = ErrorResult & {
 
 export type IntCustomFieldConfig = CustomField & {
   __typename?: 'IntCustomFieldConfig';
+  deprecated?: Maybe<Scalars['Boolean']['output']>;
+  deprecationReason?: Maybe<Scalars['String']['output']>;
   description?: Maybe<Array<LocalizedString>>;
   internal?: Maybe<Scalars['Boolean']['output']>;
   label?: Maybe<Array<LocalizedString>>;
@@ -1687,6 +1720,8 @@ export const LanguageCode = {
 export type LanguageCode = typeof LanguageCode[keyof typeof LanguageCode];
 export type LocaleStringCustomFieldConfig = CustomField & {
   __typename?: 'LocaleStringCustomFieldConfig';
+  deprecated?: Maybe<Scalars['Boolean']['output']>;
+  deprecationReason?: Maybe<Scalars['String']['output']>;
   description?: Maybe<Array<LocalizedString>>;
   internal?: Maybe<Scalars['Boolean']['output']>;
   label?: Maybe<Array<LocalizedString>>;
@@ -1703,6 +1738,8 @@ export type LocaleStringCustomFieldConfig = CustomField & {
 
 export type LocaleTextCustomFieldConfig = CustomField & {
   __typename?: 'LocaleTextCustomFieldConfig';
+  deprecated?: Maybe<Scalars['Boolean']['output']>;
+  deprecationReason?: Maybe<Scalars['String']['output']>;
   description?: Maybe<Array<LocalizedString>>;
   internal?: Maybe<Scalars['Boolean']['output']>;
   label?: Maybe<Array<LocalizedString>>;
@@ -1738,6 +1775,8 @@ export type Mutation = {
   __typename?: 'Mutation';
   /** Adds an item to the Order. If custom fields are defined on the OrderLine entity, a third argument 'customFields' will be available. */
   addItemToOrder: UpdateOrderItemsResult;
+  /** Adds mutliple items to the Order. Returns a list of errors for each item that failed to add. It will still add successful items. */
+  addItemsToOrder: UpdateMultipleOrderItemsResult;
   /** Add a Payment to the Order */
   addPaymentToOrder: AddPaymentToOrderResult;
   /** Adjusts an OrderLine. If custom fields are defined on the OrderLine entity, a third argument 'customFields' of type `OrderLineCustomFieldsInput` will be available. */
@@ -1748,9 +1787,11 @@ export type Mutation = {
   authenticate: AuthenticationResult;
   /** Create a new Customer Address */
   createCustomerAddress: Address;
-  createStripePaymentIntent?: Maybe<Scalars['String']['output']>;
+  createPreOrderStripePaymentIntent: Scalars['String']['output'];
+  createStripePaymentIntent: Scalars['String']['output'];
   /** Delete an existing Address */
   deleteCustomerAddress: Success;
+  linkPaymentIntentToOrder: Scalars['Boolean']['output'];
   /**
    * Authenticates the user using the native authentication strategy. This mutation is an alias for authenticate({ native: { ... }})
    *
@@ -1811,12 +1852,14 @@ export type Mutation = {
    * shipping method will apply to.
    */
   setOrderShippingMethod: SetOrderShippingMethodResult;
+  subscribeToNewsletter: NewsletterSubscriptionResult;
   /** Transitions an Order to a new state. Valid next states can be found by querying `nextOrderStates` */
   transitionOrderToState?: Maybe<TransitionOrderToStateResult>;
   /** Unsets the billing address for the active Order. Available since version 3.1.0 */
   unsetOrderBillingAddress: ActiveOrderResult;
   /** Unsets the shipping address for the active Order. Available since version 3.1.0 */
   unsetOrderShippingAddress: ActiveOrderResult;
+  unsubscribeFromNewsletter: NewsletterUnsubscribeResult;
   /** Update an existing Customer */
   updateCustomer: Customer;
   /** Update an existing Address */
@@ -1841,6 +1884,11 @@ export type Mutation = {
 export type MutationAddItemToOrderArgs = {
   productVariantId: Scalars['ID']['input'];
   quantity: Scalars['Int']['input'];
+};
+
+
+export type MutationAddItemsToOrderArgs = {
+  inputs: Array<AddItemInput>;
 };
 
 
@@ -1871,8 +1919,23 @@ export type MutationCreateCustomerAddressArgs = {
 };
 
 
+export type MutationCreatePreOrderStripePaymentIntentArgs = {
+  currency?: InputMaybe<Scalars['String']['input']>;
+  estimatedTotal: Scalars['Int']['input'];
+};
+
+
 export type MutationDeleteCustomerAddressArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationLinkPaymentIntentToOrderArgs = {
+  customerEmail?: InputMaybe<Scalars['String']['input']>;
+  finalTotal: Scalars['Int']['input'];
+  orderCode: Scalars['String']['input'];
+  orderId: Scalars['String']['input'];
+  paymentIntentId: Scalars['String']['input'];
 };
 
 
@@ -1945,8 +2008,18 @@ export type MutationSetOrderShippingMethodArgs = {
 };
 
 
+export type MutationSubscribeToNewsletterArgs = {
+  input: NewsletterSubscriptionInput;
+};
+
+
 export type MutationTransitionOrderToStateArgs = {
   state: Scalars['String']['input'];
+};
+
+
+export type MutationUnsubscribeFromNewsletterArgs = {
+  email: Scalars['String']['input'];
 };
 
 
@@ -1995,6 +2068,43 @@ export type NegativeQuantityError = ErrorResult & {
   __typename?: 'NegativeQuantityError';
   errorCode: ErrorCode;
   message: Scalars['String']['output'];
+};
+
+export type NewsletterSubscriptionError = {
+  __typename?: 'NewsletterSubscriptionError';
+  details?: Maybe<Scalars['String']['output']>;
+  errorCode: Scalars['String']['output'];
+  message: Scalars['String']['output'];
+};
+
+export type NewsletterSubscriptionInput = {
+  email: Scalars['String']['input'];
+  name?: InputMaybe<Scalars['String']['input']>;
+  source?: InputMaybe<Scalars['String']['input']>;
+};
+
+export type NewsletterSubscriptionResult = NewsletterSubscriptionError | NewsletterSubscriptionSuccess;
+
+export type NewsletterSubscriptionSuccess = {
+  __typename?: 'NewsletterSubscriptionSuccess';
+  message: Scalars['String']['output'];
+  subscriberId?: Maybe<Scalars['String']['output']>;
+  success: Scalars['Boolean']['output'];
+};
+
+export type NewsletterUnsubscribeError = {
+  __typename?: 'NewsletterUnsubscribeError';
+  details?: Maybe<Scalars['String']['output']>;
+  errorCode: Scalars['String']['output'];
+  message: Scalars['String']['output'];
+};
+
+export type NewsletterUnsubscribeResult = NewsletterUnsubscribeError | NewsletterUnsubscribeSuccess;
+
+export type NewsletterUnsubscribeSuccess = {
+  __typename?: 'NewsletterUnsubscribeSuccess';
+  message: Scalars['String']['output'];
+  success: Scalars['Boolean']['output'];
 };
 
 /**
@@ -2644,6 +2754,12 @@ export const Permission = {
 } as const;
 
 export type Permission = typeof Permission[keyof typeof Permission];
+export type PreOrderCartItemInput = {
+  productVariantId: Scalars['String']['input'];
+  quantity: Scalars['Int']['input'];
+  unitPrice: Scalars['Int']['input'];
+};
+
 /** The price range where the result has more than one price */
 export type PriceRange = {
   __typename?: 'PriceRange';
@@ -2916,6 +3032,7 @@ export type ProvinceList = PaginatedList & {
 export type PublicPaymentMethod = {
   __typename?: 'PublicPaymentMethod';
   code: Scalars['String']['output'];
+  customFields?: Maybe<Scalars['JSON']['output']>;
   description?: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
@@ -2925,6 +3042,7 @@ export type PublicPaymentMethod = {
 export type PublicShippingMethod = {
   __typename?: 'PublicShippingMethod';
   code: Scalars['String']['output'];
+  customFields?: Maybe<Scalars['JSON']['output']>;
   description?: Maybe<Scalars['String']['output']>;
   id: Scalars['ID']['output'];
   name: Scalars['String']['output'];
@@ -2949,6 +3067,7 @@ export type Query = {
   activeShippingMethods: Array<Maybe<PublicShippingMethod>>;
   /** An array of supported Countries */
   availableCountries: Array<Country>;
+  calculateEstimatedTotal: Scalars['Int']['output'];
   /** Returns a Collection either by its id or slug. If neither 'id' nor 'slug' is specified, an error will result. */
   collection?: Maybe<Collection>;
   /** A list of Collections available to the shop */
@@ -2961,7 +3080,6 @@ export type Query = {
   facet?: Maybe<Facet>;
   /** A list of Facets available to the shop */
   facets: FacetList;
-  generateBraintreeClientToken?: Maybe<Scalars['String']['output']>;
   /** Returns information about the current authenticated User */
   me?: Maybe<CurrentUser>;
   /** Returns the possible next states that the activeOrder can transition to */
@@ -2984,6 +3102,12 @@ export type Query = {
   products: ProductList;
   /** Search Products based on the criteria set by the `SearchInput` */
   search: SearchResponse;
+  validateLocalCartCoupon: CouponValidationResult;
+};
+
+
+export type QueryCalculateEstimatedTotalArgs = {
+  cartItems: Array<PreOrderCartItemInput>;
 };
 
 
@@ -3005,12 +3129,6 @@ export type QueryFacetArgs = {
 
 export type QueryFacetsArgs = {
   options?: InputMaybe<FacetListOptions>;
-};
-
-
-export type QueryGenerateBraintreeClientTokenArgs = {
-  includeCustomerId?: InputMaybe<Scalars['Boolean']['input']>;
-  orderId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 
@@ -3037,6 +3155,11 @@ export type QueryProductsArgs = {
 
 export type QuerySearchArgs = {
   input: SearchInput;
+};
+
+
+export type QueryValidateLocalCartCouponArgs = {
+  input: ValidateLocalCartCouponInput;
 };
 
 export type RefreshCustomerVerificationResult = NativeAuthStrategyError | Success;
@@ -3105,6 +3228,8 @@ export type RegisterCustomerInput = {
 
 export type RelationCustomFieldConfig = CustomField & {
   __typename?: 'RelationCustomFieldConfig';
+  deprecated?: Maybe<Scalars['Boolean']['output']>;
+  deprecationReason?: Maybe<Scalars['String']['output']>;
   description?: Maybe<Array<LocalizedString>>;
   entity: Scalars['String']['output'];
   internal?: Maybe<Scalars['Boolean']['output']>;
@@ -3291,6 +3416,8 @@ export const SortOrder = {
 export type SortOrder = typeof SortOrder[keyof typeof SortOrder];
 export type StringCustomFieldConfig = CustomField & {
   __typename?: 'StringCustomFieldConfig';
+  deprecated?: Maybe<Scalars['Boolean']['output']>;
+  deprecationReason?: Maybe<Scalars['String']['output']>;
   description?: Maybe<Array<LocalizedString>>;
   internal?: Maybe<Scalars['Boolean']['output']>;
   label?: Maybe<Array<LocalizedString>>;
@@ -3344,6 +3471,8 @@ export type StringStructFieldConfig = StructField & {
 
 export type StructCustomFieldConfig = CustomField & {
   __typename?: 'StructCustomFieldConfig';
+  deprecated?: Maybe<Scalars['Boolean']['output']>;
+  deprecationReason?: Maybe<Scalars['String']['output']>;
   description?: Maybe<Array<LocalizedString>>;
   fields: Array<StructFieldConfig>;
   internal?: Maybe<Scalars['Boolean']['output']>;
@@ -3439,6 +3568,8 @@ export type TaxRateList = PaginatedList & {
 
 export type TextCustomFieldConfig = CustomField & {
   __typename?: 'TextCustomFieldConfig';
+  deprecated?: Maybe<Scalars['Boolean']['output']>;
+  deprecationReason?: Maybe<Scalars['String']['output']>;
   description?: Maybe<Array<LocalizedString>>;
   internal?: Maybe<Scalars['Boolean']['output']>;
   label?: Maybe<Array<LocalizedString>>;
@@ -3498,9 +3629,22 @@ export type UpdateCustomerInput = {
 
 export type UpdateCustomerPasswordResult = InvalidCredentialsError | NativeAuthStrategyError | PasswordValidationError | Success;
 
+/**
+ * Returned when multiple items are added to an Order.
+ * The errorResults array contains the errors that occurred for each item, if any.
+ */
+export type UpdateMultipleOrderItemsResult = {
+  __typename?: 'UpdateMultipleOrderItemsResult';
+  errorResults: Array<UpdateOrderItemErrorResult>;
+  order: Order;
+};
+
 export type UpdateOrderInput = {
   customFields?: InputMaybe<Scalars['JSON']['input']>;
 };
+
+/** Union type of all possible errors that can occur when adding or removing items from an Order. */
+export type UpdateOrderItemErrorResult = InsufficientStockError | NegativeQuantityError | OrderInterceptorError | OrderLimitError | OrderModificationError;
 
 export type UpdateOrderItemsResult = InsufficientStockError | NegativeQuantityError | Order | OrderInterceptorError | OrderLimitError | OrderModificationError;
 
@@ -3515,6 +3659,13 @@ export type User = Node & {
   roles: Array<Role>;
   updatedAt: Scalars['DateTime']['output'];
   verified: Scalars['Boolean']['output'];
+};
+
+export type ValidateLocalCartCouponInput = {
+  cartItems: Array<CartItemInput>;
+  cartTotal: Scalars['Float']['input'];
+  couponCode: Scalars['String']['input'];
+  customerId?: InputMaybe<Scalars['ID']['input']>;
 };
 
 /**
@@ -3615,21 +3766,6 @@ export type RequestPasswordResetMutationVariables = Exact<{
 
 export type RequestPasswordResetMutation = { __typename?: 'Mutation', requestPasswordReset?: { __typename: 'NativeAuthStrategyError', errorCode: ErrorCode, message: string } | { __typename: 'Success', success: boolean } | null };
 
-export type CreateStripePaymentIntentMutationVariables = Exact<{ [key: string]: never; }>;
-
-
-export type CreateStripePaymentIntentMutation = { __typename?: 'Mutation', createStripePaymentIntent?: string | null };
-
-export type AvailableCountriesQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-export type AvailableCountriesQuery = { __typename?: 'Query', availableCountries: Array<{ __typename?: 'Country', id: string, name: string, code: string }> };
-
-export type EligibleShippingMethodsQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-export type EligibleShippingMethodsQuery = { __typename?: 'Query', eligibleShippingMethods: Array<{ __typename?: 'ShippingMethodQuote', id: string, name: string, description: string, metadata?: any | null, price: any, priceWithTax: any }> };
-
 export type AddPaymentToOrderMutationVariables = Exact<{
   input: PaymentInput;
 }>;
@@ -3637,10 +3773,36 @@ export type AddPaymentToOrderMutationVariables = Exact<{
 
 export type AddPaymentToOrderMutation = { __typename?: 'Mutation', addPaymentToOrder: { __typename?: 'IneligiblePaymentMethodError', errorCode: ErrorCode, message: string } | { __typename?: 'NoActiveOrderError', errorCode: ErrorCode, message: string } | { __typename: 'Order', id: string, code: string, active: boolean, createdAt: any, state: string, currencyCode: CurrencyCode, couponCodes: Array<string>, totalQuantity: number, subTotal: any, subTotalWithTax: any, shippingWithTax: any, totalWithTax: any, discounts: Array<{ __typename?: 'Discount', type: AdjustmentType, description: string, amountWithTax: any }>, taxSummary: Array<{ __typename?: 'OrderTaxSummary', description: string, taxRate: number, taxTotal: any }>, customer?: { __typename?: 'Customer', id: string, firstName: string, lastName: string, emailAddress: string } | null, shippingAddress?: { __typename?: 'OrderAddress', fullName?: string | null, streetLine1?: string | null, streetLine2?: string | null, company?: string | null, city?: string | null, province?: string | null, postalCode?: string | null, countryCode?: string | null, phoneNumber?: string | null } | null, billingAddress?: { __typename?: 'OrderAddress', fullName?: string | null, streetLine1?: string | null, streetLine2?: string | null, company?: string | null, city?: string | null, province?: string | null, postalCode?: string | null, countryCode?: string | null, phoneNumber?: string | null } | null, shippingLines: Array<{ __typename?: 'ShippingLine', priceWithTax: any, shippingMethod: { __typename?: 'ShippingMethod', id: string, name: string } }>, lines: Array<{ __typename?: 'OrderLine', id: string, unitPriceWithTax: any, linePriceWithTax: any, quantity: number, featuredAsset?: { __typename?: 'Asset', id: string, preview: string } | null, productVariant: { __typename?: 'ProductVariant', id: string, name: string, price: any, stockLevel: string, options: Array<{ __typename?: 'ProductOption', id: string, code: string, name: string, group: { __typename?: 'ProductOptionGroup', id: string, name: string } }>, product: { __typename?: 'Product', id: string, name: string, slug: string } } }>, payments?: Array<{ __typename?: 'Payment', id: string, method: string, amount: any, state: string, transactionId?: string | null, metadata?: any | null }> | null } | { __typename?: 'OrderPaymentStateError', errorCode: ErrorCode, message: string } | { __typename?: 'OrderStateTransitionError', errorCode: ErrorCode, message: string } | { __typename?: 'PaymentDeclinedError', errorCode: ErrorCode, message: string } | { __typename?: 'PaymentFailedError', errorCode: ErrorCode, message: string } };
 
-export type EligiblePaymentMethodsQueryVariables = Exact<{ [key: string]: never; }>;
+export type CreateStripePaymentIntentMutationVariables = Exact<{ [key: string]: never; }>;
 
 
-export type EligiblePaymentMethodsQuery = { __typename?: 'Query', eligiblePaymentMethods: Array<{ __typename?: 'PaymentMethodQuote', id: string, code: string, name: string, description: string, eligibilityMessage?: string | null, isEligible: boolean }> };
+export type CreateStripePaymentIntentMutation = { __typename?: 'Mutation', createStripePaymentIntent: string };
+
+export type CreatePreOrderStripePaymentIntentMutationVariables = Exact<{
+  estimatedTotal: Scalars['Int']['input'];
+  currency: Scalars['String']['input'];
+}>;
+
+
+export type CreatePreOrderStripePaymentIntentMutation = { __typename?: 'Mutation', createPreOrderStripePaymentIntent: string };
+
+export type LinkPaymentIntentToOrderMutationVariables = Exact<{
+  paymentIntentId: Scalars['String']['input'];
+  orderId: Scalars['String']['input'];
+  orderCode: Scalars['String']['input'];
+  finalTotal: Scalars['Int']['input'];
+  customerEmail?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+
+export type LinkPaymentIntentToOrderMutation = { __typename?: 'Mutation', linkPaymentIntentToOrder: boolean };
+
+export type CalculateEstimatedTotalQueryVariables = Exact<{
+  cartItems: Array<PreOrderCartItemInput> | PreOrderCartItemInput;
+}>;
+
+
+export type CalculateEstimatedTotalQuery = { __typename?: 'Query', calculateEstimatedTotal: number };
 
 export type TransitionOrderToStateMutationVariables = Exact<{
   state: Scalars['String']['input'];
@@ -3779,6 +3941,13 @@ export type CreateCustomerAddressMutationMutationVariables = Exact<{
 
 export type CreateCustomerAddressMutationMutation = { __typename?: 'Mutation', createCustomerAddress: { __typename: 'Address', id: string, fullName?: string | null, company?: string | null, streetLine1: string, streetLine2?: string | null, city?: string | null, province?: string | null, postalCode?: string | null, phoneNumber?: string | null, defaultShippingAddress?: boolean | null, defaultBillingAddress?: boolean | null, country: { __typename: 'Country', id: string, code: string, name: string } } };
 
+export type ValidateLocalCartCouponQueryVariables = Exact<{
+  input: ValidateLocalCartCouponInput;
+}>;
+
+
+export type ValidateLocalCartCouponQuery = { __typename?: 'Query', validateLocalCartCoupon: { __typename?: 'CouponValidationResult', isValid: boolean, validationErrors: Array<string>, appliedCouponCode?: string | null, discountAmount: number, discountPercentage?: number | null, freeShipping: boolean, promotionName?: string | null, promotionDescription?: string | null } };
+
 export type ApplyCouponCodeMutationVariables = Exact<{
   couponCode: Scalars['String']['input'];
 }>;
@@ -3858,15 +4027,13 @@ export type OrderByCodeQueryVariables = Exact<{
 
 export type OrderByCodeQuery = { __typename?: 'Query', orderByCode?: { __typename: 'Order', id: string, code: string, active: boolean, createdAt: any, state: string, currencyCode: CurrencyCode, couponCodes: Array<string>, totalQuantity: number, subTotal: any, subTotalWithTax: any, shippingWithTax: any, totalWithTax: any, discounts: Array<{ __typename?: 'Discount', type: AdjustmentType, description: string, amountWithTax: any }>, taxSummary: Array<{ __typename?: 'OrderTaxSummary', description: string, taxRate: number, taxTotal: any }>, customer?: { __typename?: 'Customer', id: string, firstName: string, lastName: string, emailAddress: string } | null, shippingAddress?: { __typename?: 'OrderAddress', fullName?: string | null, streetLine1?: string | null, streetLine2?: string | null, company?: string | null, city?: string | null, province?: string | null, postalCode?: string | null, countryCode?: string | null, phoneNumber?: string | null } | null, billingAddress?: { __typename?: 'OrderAddress', fullName?: string | null, streetLine1?: string | null, streetLine2?: string | null, company?: string | null, city?: string | null, province?: string | null, postalCode?: string | null, countryCode?: string | null, phoneNumber?: string | null } | null, shippingLines: Array<{ __typename?: 'ShippingLine', priceWithTax: any, shippingMethod: { __typename?: 'ShippingMethod', id: string, name: string } }>, lines: Array<{ __typename?: 'OrderLine', id: string, unitPriceWithTax: any, linePriceWithTax: any, quantity: number, featuredAsset?: { __typename?: 'Asset', id: string, preview: string } | null, productVariant: { __typename?: 'ProductVariant', id: string, name: string, price: any, stockLevel: string, options: Array<{ __typename?: 'ProductOption', id: string, code: string, name: string, group: { __typename?: 'ProductOptionGroup', id: string, name: string } }>, product: { __typename?: 'Product', id: string, name: string, slug: string } } }>, payments?: Array<{ __typename?: 'Payment', id: string, method: string, amount: any, state: string, transactionId?: string | null, metadata?: any | null }> | null } | null };
 
-export type OptimizedDetailedProductFragment = { __typename?: 'Product', id: string, name: string, slug: string, description: string, facetValues: Array<{ __typename?: 'FacetValue', id: string, code: string, name: string, facet: { __typename?: 'Facet', id: string, code: string, name: string } }>, featuredAsset?: { __typename?: 'Asset', id: string, preview: string } | null, assets: Array<{ __typename?: 'Asset', id: string, preview: string }>, variants: Array<{ __typename?: 'ProductVariant', id: string, name: string, priceWithTax: any, currencyCode: CurrencyCode, sku: string, stockLevel: string, options: Array<{ __typename?: 'ProductOption', id: string, code: string, name: string, group: { __typename?: 'ProductOptionGroup', id: string, code: string, name: string } }> }> };
-
 export type ProductQueryVariables = Exact<{
   slug?: InputMaybe<Scalars['String']['input']>;
   id?: InputMaybe<Scalars['ID']['input']>;
 }>;
 
 
-export type ProductQuery = { __typename?: 'Query', product?: { __typename?: 'Product', id: string, name: string, slug: string, description: string, facetValues: Array<{ __typename?: 'FacetValue', id: string, code: string, name: string, facet: { __typename?: 'Facet', id: string, code: string, name: string } }>, featuredAsset?: { __typename?: 'Asset', id: string, preview: string } | null, assets: Array<{ __typename?: 'Asset', id: string, preview: string }>, variants: Array<{ __typename?: 'ProductVariant', id: string, name: string, priceWithTax: any, currencyCode: CurrencyCode, sku: string, stockLevel: string, options: Array<{ __typename?: 'ProductOption', id: string, code: string, name: string, group: { __typename?: 'ProductOptionGroup', id: string, code: string, name: string } }> }> } | null };
+export type ProductQuery = { __typename?: 'Query', product?: { __typename?: 'Product', id: string, name: string, slug: string, description: string, facetValues: Array<{ __typename?: 'FacetValue', id: string, code: string, name: string, facet: { __typename?: 'Facet', id: string, code: string, name: string } }>, featuredAsset?: { __typename?: 'Asset', id: string, preview: string } | null, assets: Array<{ __typename?: 'Asset', id: string, preview: string }>, variants: Array<{ __typename?: 'ProductVariant', id: string, name: string, priceWithTax: any, sku: string, stockLevel: string, options: Array<{ __typename?: 'ProductOption', id: string, code: string, name: string, group: { __typename?: 'ProductOptionGroup', id: string, code: string, name: string } }> }> } | null };
 
 export const AddressFragmentDoc = gql`
     fragment Address on Address {
@@ -3997,50 +4164,6 @@ export const CustomOrderDetailFragmentDoc = gql`
   }
 }
     `;
-export const OptimizedDetailedProductFragmentDoc = gql`
-    fragment OptimizedDetailedProduct on Product {
-  id
-  name
-  slug
-  description
-  facetValues {
-    facet {
-      id
-      code
-      name
-    }
-    id
-    code
-    name
-  }
-  featuredAsset {
-    id
-    preview
-  }
-  assets {
-    id
-    preview
-  }
-  variants {
-    id
-    name
-    priceWithTax
-    currencyCode
-    sku
-    stockLevel
-    options {
-      id
-      code
-      name
-      group {
-        id
-        code
-        name
-      }
-    }
-  }
-}
-    `;
 export const LoginDocument = gql`
     mutation login($email: String!, $password: String!, $rememberMe: Boolean) {
   login(username: $email, password: $password, rememberMe: $rememberMe) {
@@ -4153,32 +4276,6 @@ export const RequestPasswordResetDocument = gql`
   }
 }
     `;
-export const CreateStripePaymentIntentDocument = gql`
-    mutation createStripePaymentIntent {
-  createStripePaymentIntent
-}
-    `;
-export const AvailableCountriesDocument = gql`
-    query availableCountries {
-  availableCountries {
-    id
-    name
-    code
-  }
-}
-    `;
-export const EligibleShippingMethodsDocument = gql`
-    query eligibleShippingMethods {
-  eligibleShippingMethods {
-    id
-    name
-    description
-    metadata
-    price
-    priceWithTax
-  }
-}
-    `;
 export const AddPaymentToOrderDocument = gql`
     mutation addPaymentToOrder($input: PaymentInput!) {
   addPaymentToOrder(input: $input) {
@@ -4190,16 +4287,33 @@ export const AddPaymentToOrderDocument = gql`
   }
 }
     ${CustomOrderDetailFragmentDoc}`;
-export const EligiblePaymentMethodsDocument = gql`
-    query eligiblePaymentMethods {
-  eligiblePaymentMethods {
-    id
-    code
-    name
-    description
-    eligibilityMessage
-    isEligible
-  }
+export const CreateStripePaymentIntentDocument = gql`
+    mutation createStripePaymentIntent {
+  createStripePaymentIntent
+}
+    `;
+export const CreatePreOrderStripePaymentIntentDocument = gql`
+    mutation createPreOrderStripePaymentIntent($estimatedTotal: Int!, $currency: String!) {
+  createPreOrderStripePaymentIntent(
+    estimatedTotal: $estimatedTotal
+    currency: $currency
+  )
+}
+    `;
+export const LinkPaymentIntentToOrderDocument = gql`
+    mutation linkPaymentIntentToOrder($paymentIntentId: String!, $orderId: String!, $orderCode: String!, $finalTotal: Int!, $customerEmail: String) {
+  linkPaymentIntentToOrder(
+    paymentIntentId: $paymentIntentId
+    orderId: $orderId
+    orderCode: $orderCode
+    finalTotal: $finalTotal
+    customerEmail: $customerEmail
+  )
+}
+    `;
+export const CalculateEstimatedTotalDocument = gql`
+    query calculateEstimatedTotal($cartItems: [PreOrderCartItemInput!]!) {
+  calculateEstimatedTotal(cartItems: $cartItems)
 }
     `;
 export const TransitionOrderToStateDocument = gql`
@@ -4449,6 +4563,20 @@ export const CreateCustomerAddressMutationDocument = gql`
   }
 }
     ${AddressFragmentDoc}`;
+export const ValidateLocalCartCouponDocument = gql`
+    query validateLocalCartCoupon($input: ValidateLocalCartCouponInput!) {
+  validateLocalCartCoupon(input: $input) {
+    isValid
+    validationErrors
+    appliedCouponCode
+    discountAmount
+    discountPercentage
+    freeShipping
+    promotionName
+    promotionDescription
+  }
+}
+    `;
 export const ApplyCouponCodeDocument = gql`
     mutation applyCouponCode($couponCode: String!) {
   applyCouponCode(couponCode: $couponCode) {
@@ -4561,10 +4689,48 @@ export const OrderByCodeDocument = gql`
 export const ProductDocument = gql`
     query product($slug: String, $id: ID) {
   product(slug: $slug, id: $id) {
-    ...OptimizedDetailedProduct
+    id
+    name
+    slug
+    description
+    facetValues {
+      facet {
+        id
+        code
+        name
+      }
+      id
+      code
+      name
+    }
+    featuredAsset {
+      id
+      preview
+    }
+    assets {
+      id
+      preview
+    }
+    variants {
+      id
+      name
+      priceWithTax
+      sku
+      stockLevel
+      options {
+        id
+        code
+        name
+        group {
+          id
+          code
+          name
+        }
+      }
+    }
   }
 }
-    ${OptimizedDetailedProductFragmentDoc}`;
+    `;
 export type Requester<C = {}> = <R, V>(doc: DocumentNode, vars?: V, options?: C) => Promise<R> | AsyncIterable<R>
 export function getSdk<C>(requester: Requester<C>) {
   return {
@@ -4595,20 +4761,20 @@ export function getSdk<C>(requester: Requester<C>) {
     requestPasswordReset(variables: RequestPasswordResetMutationVariables, options?: C): Promise<RequestPasswordResetMutation> {
       return requester<RequestPasswordResetMutation, RequestPasswordResetMutationVariables>(RequestPasswordResetDocument, variables, options) as Promise<RequestPasswordResetMutation>;
     },
-    createStripePaymentIntent(variables?: CreateStripePaymentIntentMutationVariables, options?: C): Promise<CreateStripePaymentIntentMutation> {
-      return requester<CreateStripePaymentIntentMutation, CreateStripePaymentIntentMutationVariables>(CreateStripePaymentIntentDocument, variables, options) as Promise<CreateStripePaymentIntentMutation>;
-    },
-    availableCountries(variables?: AvailableCountriesQueryVariables, options?: C): Promise<AvailableCountriesQuery> {
-      return requester<AvailableCountriesQuery, AvailableCountriesQueryVariables>(AvailableCountriesDocument, variables, options) as Promise<AvailableCountriesQuery>;
-    },
-    eligibleShippingMethods(variables?: EligibleShippingMethodsQueryVariables, options?: C): Promise<EligibleShippingMethodsQuery> {
-      return requester<EligibleShippingMethodsQuery, EligibleShippingMethodsQueryVariables>(EligibleShippingMethodsDocument, variables, options) as Promise<EligibleShippingMethodsQuery>;
-    },
     addPaymentToOrder(variables: AddPaymentToOrderMutationVariables, options?: C): Promise<AddPaymentToOrderMutation> {
       return requester<AddPaymentToOrderMutation, AddPaymentToOrderMutationVariables>(AddPaymentToOrderDocument, variables, options) as Promise<AddPaymentToOrderMutation>;
     },
-    eligiblePaymentMethods(variables?: EligiblePaymentMethodsQueryVariables, options?: C): Promise<EligiblePaymentMethodsQuery> {
-      return requester<EligiblePaymentMethodsQuery, EligiblePaymentMethodsQueryVariables>(EligiblePaymentMethodsDocument, variables, options) as Promise<EligiblePaymentMethodsQuery>;
+    createStripePaymentIntent(variables?: CreateStripePaymentIntentMutationVariables, options?: C): Promise<CreateStripePaymentIntentMutation> {
+      return requester<CreateStripePaymentIntentMutation, CreateStripePaymentIntentMutationVariables>(CreateStripePaymentIntentDocument, variables, options) as Promise<CreateStripePaymentIntentMutation>;
+    },
+    createPreOrderStripePaymentIntent(variables: CreatePreOrderStripePaymentIntentMutationVariables, options?: C): Promise<CreatePreOrderStripePaymentIntentMutation> {
+      return requester<CreatePreOrderStripePaymentIntentMutation, CreatePreOrderStripePaymentIntentMutationVariables>(CreatePreOrderStripePaymentIntentDocument, variables, options) as Promise<CreatePreOrderStripePaymentIntentMutation>;
+    },
+    linkPaymentIntentToOrder(variables: LinkPaymentIntentToOrderMutationVariables, options?: C): Promise<LinkPaymentIntentToOrderMutation> {
+      return requester<LinkPaymentIntentToOrderMutation, LinkPaymentIntentToOrderMutationVariables>(LinkPaymentIntentToOrderDocument, variables, options) as Promise<LinkPaymentIntentToOrderMutation>;
+    },
+    calculateEstimatedTotal(variables: CalculateEstimatedTotalQueryVariables, options?: C): Promise<CalculateEstimatedTotalQuery> {
+      return requester<CalculateEstimatedTotalQuery, CalculateEstimatedTotalQueryVariables>(CalculateEstimatedTotalDocument, variables, options) as Promise<CalculateEstimatedTotalQuery>;
     },
     transitionOrderToState(variables: TransitionOrderToStateMutationVariables, options?: C): Promise<TransitionOrderToStateMutation> {
       return requester<TransitionOrderToStateMutation, TransitionOrderToStateMutationVariables>(TransitionOrderToStateDocument, variables, options) as Promise<TransitionOrderToStateMutation>;
@@ -4642,6 +4808,9 @@ export function getSdk<C>(requester: Requester<C>) {
     },
     createCustomerAddressMutation(variables: CreateCustomerAddressMutationMutationVariables, options?: C): Promise<CreateCustomerAddressMutationMutation> {
       return requester<CreateCustomerAddressMutationMutation, CreateCustomerAddressMutationMutationVariables>(CreateCustomerAddressMutationDocument, variables, options) as Promise<CreateCustomerAddressMutationMutation>;
+    },
+    validateLocalCartCoupon(variables: ValidateLocalCartCouponQueryVariables, options?: C): Promise<ValidateLocalCartCouponQuery> {
+      return requester<ValidateLocalCartCouponQuery, ValidateLocalCartCouponQueryVariables>(ValidateLocalCartCouponDocument, variables, options) as Promise<ValidateLocalCartCouponQuery>;
     },
     applyCouponCode(variables: ApplyCouponCodeMutationVariables, options?: C): Promise<ApplyCouponCodeMutation> {
       return requester<ApplyCouponCodeMutation, ApplyCouponCodeMutationVariables>(ApplyCouponCodeDocument, variables, options) as Promise<ApplyCouponCodeMutation>;

@@ -1,0 +1,98 @@
+fragment CustomOrderDetail on Order {
+  __typename
+  id
+  code
+  active
+  createdAt
+  state
+  couponCodes
+  discounts {
+    type
+    description
+    amountWithTax
+  }
+  totalQuantity
+  subTotal
+  subTotalWithTax
+  taxSummary {
+    description
+    taxRate
+    taxTotal
+  }
+  shippingWithTax
+  totalWithTax
+  customer {
+    id
+    firstName
+    lastName
+    emailAddress
+  }
+  shippingAddress {
+    fullName
+    streetLine1
+    streetLine2
+    company
+    city
+    province
+    postalCode
+    countryCode
+    phoneNumber
+  }
+  billingAddress {
+    fullName
+    streetLine1
+    streetLine2
+    company
+    city
+    province
+    postalCode
+    countryCode
+    phoneNumber
+  }
+  shippingLines {
+    shippingMethod {
+      id
+      name
+    }
+    priceWithTax
+  }
+  lines {
+    id
+    unitPriceWithTax
+    linePriceWithTax
+    quantity
+    featuredAsset {
+      id
+      preview
+    }
+    productVariant {
+      id
+      name
+      price
+      stockLevel
+      customFields
+      options {
+        id
+        code
+        name
+        group {
+          id
+          name
+        }
+      }
+      product {
+        id
+        name
+        slug
+      }
+    }
+  }
+  payments {
+    id
+    method
+    amount
+    state
+    transactionId
+    metadata
+  }
+}

@@ -10,7 +10,8 @@ let GRAPHQL_API = import.meta.env.IS_DEV
 GRAPHQL_API = `${GRAPHQL_API}/shop-api`;
 
 const config: CodegenConfig = {
-	schema: 'src/generated/schema-shop.graphql',
+	// Reference the backend's generated schema instead of static file
+	schema: '../backend/schema.graphql',
 	documents: [
   'src/providers/shop/**/*.{ts,tsx,graphql}',
   '!src/generated/*'

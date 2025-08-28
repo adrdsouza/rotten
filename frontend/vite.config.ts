@@ -14,16 +14,16 @@ export default defineConfig((config) => {
 
     build: {
       sourcemap: isDev,
-      minify: false, // Disable minification to resolve syntax errors
+      minify: !isDev ? 'terser' : false, // Enhanced: Switch to Terser for better compression
       outDir: 'dist', // Ensure output goes to dist/
 
-      // 🚀 ENHANCED TERSER CONFIGURATION - Aggressive settings for maximum compression
+      // 🚀 ENHANCED TERSER CONFIGURATION - 15-25% better compression than esbuild
       terserOptions: {
         compress: {
           drop_console: true, // Remove console.logs in production
           drop_debugger: true, // Remove debugger statements
           pure_funcs: ['console.log', 'console.info', 'console.debug'], // Remove specific functions
-          passes: 3, // Maximum compression passes for optimal results
+          passes: 2, // Multiple compression passes for maximum optimization
           dead_code: true, // Remove unreachable code
           conditionals: true, // Optimize if-s and conditional expressions
           evaluate: true, // Evaluate constant expressions
@@ -36,15 +36,10 @@ export default defineConfig((config) => {
           join_vars: true, // Join consecutive var statements
           reduce_vars: true, // Improve optimization of variables assigned with and used as constant values
           warnings: false, // Don't show warnings in production
-          sequences: true, // Join consecutive simple statements using the comma operator
-          properties: true, // Optimize property access
-          comparisons: true, // Apply certain optimizations to binary nodes
-          inline: true, // Inline calls to function with simple return statement
         },
         mangle: {
           safari10: true, // Safari 10 compatibility for proper variable mangling
           properties: false, // Don't mangle property names (can break functionality)
-          toplevel: true, // Mangle names declared in the top level scope
         },
         format: {
           comments: false, // Remove all comments for smaller bundle size
@@ -63,7 +58,6 @@ export default defineConfig((config) => {
             if (id.includes('node_modules/@qwik.dev/core') || id.includes('node_modules/@qwik.dev/router')) {
               return 'vendor';
             }
-
             // 🚀 NEW: Heavy cart functionality (409KB currently) - only load when needed
             if (id.includes('src/components/cart/') ||
                 id.includes('src/components/cart-contents/') ||
@@ -72,7 +66,6 @@ export default defineConfig((config) => {
                 id.includes('src/services/LocalCartService.ts')) {
               return 'cart';
             }
-
             // 🚀 NEW: Heavy form validation (AddressForm is 409KB!)
             if (id.includes('src/components/checkout/AddressForm.tsx') ||
                 id.includes('src/utils/card-validation.ts') ||
@@ -80,7 +73,6 @@ export default defineConfig((config) => {
                 id.includes('src/components/billing-address-form/')) {
               return 'forms';
             }
-
             // Separate checkout components to prevent loading on homepage
             if (id.includes('/components/checkout/') ||
                 id.includes('CheckoutAddresses') ||
@@ -88,14 +80,14 @@ export default defineConfig((config) => {
                 id.includes('PaymentStep')) {
               return 'checkout';
             }
-
             // 🚀 NEW: Animation-heavy components for better loading
             if (id.includes('src/hooks/useLazySection.ts') ||
                 id.includes('src/components/products/ViewportLazyProductCard.tsx') ||
-                id.includes('src/utils/global-intersection-observer.ts')) {
+                id.includes('src/utils/global-intersection-observer.ts') ||
+                id.includes('src/utils/image-cache.ts') ||
+                id.includes('src/components/ui/LazyImage.tsx')) {
               return 'animations';
             }
-
             // Split large third-party libraries
             if (id.includes('node_modules')) {
               // Keep vendor chunks under 100KB to prevent main thread blocking
@@ -133,10 +125,7 @@ export default defineConfig((config) => {
       },
     },
     plugins: [
-      qwikRouter({
-        // Exclude dynamic sitemap routes from static generation
-        exclude: ['/sitemap.xml', '/sitemap-*.xml'],
-      }),
+      qwikRouter(),
       qwikVite({
         devTools: {
           clickToSource: false,
@@ -197,7 +186,7 @@ export default defineConfig((config) => {
             level: 9, // Maximum compression for build-time (since it's pre-computed)
           },
         }),
-        // Brotli compression (better compression ratios, supported by modern browsers)
+        // 🚀 NEW: Brotli compression (better compression than gzip, supported by modern browsers)
         viteCompression({
           algorithm: 'brotliCompress',
           ext: '.br',
@@ -205,7 +194,8 @@ export default defineConfig((config) => {
           deleteOriginFile: false, // Keep original files
           filter: /\.(js|mjs|json|css|html|svg)$/i, // Compress text-based files
           compressionOptions: {
-            level: 11, // Maximum Brotli compression for build-time
+            level: 11, // Maximum Brotli compression (0-11, 11 is best compression)
+            chunkSize: 32 * 1024, // 32KB chunks for optimal compression
           },
         }),
       ] : []),
@@ -213,6 +203,7 @@ export default defineConfig((config) => {
     preview: {
       host: '0.0.0.0',
       port: 4000,
+      allowedHosts: ['damneddesigns.com', 'www.damneddesigns.com', 'localhost'],
       headers: {
         // Caching
         'Cache-Control': 'public, max-age=600',
@@ -224,11 +215,11 @@ export default defineConfig((config) => {
         'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
         'Content-Security-Policy': [
           "default-src 'self'",
-          "script-src 'self' 'unsafe-inline'", // Qwik needs unsafe-inline
+          "script-src 'self' 'unsafe-inline' https://widget.sezzle.com", // Qwik needs unsafe-inline, allow Sezzle widget
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: https:",
           "font-src 'self' data:",
-          "connect-src 'self' https://rottenhand.com",
+          "connect-src 'self' https://damneddesigns.com https://widget.sezzle.com",
           "frame-ancestors 'none'",
         ].join('; '),
       },
