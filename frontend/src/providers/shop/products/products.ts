@@ -1,41 +1,11 @@
 import gql from 'graphql-tag';
 import { shopSdk } from '~/graphql-wrapper';
 import { requester } from '~/utils/api';
+import { productCache } from '~/services/ProductCacheService';
 // Collections imports removed - no longer using cached versions
 
-// 🎯 STRATEGIC CACHING: Cache static data only, NEVER stock levels
+// 🎯 STRATEGIC CACHING: Using advanced ProductCache service for better performance
 // Stock information must always be fresh for ecommerce accuracy
-
-// Cache for static product data (name, description, options, etc.)
-const staticProductCache = new Map<string, { data: any; timestamp: number }>();
-const STATIC_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes for static data
-
-const getCachedStaticData = (slug: string) => {
-	const cached = staticProductCache.get(slug);
-	if (cached && Date.now() - cached.timestamp < STATIC_CACHE_DURATION) {
-		return cached.data;
-	}
-	return null;
-};
-
-const cacheStaticData = (slug: string, data: any) => {
-	staticProductCache.set(slug, {
-		data,
-		timestamp: Date.now()
-	});
-};
-
-const setCachedStaticData = (slug: string, data: any) => {
-	// Remove stock-sensitive fields before caching
-	const staticData = {
-		...data,
-		variants: data.variants?.map((v: any) => ({
-			...v,
-			stockLevel: undefined, // Never cache stock levels
-		}))
-	};
-	staticProductCache.set(slug, { data: staticData, timestamp: Date.now() });
-};
 
 // Create a lightweight stock-only query
 const stockOnlyQuery = gql`
@@ -56,7 +26,7 @@ export const getProductBySlugForShop = async (slug: string) => {
 
 	try {
 		// Try to get static data from cache
-		const cachedStatic = getCachedStaticData(slug);
+		const cachedStatic = productCache.getStaticProduct(slug);
 
 		if (cachedStatic) {
 			console.log(`Cache hit for ${slug}, fetching fresh stock data`);
@@ -67,16 +37,7 @@ export const getProductBySlugForShop = async (slug: string) => {
 
 				if (stockData?.product?.variants) {
 					// Merge cached static data with fresh stock levels
-					const mergedProduct = {
-						...cachedStatic,
-						variants: cachedStatic.variants?.map((cachedVariant: any) => {
-							const freshVariant = stockData.product.variants.find((v: any) => v.id === cachedVariant.id);
-							return {
-								...cachedVariant,
-								stockLevel: freshVariant?.stockLevel || 0, // Always fresh stock
-							};
-						})
-					};
+					const mergedProduct = productCache.mergeProductWithStock(cachedStatic, stockData.product);
 					console.log(`Product loaded from cache with optimized fragment for ${slug}:`, !!mergedProduct);
 					return mergedProduct;
 				} else {
@@ -136,7 +97,7 @@ export const getProductBySlugForShop = async (slug: string) => {
 		const product = await requester(shopInitialQuery, { slug }).then((res: any) => res.product);
 
 		if (product) {
-			setCachedStaticData(slug, product);
+			productCache.cacheStaticProduct(slug, product);
 			console.log(`Product loaded and cached with optimized fragment for ${slug}:`, !!product);
 		} else {
 			console.warn(`No product found for slug: ${slug}`);
@@ -155,7 +116,7 @@ export const getProductBySlug = async (slug: string) => {
 
 	try {
 		// Try to get static data from cache
-		const cachedStatic = getCachedStaticData(slug);
+		const cachedStatic = productCache.getStaticProduct(slug);
 
 		if (cachedStatic) {
 			console.log(`Cache hit for ${slug}, fetching fresh stock data`);
@@ -166,16 +127,7 @@ export const getProductBySlug = async (slug: string) => {
 
 				if (stockData?.product?.variants) {
 					// Merge cached static data with fresh stock levels
-					const mergedProduct = {
-						...cachedStatic,
-						variants: cachedStatic.variants?.map((cachedVariant: any) => {
-							const freshVariant = stockData.product.variants.find((v: any) => v.id === cachedVariant.id);
-							return {
-								...cachedVariant,
-								stockLevel: freshVariant?.stockLevel || 0, // Always fresh stock
-							};
-						})
-					};
+					const mergedProduct = productCache.mergeProductWithStock(cachedStatic, stockData.product);
 					console.log(`Product loaded from cache for ${slug}:`, !!mergedProduct);
 					return mergedProduct;
 				} else {
@@ -193,7 +145,7 @@ export const getProductBySlug = async (slug: string) => {
 
 		if (product) {
 			// Cache static parts for next time
-			setCachedStaticData(slug, product);
+			productCache.cacheStaticProduct(slug, product);
 			console.log(`Product loaded and cached for ${slug}:`, !!product);
 		} else {
 			console.warn(`No product found for slug: ${slug}`);
@@ -241,7 +193,7 @@ export const getBatchedProductsForShop = async (slugs: string[]) => {
 
 			if (product) {
 				// Cache the static data for each product
-				cacheStaticData(slug, product);
+				productCache.cacheStaticProduct(slug, product);
 				console.log(`Product loaded and cached with batched query for ${slug}: ${!!product}`);
 			}
 
@@ -285,15 +237,12 @@ export const getMultipleProductsBySlug = async (slugs: string[]) => {
 };
 
 // 🚀 LAZY ASSET LOADING: Load product images only when needed
-const assetCache = new Map<string, { assets: any[]; featuredAsset: any; timestamp: number }>();
-const ASSET_CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
-
 export const getProductAssets = async (slug: string) => {
 	console.log(`Lazy loading assets for: ${slug}`);
 
 	// Check asset cache first
-	const cached = assetCache.get(slug);
-	if (cached && Date.now() - cached.timestamp < ASSET_CACHE_DURATION) {
+	const cached = productCache.getAssets(slug);
+	if (cached) {
 		console.log(`Asset cache hit for ${slug}`);
 		return cached;
 	}
@@ -322,11 +271,10 @@ export const getProductAssets = async (slug: string) => {
 			const assetData = {
 				assets: result.product.assets || [],
 				featuredAsset: result.product.featuredAsset,
-				timestamp: Date.now()
 			};
 
 			// Cache the assets
-			assetCache.set(slug, assetData);
+			productCache.cacheAssets(slug, assetData);
 			console.log(`Assets loaded and cached for ${slug}:`, assetData.assets.length, 'assets');
 
 			return assetData;
@@ -464,6 +412,25 @@ gql`
 export const getStockLevelsOnly = async () => {
 	console.log('🚀 Loading stock levels only for initial page load...');
 	
+	// Check if we have cached stock levels that are still fresh
+	const cachedShortSleeve = productCache.getStockLevels('shortsleeveshirt');
+	const cachedLongSleeve = productCache.getStockLevels('longsleeveshirt');
+	
+	// Use more aggressive caching for stock levels (30 seconds)
+	const STOCK_CACHE_DURATION = 30 * 1000; // 30 seconds
+	
+	if (cachedShortSleeve && cachedLongSleeve) {
+		const now = Date.now();
+		if (now - cachedShortSleeve.timestamp < STOCK_CACHE_DURATION && 
+			now - cachedLongSleeve.timestamp < STOCK_CACHE_DURATION) {
+			console.log('✅ Using cached stock levels for initial page load');
+			return {
+				shortSleeve: cachedShortSleeve.data,
+				longSleeve: cachedLongSleeve.data,
+			};
+		}
+	}
+	
 	const stockOnlyQuery = gql`
 		query GetStockLevelsOnly {
 			shortsleeve: product(slug: "shortsleeveshirt") {
@@ -490,6 +457,21 @@ export const getStockLevelsOnly = async () => {
 		const loadTime = Date.now() - startTime;
 		console.log(`✅ Stock levels loaded in ${loadTime}ms - payload ~95% smaller than full products`);
 		
+		// Cache the stock levels
+		if (result.shortsleeve) {
+			productCache.cacheStockLevels('shortsleeveshirt', {
+				data: result.shortsleeve,
+				timestamp: Date.now()
+			});
+		}
+		
+		if (result.longsleeve) {
+			productCache.cacheStockLevels('longsleeveshirt', {
+				data: result.longsleeve,
+				timestamp: Date.now()
+			});
+		}
+		
 		return {
 			shortSleeve: result.shortsleeve,
 			longSleeve: result.longsleeve,
@@ -503,6 +485,28 @@ export const getStockLevelsOnly = async () => {
 // 🚀 STEP-BY-STEP LOADING: Ultra-lightweight queries for progressive loading
 export const getShirtStylesForSelection = async () => {
 	console.log('🚀 Loading ultra-lightweight data for style selection...');
+	
+	// Check if we have cached style selection data that's still fresh
+	// Use longer cache duration for style selection data (5 minutes)
+	const STYLE_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+	
+	const cachedShortSleeve = productCache.get(`style:shortsleeveshirt`);
+	const cachedLongSleeve = productCache.get(`style:longsleeveshirt`);
+	
+	if (cachedShortSleeve && cachedLongSleeve) {
+		const now = Date.now();
+		const shortData = cachedShortSleeve as { data: any; timestamp: number };
+		const longData = cachedLongSleeve as { data: any; timestamp: number };
+		
+		if (now - shortData.timestamp < STYLE_CACHE_DURATION && 
+			now - longData.timestamp < STYLE_CACHE_DURATION) {
+			console.log('✅ Using cached style selection data');
+			return {
+				shortSleeve: shortData.data,
+				longSleeve: longData.data,
+			};
+		}
+	}
 	
 	const styleSelectionQuery = gql`
 		query GetShirtStylesForSelection {
@@ -536,6 +540,21 @@ export const getShirtStylesForSelection = async () => {
 		const loadTime = Date.now() - startTime;
 		console.log(`✅ Style selection data loaded in ${loadTime}ms - payload ~85% smaller than full products`);
 		
+		// Cache the style selection data
+		if (result.shortsleeve) {
+			productCache.set(`style:shortsleeveshirt`, {
+				data: result.shortsleeve,
+				timestamp: Date.now()
+			}, STYLE_CACHE_DURATION);
+		}
+		
+		if (result.longsleeve) {
+			productCache.set(`style:longsleeveshirt`, {
+				data: result.longsleeve,
+				timestamp: Date.now()
+			}, STYLE_CACHE_DURATION);
+		}
+		
 		return {
 			shortSleeve: result.shortsleeve,
 			longSleeve: result.longsleeve,
@@ -548,6 +567,20 @@ export const getShirtStylesForSelection = async () => {
 
 export const getProductOptionsForStep = async (productSlug: string, step: 2 | 3) => {
 	console.log(`🚀 Loading step ${step} data for ${productSlug}...`);
+	
+	// Check cache first for step 2 data
+	if (step === 2) {
+		const cached = productCache.get(`options:step2:${productSlug}`);
+		const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes for options data
+		
+		if (cached) {
+			const cacheData = cached as { data: any; timestamp: number };
+			if (Date.now() - cacheData.timestamp < CACHE_DURATION) {
+				console.log(`✅ Using cached step 2 data for ${productSlug}`);
+				return cacheData.data;
+			}
+		}
+	}
 	
 	if (step === 2) {
 		// Step 2: Load size options and availability (no images yet)
@@ -583,6 +616,12 @@ export const getProductOptionsForStep = async (productSlug: string, step: 2 | 3)
 			const result = await requester(sizeOptionsQuery, { slug: productSlug }) as any;
 			const loadTime = Date.now() - startTime;
 			console.log(`✅ Size options loaded in ${loadTime}ms for ${productSlug}`);
+			
+			// Cache the result
+			productCache.set(`options:step2:${productSlug}`, {
+				data: result.product,
+				timestamp: Date.now()
+			}, 2 * 60 * 1000); // 2 minutes cache
 			
 			return result.product;
 		} catch (error) {

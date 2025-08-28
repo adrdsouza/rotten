@@ -12,6 +12,7 @@ import { LocalCartService } from '~/services/LocalCartService';
 import ShopImageUrl from '~/media/shop.jpg?url';
 import { cleanupCache } from '~/utils/cache-warming';
 import { preloadImage } from '~/utils/image-cache';
+import { enableAutoCleanup, disableAutoCleanup } from '~/services/ProductCacheService';
 
 
 // 🚀 OPTIMIZED: Memoized helper functions for better performance
@@ -489,6 +490,16 @@ export default component$(() => {
   useVisibleTask$(() => {
     // Clean up old cache entries
     cleanupCache();
+    
+    // Enable auto cleanup for product cache
+    enableAutoCleanup();
+  });
+
+  // Disable auto cleanup when component is unmounted
+  useVisibleTask$(({ cleanup }) => {
+    cleanup(() => {
+      disableAutoCleanup();
+    });
   });
 
   // 🚀 OPTIMIZED INITIAL LOAD: Load only stock levels for immediate button state
