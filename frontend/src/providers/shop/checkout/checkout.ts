@@ -1,16 +1,13 @@
 import gql from 'graphql-tag';
 import {
 	AddPaymentToOrderMutation,
-	AvailableCountriesQuery,
-	Country,
-	EligiblePaymentMethodsQuery,
-	EligibleShippingMethodsQuery,
 	Order,
 	PaymentInput,
-	PaymentMethodQuote,
-	ShippingMethodQuote,
 } from '~/generated/graphql';
 import { shopSdk } from '~/graphql-wrapper';
+import { CountryService } from '~/services/CountryService';
+import { ShippingService } from '~/services/ShippingService';
+import { PaymentService } from '~/services/PaymentService';
 
 // 🚀 CHECKOUT QUERY CACHE - Conservative 2-minute cache for checkout data
 const checkoutCache = new Map<string, { data: any; timestamp: number }>();
@@ -36,9 +33,7 @@ const setCachedCheckoutQuery = (key: string, data: any) => {
 };
 
 export const getAvailableCountriesQuery = async () => {
-	return shopSdk
-		.availableCountries({})
-		.then((res: AvailableCountriesQuery) => res?.availableCountries as Country[]);
+	return await CountryService.getAvailableCountries();
 };
 
 export const addPaymentToOrderMutation = async (
@@ -72,18 +67,12 @@ export const transitionOrderToStateMutation = async (state = 'ArrangingPayment')
 	throw new Error('Failed to transition order state - unexpected response format');
 };
 
-export const getEligibleShippingMethodsQuery = async () => {
-	return shopSdk
-		.eligibleShippingMethods()
-		.then(
-			(res: EligibleShippingMethodsQuery) => res.eligibleShippingMethods as ShippingMethodQuote[]
-		);
+export const getEligibleShippingMethodsQuery = async (countryCode: string, subtotal: number) => {
+	return ShippingService.getEligibleShippingMethods(countryCode, subtotal);
 };
 
 export const getEligiblePaymentMethodsQuery = async () => {
-	return shopSdk
-		.eligiblePaymentMethods({})
-		.then((res: EligiblePaymentMethodsQuery) => res.eligiblePaymentMethods as PaymentMethodQuote[]);
+	return PaymentService.getPaymentMethods();
 };
 
 // Stripe Payment Integration using official @vendure/payments-plugin
@@ -222,18 +211,18 @@ export const getAvailableCountriesCached = async () => {
 	}
 };
 
-export const getEligibleShippingMethodsCached = async () => {
-	const cacheKey = 'eligible-shipping-methods';
+export const getEligibleShippingMethodsCached = async (countryCode: string, subtotal: number) => {
+	const cacheKey = `eligible-shipping-methods-${countryCode}-${subtotal}`;
 	const cached = getCachedCheckoutQuery(cacheKey);
 	if (cached) return cached;
 
 	try {
-		const result = await getEligibleShippingMethodsQuery();
+		const result = await getEligibleShippingMethodsQuery(countryCode, subtotal);
 		setCachedCheckoutQuery(cacheKey, result);
 		return result;
 	} catch (error) {
 		console.warn('Shipping methods cache failed, using fallback:', error);
-		const result = await getEligibleShippingMethodsQuery();
+		const result = await getEligibleShippingMethodsQuery(countryCode, subtotal);
 		setCachedCheckoutQuery(cacheKey, result);
 		return result;
 	}
@@ -255,38 +244,3 @@ export const getEligiblePaymentMethodsCached = async () => {
 		return result;
 	}
 };
-
-gql`
-	query availableCountries {
-		availableCountries {
-			id
-			name
-			code
-		}
-	}
-`;
-
-gql`
-	query eligibleShippingMethods {
-		eligibleShippingMethods {
-			id
-			name
-			description
-			metadata
-			price
-			priceWithTax
-		}
-	}
-`;
-
-gql`
-	mutation addPaymentToOrder($input: PaymentInput!) {
-		addPaymentToOrder(input: $input) {
-			...CustomOrderDetail
-			...on ErrorResult {
-				errorCode
-				message
-			}
-		}
-	}
-`;

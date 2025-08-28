@@ -1,15 +1,17 @@
 import { component$, useStore, useTask$ } from '@qwik.dev/core';
-import { getEligibleShippingMethodsQuery } from '~/providers/shop/checkout/checkout';
+import { getEligibleShippingMethodsCached } from '~/providers/shop/checkout/checkout';
 import { setOrderShippingMethodMutation } from '~/providers/shop/orders/order';
 import { AppState, EligibleShippingMethods } from '~/types';
 import { formatPrice } from '~/utils';
 import CheckCircleIcon from '../icons/CheckCircleIcon';
+import { useLocalCart } from '~/contexts/CartContext';
 
 type Props = {
 	appState: AppState;
 };
 
 export default component$<Props>(({ appState }) => {
+	const localCart = useLocalCart();
 	const currencyCode = appState.activeOrder?.currencyCode || 'USD';
 	const state = useStore<{ selectedMethodId: string; methods: EligibleShippingMethods[] }>({
 		selectedMethodId: '',
@@ -17,7 +19,17 @@ export default component$<Props>(({ appState }) => {
 	});
 
 	useTask$(async () => {
-		state.methods = await getEligibleShippingMethodsQuery();
+		// Skip in local cart mode since we can't calculate shipping without an order
+		if (localCart.isLocalMode) {
+			console.log('🛒 Local cart mode: Skipping shipping methods query');
+			return;
+		}
+		
+		// Get the subtotal from the active order
+		const subtotal = appState.activeOrder?.subTotalWithTax || 0;
+		const countryCode = appState.shippingAddress.countryCode || 'US';
+		
+		state.methods = await getEligibleShippingMethodsCached(countryCode, subtotal);
 		state.selectedMethodId = state.methods[0]?.id;
 	});
 

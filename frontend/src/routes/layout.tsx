@@ -19,7 +19,6 @@ import {
 	COUNTRY_COOKIE,
 } from '~/constants';
 import { Order } from '~/generated/graphql';
-import { getAvailableCountriesQuery } from '~/providers/shop/checkout/checkout';
 import { getCollections } from '~/providers/shop/collections/collections';
 import { getActiveOrderQuery } from '~/providers/shop/orders/order';
 import { ActiveCustomer, AppState } from '~/types';
@@ -31,6 +30,7 @@ import { CartProvider } from '~/contexts/CartContext';
 import { LoginModalProvider, useLoginModalState, useLoginModalActions } from '~/contexts/LoginModalContext';
 import LoginModal from '~/components/auth/LoginModal';
 import { sanitizePhoneNumber } from '~/utils/validation';
+import { CountryService } from '~/services/CountryService';
 
 export const onGet: RequestHandler = async ({ cacheControl, url, headers }) => {
 	// 🚀 ADVANCED CACHING: Intelligent cache strategies based on page type and user agent
@@ -65,7 +65,7 @@ export const useCollectionsLoader = routeLoader$(async () => {
 });
 
 export const useAvailableCountriesLoader = routeLoader$(async () => {
-	return await getAvailableCountriesQuery();
+	return await CountryService.getAvailableCountries();
 });
 
 export const useActiveOrderLoader = routeLoader$(async () => {

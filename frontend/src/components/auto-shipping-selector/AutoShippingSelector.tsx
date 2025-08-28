@@ -1,5 +1,5 @@
 import { component$, useSignal, useStore, useVisibleTask$, useTask$ } from '@qwik.dev/core';
-import { getEligibleShippingMethodsQuery } from '~/providers/shop/checkout/checkout';
+import { getEligibleShippingMethodsCached } from '~/providers/shop/checkout/checkout';
 import { setOrderShippingMethodMutation, setOrderShippingAddressMutation } from '~/providers/shop/orders/order';
 import { AppState, EligibleShippingMethods, Order } from '~/types';
 import { CreateAddressInput } from '~/generated/graphql';
@@ -108,7 +108,10 @@ export default component$<Props>(({ appState }) => {
 				console.log('✅ Shipping address set on order');
 				
 				// Now get eligible shipping methods
-				const methods = await getEligibleShippingMethodsQuery();
+				const methods = await getEligibleShippingMethodsCached(
+					appState.shippingAddress.countryCode,
+					appState.activeOrder?.subTotalWithTax || 0
+				);
 				state.methods = methods;
 				state.lastCheckedCountry = appState.shippingAddress.countryCode;
 				
