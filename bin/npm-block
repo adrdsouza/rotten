@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Block all npm commands - this project uses pnpm, not npm
+echo "⚠️  This project does NOT use npm - it uses pnpm instead."
+echo "💡 To run this project, use: pnpm build"
+echo "📦 For package management, use pnpm commands (pnpm install, pnpm dev, etc.)"
+echo "🚫 npm is blocked to prevent confusion and ensure consistency."
+echo ""
+echo "If you absolutely need npm for a specific reason, use: source npm-enable"
+exit 1

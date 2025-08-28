@@ -19,10 +19,10 @@ import { AssetServerPlugin, PresetOnlyStrategy } from '@vendure/asset-server-plu
 import { AdminUiPlugin } from '@vendure/admin-ui-plugin';
 import { GraphiqlPlugin } from '@vendure/graphiql-plugin';
 import { RedisCachePlugin, DefaultSchedulerPlugin } from '@vendure/core';
-import { HardenPlugin } from '@vendure/harden-plugin';
+// import { HardenPlugin } from '@vendure/harden-plugin'; // DISABLED
 import { AuditPlugin } from './plugins/audit-plugin';
-import { UnifiedOrderSecurityPlugin } from './plugins/unified-order-security.plugin';
-import { OrderDeduplicationPlugin } from './plugins/order-deduplication.plugin';
+// import { UnifiedOrderSecurityPlugin } from './plugins/unified-order-security.plugin'; // DISABLED
+// import { OrderDeduplicationPlugin } from './plugins/order-deduplication.plugin'; // DISABLED
 
 
 import { CustomShippingPlugin } from './plugins/custom-shipping';
@@ -35,13 +35,13 @@ import { orderConfirmationHandler } from './email-handlers/order-confirmation-ha
 import 'dotenv/config';
 import path from 'path';
 import { Request, Response, NextFunction } from 'express';
-import helmet from 'helmet';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+// import helmet from 'helmet'; // DISABLED
+// import rateLimit, { ipKeyGenerator } from 'express-rate-limit'; // DISABLED
 // REMOVED: NmiPaymentPlugin - not available for this clothing brand
 import { SequentialOrderCodeStrategy } from './config/sequential-order-code-strategy';
 import { NewsletterPlugin } from './plugins/newsletter';
-import { createSecurityMiddleware } from './middleware/security-middleware';
-import { SecurityPlugin } from './plugins/security-plugin';
+// import { createSecurityMiddleware } from './middleware/security-middleware'; // DISABLED
+// import { SecurityPlugin } from './plugins/security-plugin'; // DISABLED
 import { StaleOrderCleanupPlugin } from './plugins/stale-order-cleanup.plugin';
 import { CacheInvalidationPlugin } from './plugins/cache-invalidation.plugin';
 import { LocalCartCouponPlugin } from './plugins/custom-coupon-validation/local-cart-coupon.plugin';
@@ -102,11 +102,11 @@ export const config: VendureConfig = {
                 route: '/',
                 beforeListen: true,
             },
-            // Security middleware for all routes
-            {
-                handler: createSecurityMiddleware(),
-                route: '/',
-            },
+            // Security middleware for all routes - DISABLED
+            // {
+            //     handler: createSecurityMiddleware(),
+            //     route: '/',
+            // },
             // Session monitoring middleware (only in production)
             ...(!IS_DEV ? [{
                 handler: (req: Request, res: Response, next: NextFunction) => {
@@ -124,95 +124,97 @@ export const config: VendureConfig = {
                 },
                 route: '/',
             }] : []),
-            ...(IS_DEV ? [] : [
-                // Tiered rate limiting for different endpoints
-                {
-                    handler: rateLimit({
-                        windowMs: 1 * 60 * 1000, // 1 minute window
-                        max: 600, // Increased from 300 for high traffic
-                        standardHeaders: true,
-                        legacyHeaders: false,
-                        message: 'Too many requests, please try again later.',
-                        keyGenerator: (req) => {
-                            // Different limits for different operations
-                            const isOrderOperation = req.body?.query?.includes('addItemToOrder') ||
-                                                   req.body?.query?.includes('adjustOrderLine');
-                            const ipKey = ipKeyGenerator(req.ip || 'unknown');
-                            return isOrderOperation ? `order:${ipKey}` : `general:${ipKey}`;
-                        },
-                        skip: (req) => {
-                            // Skip rate limiting for health checks
-                            return req.headers['user-agent']?.includes('HealthMonitor') ||
-                                   req.url?.includes('health');
-                        }
-                    }),
-                    route: '/shop-api',
-                },
-                // Separate rate limit for order operations (more restrictive)
-                {
-                    handler: rateLimit({
-                        windowMs: 5 * 60 * 1000, // 5 minute window
-                        max: 50, // Max 50 order operations per 5 minutes per IP
-                        standardHeaders: true,
-                        legacyHeaders: false,
-                        message: 'Too many order operations, please slow down.',
-                        keyGenerator: (req) => `order-ops:${ipKeyGenerator(req.ip || 'unknown')}`,
-                        skip: (req) => {
-                            const isOrderOperation = req.body?.query?.includes('addItemToOrder') ||
-                                                   req.body?.query?.includes('adjustOrderLine') ||
-                                                   req.body?.query?.includes('setOrderShippingAddress');
-                            return !isOrderOperation;
-                        }
-                    }),
-                    route: '/shop-api',
-                },
-                {
-                    handler: rateLimit({
-                        windowMs: 15 * 60 * 1000,
-                        max: 15000, // Increased from 10000 for high admin usage
-                        standardHeaders: true,
-                        legacyHeaders: false,
-                        message: 'Too many admin requests, please try again later.',
-                    }),
-                    route: '/admin-api',
-                },
-            ]),
-            {
-                handler: helmet({
-                    contentSecurityPolicy: {
-                        directives: {
-                            defaultSrc: ["'self'"],
-                            styleSrc: ["'self'", "'unsafe-inline'"],
-                            scriptSrc: [
-                                "'self'",
-                                "'unsafe-eval'",  // Allow in both dev and prod for translation functionality
-                                "https://www.google.com/recaptcha/",
-                                "https://www.gstatic.com/recaptcha/"
-                            ],
-                            frameSrc: [
-                                "'self'",
-                                "https://www.google.com/recaptcha/",
-                                "https://recaptcha.google.com/recaptcha/"
-                            ],
-                            imgSrc: ["'self'", "data:", "https:"],
-                            connectSrc: ["'self'", "https://www.google.com/recaptcha/"],
-                            fontSrc: ["'self'"],
-                            objectSrc: ["'none'"],
-                            frameAncestors: ["'none'"],
-                            ...(IS_DEV ? { 'worker-src': ["'self' blob:"] } : {})
-                        },
-                    },
-                    hsts: {
-                        maxAge: 31536000,
-                        includeSubDomains: true,
-                        preload: true
-                    },
-                    noSniff: true,
-                    xssFilter: true,
-                    referrerPolicy: { policy: "strict-origin-when-cross-origin" }
-                }),
-                route: '/',
-            },
+            // Rate limiting - DISABLED
+            // ...(IS_DEV ? [] : [
+            //     // Tiered rate limiting for different endpoints
+            //     {
+            //         handler: rateLimit({
+            //             windowMs: 1 * 60 * 1000, // 1 minute window
+            //             max: 600, // Increased from 300 for high traffic
+            //             standardHeaders: true,
+            //             legacyHeaders: false,
+            //             message: 'Too many requests, please try again later.',
+            //             keyGenerator: (req) => {
+            //                 // Different limits for different operations
+            //                 const isOrderOperation = req.body?.query?.includes('addItemToOrder') ||
+            //                                        req.body?.query?.includes('adjustOrderLine');
+            //                 const ipKey = ipKeyGenerator(req.ip || 'unknown');
+            //                 return isOrderOperation ? `order:${ipKey}` : `general:${ipKey}`;
+            //             },
+            //             skip: (req) => {
+            //                 // Skip rate limiting for health checks
+            //                 return req.headers['user-agent']?.includes('HealthMonitor') ||
+            //                        req.url?.includes('health');
+            //             }
+            //         }),
+            //         route: '/shop-api',
+            //     },
+            //     // Separate rate limit for order operations (more restrictive)
+            //     {
+            //         handler: rateLimit({
+            //             windowMs: 5 * 60 * 1000, // 5 minute window
+            //             max: 50, // Max 50 order operations per 5 minutes per IP
+            //             standardHeaders: true,
+            //             legacyHeaders: false,
+            //             message: 'Too many order operations, please slow down.',
+            //             keyGenerator: (req) => `order-ops:${ipKeyGenerator(req.ip || 'unknown')}`,
+            //             skip: (req) => {
+            //                 const isOrderOperation = req.body?.query?.includes('addItemToOrder') ||
+            //                                        req.body?.query?.includes('adjustOrderLine') ||
+            //                                        req.body?.query?.includes('setOrderShippingAddress');
+            //                 return !isOrderOperation;
+            //             }
+            //         }),
+            //         route: '/shop-api',
+            //     },
+            //     {
+            //         handler: rateLimit({
+            //             windowMs: 15 * 60 * 1000,
+            //             max: 15000, // Increased from 10000 for high admin usage
+            //             standardHeaders: true,
+            //             legacyHeaders: false,
+            //             message: 'Too many admin requests, please try again later.',
+            //         }),
+            //         route: '/admin-api',
+            //     },
+            // ]),
+            // Helmet security headers - DISABLED
+            // {
+            //     handler: helmet({
+            //         contentSecurityPolicy: {
+            //             directives: {
+            //                 defaultSrc: ["'self'"],
+            //                 styleSrc: ["'self'", "'unsafe-inline'"],
+            //                 scriptSrc: [
+            //                     "'self'",
+            //                     "'unsafe-eval'",  // Allow in both dev and prod for translation functionality
+            //                     "https://www.google.com/recaptcha/",
+            //                     "https://www.gstatic.com/recaptcha/"
+            //                 ],
+            //                 frameSrc: [
+            //                     "'self'",
+            //                     "https://www.google.com/recaptcha/",
+            //                     "https://recaptcha.google.com/recaptcha/"
+            //                 ],
+            //                 imgSrc: ["'self'", "data:", "https:"],
+            //                 connectSrc: ["'self'", "https://www.google.com/recaptcha/"],
+            //                 fontSrc: ["'self'"],
+            //                 objectSrc: ["'none'"],
+            //                 frameAncestors: ["'none'"],
+            //                 ...(IS_DEV ? { 'worker-src': ["'self' blob:"] } : {})
+            //             },
+            //         },
+            //         hsts: {
+            //             maxAge: 31536000,
+            //             includeSubDomains: true,
+            //             preload: true
+            //         },
+            //         noSniff: true,
+            //         xssFilter: true,
+            //         referrerPolicy: { policy: "strict-origin-when-cross-origin" }
+            //     }),
+            //     route: '/',
+            // },
         ],
     },
     authOptions: {
@@ -303,16 +305,16 @@ export const config: VendureConfig = {
             },
         }), // 🔍 SEO plugin for JSON-LD schemas and sitemaps
         LocalCartCouponPlugin, // 🎫 Local cart coupon validation
-        UnifiedOrderSecurityPlugin.init(), // 🚀 UNIFIED - comprehensive logging + security
-        OrderDeduplicationPlugin.init(), // 🔒 Prevent duplicate orders during high traffic
+        // UnifiedOrderSecurityPlugin.init(), // 🚀 UNIFIED - comprehensive logging + security - DISABLED
+        // OrderDeduplicationPlugin.init(), // 🔒 Prevent duplicate orders during high traffic - DISABLED
 
         StaleOrderCleanupPlugin.init(),
         CacheInvalidationPlugin.init(),
-        SecurityPlugin.init({
-            enableLogging: true,
-            enableGraphQLProtection: true,
-            minRecaptchaScore: IS_DEV ? 0.3 : 0.5
-        }),
+        // SecurityPlugin.init({
+        //     enableLogging: true,
+        //     enableGraphQLProtection: true,
+        //     minRecaptchaScore: IS_DEV ? 0.3 : 0.5
+        // }), // DISABLED
         NewsletterPlugin,
         StripePlugin.init({
             // This prevents different customers from using the same PaymentIntent
@@ -343,11 +345,11 @@ export const config: VendureConfig = {
         //     orderSyncTriggerStates: ['PaymentSettled'],
         // }),
         AuditPlugin,
-        HardenPlugin.init({
-            maxQueryComplexity: 5000, // Reduced from 10000 for better control
-            apiMode: process.env.APP_ENV !== 'prod' ? 'dev' : 'prod',
-            logComplexityScore: process.env.APP_ENV !== 'prod',
-        }),
+        // HardenPlugin.init({
+        //     maxQueryComplexity: 5000, // Reduced from 10000 for better control
+        //     apiMode: process.env.APP_ENV !== 'prod' ? 'dev' : 'prod',
+        //     logComplexityScore: process.env.APP_ENV !== 'prod',
+        // }), // DISABLED
         RedisCachePlugin.init({
             namespace: 'vendure-cache',
             maxItemSizeInBytes: 512_000, // Increased for batched product queries

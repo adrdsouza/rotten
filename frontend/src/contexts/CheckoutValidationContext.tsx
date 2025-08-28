@@ -2,7 +2,6 @@ import { createContextId, useContext, useContextProvider, useStore, Slot, compon
 
 // Define the validation state structure
 export interface CheckoutValidationState {
-  // Customer validation
   isCustomerValid: boolean;
   customerErrors: {
     email?: string;
@@ -10,8 +9,7 @@ export interface CheckoutValidationState {
     lastName?: string;
     phone?: string;
   };
-  
-  // Address validation
+
   isShippingAddressValid: boolean;
   shippingAddressErrors: {
     streetLine1?: string;
@@ -20,8 +18,7 @@ export interface CheckoutValidationState {
     postalCode?: string;
     countryCode?: string;
   };
-  
-  // Billing address validation (when different billing is used)
+
   isBillingAddressValid: boolean;
   billingAddressErrors: {
     firstName?: string;
@@ -33,92 +30,74 @@ export interface CheckoutValidationState {
     countryCode?: string;
   };
   useDifferentBilling: boolean;
-  
-  // Payment validation
-  isPaymentValid: boolean;
-  paymentErrors: {
-    cardNumber?: string;
-    expiryDate?: string;
-    cvv?: string;
-  };
-  
-  // Terms & Conditions validation (handled by Stripe)
+
+  // NEW: Added stock validation state
+  isStockValid: boolean;
+  stockErrors: string[];
   isTermsAccepted: boolean;
-  
-  // Overall validation state
+  isPaymentReady: boolean;
   isAllValid: boolean;
-  
-  // Validation touched states to know if user has interacted with forms
   customerTouched: boolean;
   shippingAddressTouched: boolean;
   billingAddressTouched: boolean;
-  paymentTouched: boolean;
 }
 
-// Context type - just the state
-export type CheckoutValidationContext = CheckoutValidationState;
+export const CheckoutValidationContextId = createContextId<CheckoutValidationState>('checkout-validation');
 
-// Create the context
-export const CheckoutValidationContextId = createContextId<CheckoutValidationContext>('checkout-validation');
-
-// Hook to use the context
 export const useCheckoutValidation = () => useContext(CheckoutValidationContextId);
 
-// Initial state
 const createInitialState = (): CheckoutValidationState => ({
   isCustomerValid: false,
   customerErrors: {},
   isShippingAddressValid: false,
   shippingAddressErrors: {},
-  isBillingAddressValid: true, // Valid by default since it's optional
+  isBillingAddressValid: true,
   billingAddressErrors: {},
   useDifferentBilling: false,
-  isPaymentValid: false,
-  paymentErrors: {},
+  // NEW: Initial state for stock validation
+  isStockValid: false,
+  stockErrors: [],
   isTermsAccepted: false,
+  isPaymentReady: false,
   isAllValid: false,
   customerTouched: false,
   shippingAddressTouched: false,
   billingAddressTouched: false,
-  paymentTouched: false,
 });
 
-// Provider component
 export const CheckoutValidationProvider = component$(() => {
   const state = useStore<CheckoutValidationState>(createInitialState());
 
-  // Use a task to automatically recalculate overall validation when any validation state changes
+  // This task now correctly calculates the total validation for a single-page checkout
   useTask$(({ track }) => {
-    // Track validation properties needed for "Proceed to Payment" button
     const customerValid = track(() => state.isCustomerValid);
     const shippingValid = track(() => state.isShippingAddressValid);
     const billingValid = track(() => state.useDifferentBilling ? state.isBillingAddressValid : true);
+    const termsAccepted = track(() => state.isTermsAccepted);
+    const stockValid = track(() => state.isStockValid);
 
-    // Note: paymentValid and termsValid are NOT included here because:
-    // - Payment validation happens AFTER clicking "Proceed to Payment"
-    // - Terms acceptance happens on the payment step, not shipping step
-
-    // Calculate overall validation for shipping step only
-    const overall = customerValid && shippingValid && billingValid;
-
-    // Update the state
+    const paymentReady = customerValid && shippingValid && billingValid && stockValid;
+    state.isPaymentReady = paymentReady;
+    
+    const overall = customerValid && shippingValid && billingValid && termsAccepted;
     state.isAllValid = overall;
 
-    console.log('[CheckoutValidation] Overall validation recalculated:', {
+    console.log('[CheckoutValidation] Recalculated:', {
       customer: customerValid,
       shipping: shippingValid,
       billing: billingValid,
-      overall
+      stock: stockValid,
+      terms: termsAccepted,
+      paymentReady,
+      overall,
     });
   });
 
-  // Use Qwik's useContextProvider - only provide the state
   useContextProvider(CheckoutValidationContextId, state);
 
   return <Slot />;
 });
 
-// Action functions that work with the context
 export const useCheckoutValidationActions = () => {
   const state = useCheckoutValidation();
 
@@ -127,48 +106,40 @@ export const useCheckoutValidationActions = () => {
       state.isCustomerValid = isValid;
       state.customerErrors = errors;
       if (touched) state.customerTouched = true;
-      // The useTask$ will automatically recalculate isAllValid
     }),
 
     updateShippingAddressValidation: $((isValid: boolean, errors: CheckoutValidationState['shippingAddressErrors'], touched = true) => {
       state.isShippingAddressValid = isValid;
       state.shippingAddressErrors = errors;
       if (touched) state.shippingAddressTouched = true;
-      // The useTask$ will automatically recalculate isAllValid
     }),
 
     updateBillingAddressValidation: $((isValid: boolean, errors: CheckoutValidationState['billingAddressErrors'], touched = true) => {
       state.isBillingAddressValid = isValid;
       state.billingAddressErrors = errors;
       if (touched) state.billingAddressTouched = true;
-      // The useTask$ will automatically recalculate isAllValid
     }),
 
-    updatePaymentValidation: $((isValid: boolean, errors: CheckoutValidationState['paymentErrors'], touched = true) => {
-      state.isPaymentValid = isValid;
-      state.paymentErrors = errors;
-      if (touched) state.paymentTouched = true;
-      // The useTask$ will automatically recalculate isAllValid
+    // NEW: The missing action for stock validation
+    updateStockValidation: $((isValid: boolean, errors: string[]) => {
+      state.isStockValid = isValid;
+      state.stockErrors = errors;
     }),
 
     updateBillingMode: $((useDifferentBilling: boolean) => {
       state.useDifferentBilling = useDifferentBilling;
-      // If switching to same billing, mark billing as valid
       if (!useDifferentBilling) {
         state.isBillingAddressValid = true;
         state.billingAddressErrors = {};
       }
-      // The useTask$ will automatically recalculate isAllValid
     }),
 
     updateTermsAcceptance: $((isAccepted: boolean) => {
       state.isTermsAccepted = isAccepted;
-      // The useTask$ will automatically recalculate isAllValid
     }),
 
     resetValidation: $(() => {
       Object.assign(state, createInitialState());
-      // The useTask$ will automatically recalculate isAllValid
     })
   };
 };

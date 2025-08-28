@@ -244,8 +244,6 @@ export default component$(() => {
 	// 🚀 OPTIMIZED: Body overflow handled via CSS classes on container
 	// This avoids additional useVisibleTask$ and lets CSS handle the overflow state
 
-
-
 	useOn(
 		'keydown',
 		$((event: unknown) => {
@@ -254,7 +252,14 @@ export default component$(() => {
 				state.showMenu = false;
 			}
 		})
-	);
+	 );
+	 
+	// Error boundary for navigation errors
+	useOn('qwik-router-error', $((event: any) => {
+		console.error('Qwik Router Error:', event.detail);
+		// Could show a user-friendly error message here
+	}));
+
 	return (
 		<LoginModalProvider>
 			<CartProvider>

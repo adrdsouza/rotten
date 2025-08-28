@@ -108,17 +108,11 @@ export const useShirtStylesLoader = routeLoader$(async () => {
   try {
     console.log('🚀 Loading ultra-lightweight style selection data...');
 
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Style loading timeout')), 5000)
-    );
-
     // Load ONLY basic style info for Step 1 - no variants, no assets, no options
-    const stylesPromise = getShirtStylesForSelection().catch(err => {
+    const styles = await getShirtStylesForSelection().catch(err => {
       console.error('Failed to load styles:', err);
       return { shortSleeve: null, longSleeve: null };
     });
-
-    const styles = await Promise.race([stylesPromise, timeoutPromise]) as any;
 
     console.log('✅ Style selection data loaded:', {
       shortSleeve: !!styles.shortSleeve,
@@ -259,12 +253,24 @@ export default component$(() => {
     // 🚀 PROGRESSIVE LOADING: Load full product data only when user selects style
     const loadFullProductData = async () => {
       isLoadingStep.value = true;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
       try {
         console.log(`🔄 Loading full product data for ${style} sleeve...`);
         
         // Load only the selected product's full data
         const slug = style === 'short' ? 'shortsleeveshirt' : 'longsleeveshirt';
-        const [productData] = await getBatchedProductsForShop([slug]);
+        
+        // Create a promise that respects the abort signal
+        const loadDataPromise = getBatchedProductsForShop([slug]);
+        const abortPromise = new Promise((_, reject) => {
+          controller.signal.addEventListener('abort', () => {
+            reject(new Error('Product data loading timed out'));
+          });
+        });
+        
+        const [productData] = await Promise.race([loadDataPromise, abortPromise]) as any;
         
         // Update the full product data with the loaded product
         if (style === 'short') {
@@ -285,7 +291,9 @@ export default component$(() => {
         console.log(`✅ Full product data loaded for ${style} sleeve`);
       } catch (error) {
         console.error(`❌ Failed to load full product data for ${style}:`, error);
+        // Show error to user
       } finally {
+        clearTimeout(timeoutId);
         isLoadingStep.value = false;
       }
     };
@@ -314,6 +322,9 @@ export default component$(() => {
     if (!selectedVariantId.value || !selectedProduct.value || !selectedSize.value || !selectedColor.value) return;
 
     isAddingToCart.value = true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
     try {
       // Find the selected variant
       const selectedVar = selectedProduct.value.variants.find(v => v.id === selectedVariantId.value);
@@ -340,8 +351,15 @@ export default component$(() => {
         },
       };
 
-      // Add to cart using the correct function signature
-      await addToLocalCart(localCart, localCartItem);
+      // Add to cart using the correct function signature with timeout
+      const addToCartPromise = addToLocalCart(localCart, localCartItem);
+      const abortPromise = new Promise((_, reject) => {
+        controller.signal.addEventListener('abort', () => {
+          reject(new Error('Add to cart operation timed out'));
+        });
+      });
+      
+      await Promise.race([addToCartPromise, abortPromise]);
 
       // 🚀 DEMAND-BASED GEOLOCATION: Load country when user shows purchase intent
       await loadCountryOnDemand(appState);
@@ -357,6 +375,7 @@ export default component$(() => {
       console.error('Failed to add to cart:', error);
       // Could add error notification here
     } finally {
+      clearTimeout(timeoutId);
       isAddingToCart.value = false;
     }
   });
@@ -373,16 +392,31 @@ export default component$(() => {
   const touchEndX = useSignal<number | null>(null);
 
   // Lazy load assets when selectedProduct changes
-  useVisibleTask$(({ track }) => {
+  useVisibleTask$(({ track, cleanup }) => {
     track(() => selectedProduct.value);
+    
+    // Use AbortController for proper cleanup
+    const controller = new AbortController();
 
     if (selectedProduct.value) {
       console.log('Product selected, lazy loading assets...');
       assetsLoading.value = true;
 
+      // Create timeout for asset loading
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        console.error('Asset loading timeout - using placeholder');
+        currentProductImage.value = { id: 'placeholder', preview: '/asset_placeholder.webp' };
+        assetsLoading.value = false;
+      }, 8000); // 8 second timeout
+
       // Lazy load assets for the selected product
       getProductAssets(selectedProduct.value.slug || '')
         .then((assets) => {
+          // Check if component is still mounted
+          if (controller.signal.aborted) return;
+          
+          clearTimeout(timeoutId);
           productAssets.value = assets;
 
           // Set initial image
@@ -428,9 +462,12 @@ export default component$(() => {
           assetsLoading.value = false;
         })
         .catch((error) => {
-          console.error('Failed to load assets:', error);
-          currentProductImage.value = { id: 'placeholder', preview: '/asset_placeholder.webp' };
-          assetsLoading.value = false;
+          if (!controller.signal.aborted) {
+            clearTimeout(timeoutId);
+            console.error('Failed to load assets:', error);
+            currentProductImage.value = { id: 'placeholder', preview: '/asset_placeholder.webp' };
+            assetsLoading.value = false;
+          }
         });
     } else {
       // No product selected - clear assets
@@ -438,6 +475,10 @@ export default component$(() => {
       currentProductImage.value = null;
       assetsLoading.value = false;
     }
+    
+    cleanup(() => {
+      controller.abort();
+    });
   });
 
 
@@ -451,11 +492,17 @@ export default component$(() => {
   });
 
   // 🚀 OPTIMIZED INITIAL LOAD: Load only stock levels for immediate button state
-  useVisibleTask$(() => {
+  useVisibleTask$(({ cleanup }) => {
+    // Use AbortController to handle cleanup properly
+    const controller = new AbortController();
+    
     const loadStockLevelsOnly = async () => {
       try {
         console.log('🔄 Loading stock levels only on page load...');
         const stockData = await getStockLevelsOnly();
+        
+        // Check if component is still mounted
+        if (controller.signal.aborted) return;
         
         // Store minimal stock data for button state calculation
         fullProductData.value = {
@@ -465,11 +512,17 @@ export default component$(() => {
         
         console.log('✅ Stock levels loaded on page load - buttons ready');
       } catch (error) {
-        console.error('❌ Failed to load stock levels on page load:', error);
+        if (!controller.signal.aborted) {
+          console.error('❌ Failed to load stock levels on page load:', error);
+        }
       }
     };
     
     loadStockLevelsOnly();
+    
+    cleanup(() => {
+      controller.abort();
+    });
   });
 
   // Load cart quantities for all variants when products are available

@@ -353,9 +353,6 @@ export class LocalCartService {
   static removeItem(productVariantId: string): LocalCart {
     const cart = this.getCart();
     cart.items = cart.items.filter(item => item.productVariantId !== productVariantId);
-    if(cart.items.length <=0 || !cart.items){
-      window.location.assign("/shop")
-    }
     this.recalculateTotals(cart);
     this.saveCart(cart);
     return cart;
