@@ -9,35 +9,14 @@ import {
 	UpdateAddressInput,
 	UpdateCustomerPasswordMutationMutation,
 } from '~/generated/graphql';
+import {
+	customerCache,
+	clearCustomerCacheAfterMutation,
+	clearCustomerCacheOnLogout,
+} from '~/services/CustomerCacheService';
 import { shopSdk } from '~/graphql-wrapper';
 
-// 🚀 CUSTOMER QUERY CACHE - 3-minute cache for customer data
-const customerCache = new Map<string, { data: any; timestamp: number }>();
-const CUSTOMER_CACHE_DURATION = 3 * 60 * 1000; // 3 minutes
 
-const getCachedCustomerQuery = (key: string) => {
-	const cached = customerCache.get(key);
-	if (cached && Date.now() - cached.timestamp < CUSTOMER_CACHE_DURATION) {
-		return cached.data;
-	}
-	return null;
-};
-
-const setCachedCustomerQuery = (key: string, data: any) => {
-	customerCache.set(key, { data, timestamp: Date.now() });
-	// Keep customer cache reasonable
-	if (customerCache.size > 30) {
-		const oldestKey = customerCache.keys().next().value;
-		if (oldestKey) {
-			customerCache.delete(oldestKey);
-		}
-	}
-};
-
-// Clear customer cache when data changes (mutations)
-const clearCustomerCache = () => {
-	customerCache.clear();
-};
 
 export const getActiveCustomerQuery = async () => {
 	return shopSdk
@@ -55,13 +34,18 @@ export const updateCustomerPasswordMutation = async (
 	currentPassword: string,
 	newPassword: string
 ) => {
-	return shopSdk
+	const result = await shopSdk
 		.updateCustomerPasswordMutation({ currentPassword, newPassword })
 		.then((res: UpdateCustomerPasswordMutationMutation) => res.updateCustomerPassword);
+	
+	// Password changes don't affect cached customer data, so no cache invalidation needed
+	return result;
 };
 
 export const deleteCustomerAddressMutation = async (id: string) => {
-	return shopSdk.deleteCustomerAddress({ id });
+	const result = await shopSdk.deleteCustomerAddress({ id });
+	clearCustomerCacheAfterMutation(); // Invalidate cache after mutation
+	return result;
 };
 
 export const getActiveCustomerOrdersQuery = async () => {
@@ -87,18 +71,24 @@ export const updateCustomerAddressMutation = async (
 	token: string | undefined
 ) => {
 	console.log(token);
-	return shopSdk.updateCustomerAddressMutation({ input }, { token });
+	const result = await shopSdk.updateCustomerAddressMutation({ input }, { token });
+	clearCustomerCacheAfterMutation(); // Invalidate cache after mutation
+	return result;
 };
 
-export const createCustomerAddressMutation = (
+export const createCustomerAddressMutation = async (
 	input: CreateAddressInput,
 	token: string | undefined
 ) => {
-	return shopSdk.createCustomerAddressMutation({ input }, { token });
+	const result = await shopSdk.createCustomerAddressMutation({ input }, { token });
+	clearCustomerCacheAfterMutation(); // Invalidate cache after mutation
+	return result;
 };
 
 export const logoutMutation = async () => {
-	return shopSdk.logout();
+	const result = await shopSdk.logout();
+	clearCustomerCacheOnLogout(); // Clear all customer cache on logout
+	return result;
 };
 
 gql`
@@ -376,60 +366,12 @@ gql`
 	}
 `;
 
-// 🚀 CACHED CUSTOMER QUERIES - Better performance for account pages
+// 🚀 CACHED CUSTOMER QUERIES - Now using unified CustomerCacheService
 
-export const getActiveCustomerCached = async () => {
-	const cacheKey = 'active-customer';
-	const cached = getCachedCustomerQuery(cacheKey);
-	if (cached) return cached;
+// Cached functions - now using unified CustomerCacheService
+export const getActiveCustomerCached = () => customerCache.getProfile();
+export const getActiveCustomerAddressesCached = () => customerCache.getAddresses();
+export const getActiveCustomerOrdersCached = () => customerCache.getOrders();
 
-	try {
-		const result = await getActiveCustomerQuery();
-		setCachedCustomerQuery(cacheKey, result);
-		return result;
-	} catch (error) {
-		console.warn('Customer cache failed, using fallback:', error);
-		const result = await getActiveCustomerQuery();
-		setCachedCustomerQuery(cacheKey, result);
-		return result;
-	}
-};
-
-export const getActiveCustomerAddressesCached = async () => {
-	const cacheKey = 'customer-addresses';
-	const cached = getCachedCustomerQuery(cacheKey);
-	if (cached) return cached;
-
-	try {
-		const result = await getActiveCustomerAddressesQuery();
-		setCachedCustomerQuery(cacheKey, result);
-		return result;
-	} catch (error) {
-		console.warn('Customer addresses cache failed, using fallback:', error);
-		const result = await getActiveCustomerAddressesQuery();
-		setCachedCustomerQuery(cacheKey, result);
-		return result;
-	}
-};
-
-export const getActiveCustomerOrdersCached = async () => {
-	const cacheKey = 'customer-orders';
-	const cached = getCachedCustomerQuery(cacheKey);
-	if (cached) return cached;
-
-	try {
-		const result = await getActiveCustomerOrdersQuery();
-		setCachedCustomerQuery(cacheKey, result);
-		return result;
-	} catch (error) {
-		console.warn('Customer orders cache failed, using fallback:', error);
-		const result = await getActiveCustomerOrdersQuery();
-		setCachedCustomerQuery(cacheKey, result);
-		return result;
-	}
-};
-
-// Clear cache after mutations that change customer data
-export const clearCustomerCacheAfterMutation = () => {
-	clearCustomerCache();
-};
+// Export cache invalidation functions
+export { clearCustomerCacheAfterMutation, clearCustomerCacheOnLogout };

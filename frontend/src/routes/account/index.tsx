@@ -15,7 +15,7 @@ import {
 	requestUpdateCustomerEmailAddressMutation,
 	updateCustomerMutation,
 } from '~/providers/shop/account/account';
-import { getActiveCustomerQuery, logoutMutation } from '~/providers/shop/customer/customer';
+import { getActiveCustomerCached, logoutMutation } from '~/providers/shop/customer/customer';
 import { LocalAddressService } from '~/services/LocalAddressService';
 import { ActiveCustomer } from '~/types';
 import { createSEOHead } from '~/utils/seo';
@@ -33,16 +33,18 @@ export default component$(() => {
 	};
 
 	useVisibleTask$(async () => {
-		const activeCustomer = await getActiveCustomerQuery();
-		appState.customer = {
-			title: activeCustomer.title ?? '',
-			firstName: activeCustomer.firstName,
-			id: activeCustomer.id,
-			lastName: activeCustomer.lastName,
-			emailAddress: activeCustomer.emailAddress,
-			phoneNumber: sanitizePhoneNumber(activeCustomer.phoneNumber),
-		};
-		newEmail.value = activeCustomer?.emailAddress as string;
+		const activeCustomer = await getActiveCustomerCached();
+		if (activeCustomer) {
+			appState.customer = {
+				title: activeCustomer.title ?? '',
+				firstName: activeCustomer.firstName,
+				id: activeCustomer.id,
+				lastName: activeCustomer.lastName,
+				emailAddress: activeCustomer.emailAddress,
+				phoneNumber: sanitizePhoneNumber(activeCustomer.phoneNumber),
+			};
+			newEmail.value = activeCustomer?.emailAddress as string;
+		}
 	});
 
 	const updateCustomer = $(async (): Promise<void> => {

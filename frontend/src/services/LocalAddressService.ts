@@ -1,5 +1,9 @@
-import { getActiveCustomerAddressesQuery, createCustomerAddressMutation } from '~/providers/shop/customer/customer';
-import { Address, CreateAddressInput } from '~/generated/graphql';
+import { 
+  createCustomerAddressMutation, 
+  updateCustomerAddressMutation,
+  getActiveCustomerAddressesCached 
+} from '~/providers/shop/customer/customer';
+import { Address, CreateAddressInput, UpdateAddressInput } from '~/generated/graphql';
 
 // LocalAddress Interface - Address stored in sessionStorage
 export interface LocalAddress {
@@ -192,15 +196,18 @@ export class LocalAddressService {
     );
 
     let savedAddress: LocalAddress;
+    let isUpdate = false;
     
     if (existingIndex >= 0) {
       // Update existing address
+      const existingAddress = addresses[existingIndex];
       savedAddress = {
         ...address,
-        id: addresses[existingIndex].id,
+        id: existingAddress.id,
         lastUpdated: now
       };
       addresses[existingIndex] = savedAddress;
+      isUpdate = true;
     } else {
       // Create new address
       savedAddress = {
@@ -214,7 +221,46 @@ export class LocalAddressService {
     // Save updated addresses
     this.saveAddresses(addresses);
     
+    // If this was an update to a customer address, sync it back to Vendure
+    if (isUpdate && savedAddress.source === 'customer') {
+      // Async sync - don't block the UI
+      this.syncToVendure(savedAddress).catch(error => {
+        console.warn('Failed to sync address update to Vendure:', error);
+      });
+    }
+    
     return savedAddress;
+  }
+
+  // Update existing address by ID
+  static updateAddress(addressId: string, updates: Partial<Omit<LocalAddress, 'id' | 'lastUpdated'>>): LocalAddress | null {
+    const addresses = this.getAddresses();
+    const addressIndex = addresses.findIndex(addr => addr.id === addressId);
+    
+    if (addressIndex === -1) {
+      return null;
+    }
+    
+    const existingAddress = addresses[addressIndex];
+    const updatedAddress: LocalAddress = {
+      ...existingAddress,
+      ...updates,
+      id: addressId, // Ensure ID doesn't change
+      lastUpdated: Date.now()
+    };
+    
+    addresses[addressIndex] = updatedAddress;
+    this.saveAddresses(addresses);
+    
+    // If this is a customer address, sync it back to Vendure
+    if (updatedAddress.source === 'customer') {
+      // Async sync - don't block the UI
+      this.syncToVendure(updatedAddress).catch(error => {
+        console.warn('Failed to sync address update to Vendure:', error);
+      });
+    }
+    
+    return updatedAddress;
   }
 
   // Remove address by ID
@@ -254,6 +300,48 @@ export class LocalAddressService {
     
     // Fall back to default shipping if no billing default
     return this.getDefaultShippingAddress();
+  }
+
+  // Save or update default shipping address (updates existing if found, creates new if not)
+  static saveOrUpdateDefaultShippingAddress(address: Omit<LocalAddress, 'id' | 'lastUpdated'>): LocalAddress {
+    const existingDefault = this.getDefaultShippingAddress();
+    
+    if (existingDefault && existingDefault.source === 'customer') {
+      // Update existing default shipping address
+      const updated = this.updateAddress(existingDefault.id, {
+        ...address,
+        defaultShippingAddress: true
+      });
+      return updated!;
+    } else {
+      // Create new default shipping address
+      return this.saveAddress({
+        ...address,
+        defaultShippingAddress: true,
+        defaultBillingAddress: false
+      });
+    }
+  }
+
+  // Save or update default billing address (updates existing if found, creates new if not)
+  static saveOrUpdateDefaultBillingAddress(address: Omit<LocalAddress, 'id' | 'lastUpdated'>): LocalAddress {
+    const existingDefault = this.getDefaultBillingAddress();
+    
+    if (existingDefault && existingDefault.source === 'customer') {
+      // Update existing default billing address
+      const updated = this.updateAddress(existingDefault.id, {
+        ...address,
+        defaultBillingAddress: true
+      });
+      return updated!;
+    } else {
+      // Create new default billing address
+      return this.saveAddress({
+        ...address,
+        defaultShippingAddress: false,
+        defaultBillingAddress: true
+      });
+    }
   }
 
   // Set default shipping address
@@ -326,10 +414,11 @@ export class LocalAddressService {
     };
   }
 
-  // Sync addresses from Vendure API
+  // Sync addresses from Vendure API (using cached customer data)
   static async syncFromVendure(customerId?: string): Promise<void> {
     try {
-      const customerData = await getActiveCustomerAddressesQuery();
+      // Use cached customer addresses for better performance
+      const customerData = await getActiveCustomerAddressesCached();
       
       if (customerData?.addresses) {
         // Transform Vendure addresses to LocalAddress format
@@ -354,13 +443,48 @@ export class LocalAddressService {
 
   // Push address changes to Vendure
   static async syncToVendure(address: LocalAddress): Promise<AddressSyncResult> {
-    // Only sync if address is not already from customer source
-    if (address.source === 'customer') {
-      return { success: true, address };
-    }
-    
     try {
-      const input: CreateAddressInput = {
+      // If address is from customer source and has a Vendure ID, update it
+      if (address.source === 'customer' && address.id.startsWith('vendure_')) {
+        const vendureId = address.id.replace('vendure_', '');
+        
+        const updateInput: UpdateAddressInput = {
+          id: vendureId,
+          fullName: address.fullName,
+          company: address.company,
+          streetLine1: address.streetLine1,
+          streetLine2: address.streetLine2,
+          city: address.city,
+          province: address.province,
+          postalCode: address.postalCode,
+          countryCode: address.countryCode,
+          phoneNumber: address.phoneNumber,
+          defaultShippingAddress: address.defaultShippingAddress,
+          defaultBillingAddress: address.defaultBillingAddress
+        };
+        
+        const result = await updateCustomerAddressMutation(updateInput, undefined);
+        
+        if (result?.updateCustomerAddress) {
+          // Transform the updated address back to LocalAddress
+          const syncedAddress = this.transformVendureAddress(result.updateCustomerAddress as Address);
+          
+          // Update local cache with the synced address
+          const addresses = this.getAddresses();
+          const updatedAddresses = addresses.map(addr => 
+            addr.id === address.id ? syncedAddress : addr
+          );
+          
+          this.saveAddresses(updatedAddresses);
+          
+          return { success: true, address: syncedAddress };
+        }
+        
+        return { success: false, error: 'Failed to update address in Vendure' };
+      }
+      
+      // For new addresses (session/checkout source), create them
+      const createInput: CreateAddressInput = {
         fullName: address.fullName,
         company: address.company,
         streetLine1: address.streetLine1,
@@ -374,7 +498,7 @@ export class LocalAddressService {
         defaultBillingAddress: address.defaultBillingAddress
       };
       
-      const result = await createCustomerAddressMutation(input, undefined);
+      const result = await createCustomerAddressMutation(createInput, undefined);
       
       if (result?.createCustomerAddress) {
         // Transform the created address back to LocalAddress

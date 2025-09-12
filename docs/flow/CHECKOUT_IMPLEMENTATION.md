@@ -336,6 +336,41 @@ useVisibleTask$(({ track }) => {
 2. **Validation API**: New validation utility functions
 3. **State Coordination**: Uses window globals for cross-component communication
 
+## Recent Fixes and Improvements
+
+### Billing Address Auto-Check Fix (January 2025)
+
+**Issue**: When signed-in users had a default billing address, the "Use different billing address" checkbox was automatically checked and the billing form expanded, causing confusion.
+
+**Root Cause**: The `useVisibleTask$` hook in `CheckoutAddresses.tsx` automatically set `useDifferentBilling.value = true` when a logged-in user had a default billing address.
+
+**Solution**: Commented out the automatic billing address application logic to prevent the checkbox from being auto-checked:
+
+```typescript
+// Lines 89-92 in CheckoutAddresses.tsx - COMMENTED OUT
+// if (defaultBilling && !appState.billingAddress?.streetLine1) {
+//   appState.billingAddress = { ...defaultBilling };
+//   useDifferentBilling.value = true;
+// }
+```
+
+**Result**: The billing address checkbox now remains unchecked by default for all users, providing a consistent experience regardless of login status.
+
+### Validation Race Condition Fix (January 2025)
+
+**Issue**: Payment section would not activate immediately after shipping address validation due to a race condition with the `hasInitializedValidation` flag.
+
+**Root Cause**: The `hasInitializedValidation` flag prevented validation from running until user interaction, creating a delay in payment section activation.
+
+**Solution**: Removed the `hasInitializedValidation` guard and related logic from the validation flow:
+
+1. Removed `hasInitializedValidation` signal declaration
+2. Removed validation guards that checked `hasInitializedValidation.value`
+3. Removed `handleAddressInteraction$` function and its references
+4. Removed `onUserInteraction$` props from address forms
+
+**Result**: Validation now runs immediately when address data changes, allowing the payment section to activate promptly after shipping address completion.
+
 ## Maintenance Tasks
 
 ### Regular Maintenance
@@ -355,6 +390,9 @@ useVisibleTask$(({ track }) => {
 - [ ] Error display and clearing
 - [ ] Payment processing flow
 - [ ] Order confirmation page
+- [ ] Billing address checkbox remains unchecked by default for all users (including signed-in users)
+- [ ] Payment section activates immediately after shipping address completion
+- [ ] Validation runs without requiring user interaction first
 
 ## Performance Considerations
 

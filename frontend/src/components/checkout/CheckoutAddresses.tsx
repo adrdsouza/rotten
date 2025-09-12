@@ -1,17 +1,22 @@
 import { $, component$, useContext, useSignal, useTask$, QRL, useVisibleTask$, useComputed$ } from '@builder.io/qwik';
-import { APP_STATE, CUSTOMER_NOT_DEFINED_ID } from '~/constants';
+import { APP_STATE, CUSTOMER_NOT_DEFINED_ID, AUTH_TOKEN } from '~/constants';
 import AddressForm from '~/components/address-form/AddressForm';
 import BillingAddressForm from '~/components/billing-address-form/BillingAddressForm';
 // LoginModal moved to parent component
 import {
+  getActiveOrderQuery,
   setCustomerForOrderMutation,
   setOrderBillingAddressMutation,
   setOrderShippingAddressMutation,
-  getActiveOrderQuery
 } from '~/providers/shop/orders/order';
-import { getActiveCustomerQuery } from '~/providers/shop/customer/customer';
+import {
+  getActiveCustomerCached,
+  getActiveCustomerAddressesQuery,
+  createCustomerAddressMutation as createCustomerAddress,
+  updateCustomerAddressMutation as updateCustomerAddress,
+} from '~/providers/shop/customer/customer';
 import { Order } from '~/generated/graphql';
-import { isActiveCustomerValid, isShippingAddressValid, isBillingAddressValid } from '~/utils';
+import { isActiveCustomerValid, isShippingAddressValid, isBillingAddressValid, getCookie } from '~/utils';
 import { validateEmail, validateName, validatePhone, filterPhoneInput, sanitizePhoneNumber } from '~/utils/validation';
 import { useLocalCart } from '~/contexts/CartContext';
 import { useCheckoutValidationActions } from '~/contexts/CheckoutValidationContext';
@@ -20,6 +25,7 @@ import { useLoginModalActions } from '~/contexts/LoginModalContext';
 import { LocalAddressService } from '~/services/LocalAddressService';
 // Import shared addressState instead of defining it here
 import { addressState } from '~/utils/checkout-state';
+
 
 // Interfaces for the component
 interface CheckoutAddressesProps {
@@ -57,41 +63,12 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   const isFormValidSignal = useSignal(false);
   const hasProceeded = useSignal(false);
   const validationTimer = useSignal<NodeJS.Timeout | null>(null);
-  const hasInitializedValidation = useSignal(false);
 
   // Computed signal for phone placeholder - ensures immediate reactivity to country changes
   const phonePlaceholder = useComputed$(() => {
     const countryCode = appState.shippingAddress.countryCode || 'US';
     const isOptional = countryCode === 'US' || countryCode === 'PR';
     return `Phone number${isOptional ? ' (optional)' : ' *'}` as string;
-  });
-
-  // Load addresses on component initialization
-  useVisibleTask$(async () => {
-    try {
-      // Setup cross-tab sync
-      LocalAddressService.setupCrossTabSync();
-      
-      // If user is logged in, sync with Vendure
-      if (appState.customer?.id && appState.customer.id !== CUSTOMER_NOT_DEFINED_ID) {
-        await LocalAddressService.syncFromVendure(appState.customer.id);
-      }
-      
-      // Apply default addresses if available and current addresses are empty
-      const defaultShipping = LocalAddressService.getDefaultShippingAddress();
-      const defaultBilling = LocalAddressService.getDefaultBillingAddress();
-      
-      if (defaultShipping && !appState.shippingAddress.streetLine1) {
-        appState.shippingAddress = { ...defaultShipping };
-      }
-      
-      if (defaultBilling && !appState.billingAddress?.streetLine1) {
-        appState.billingAddress = { ...defaultBilling };
-        useDifferentBilling.value = true;
-      }
-    } catch (error) {
-      console.error('Failed to load addresses:', error);
-    }
   });
 
   // Sync local signals with exported state and track validation
@@ -102,6 +79,8 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     addressState.addressSubmissionComplete = addressSubmissionComplete.value;
     addressState.addressSubmissionInProgress = addressSubmissionInProgress.value;
   });
+
+
   
   // Initialize billingAddress and handle inheritance from shipping - separated into multiple tasks to prevent conflicts
   
@@ -310,12 +289,8 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     track(() => useDifferentBilling.value);
     track(() => appState.billingAddress);
     
-    // PREVENT VALIDATION ON INITIAL LOAD - only validate after user interaction
-    if (!hasInitializedValidation.value) {
-      // console.log('[CheckoutAddresses] Skipping validation - not initialized yet');
-      return;
-    }
-
+    // Allow validation to run immediately when address data changes
+    // This ensures payment section activates as soon as shipping address is complete
     // console.log('[CheckoutAddresses] Triggering validation due to form data change');
 
     // 🚀 SOPHISTICATED DEBOUNCING: Use different timing based on validation type
@@ -378,7 +353,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
       // Only call order mutations if not in local cart mode
       if (!localCart.isLocalMode) {
         // First check if customer is already authenticated
-        const activeCustomer = await getActiveCustomerQuery();
+        const activeCustomer = await getActiveCustomerCached();
           
           if (activeCustomer) {
             // console.log('Customer is already authenticated:', activeCustomer.emailAddress);
@@ -509,6 +484,68 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
             // console.log('✅ Billing address set successfully');
           }
         }
+        if (activeCustomer) {
+          try {
+            const customerAddresses = await getActiveCustomerAddressesQuery();
+            const defaultShipping = customerAddresses?.addresses?.find((a) => a.defaultShippingAddress);
+
+            const shippingAddressInput = {
+              fullName: `${appState.customer.firstName || ''} ${appState.customer.lastName || ''}`.trim(),
+              streetLine1: appState.shippingAddress.streetLine1 || '',
+              streetLine2: appState.shippingAddress.streetLine2 || '',
+              city: appState.shippingAddress.city || '',
+              province: appState.shippingAddress.province || '',
+              postalCode: appState.shippingAddress.postalCode || '',
+              countryCode: appState.shippingAddress.countryCode || '',
+              phoneNumber: appState.customer.phoneNumber || '',
+              company: appState.shippingAddress.company || '',
+              defaultShippingAddress: true,
+              defaultBillingAddress: !useDifferentBilling.value,
+            };
+
+            if (defaultShipping) {
+              await updateCustomerAddress({
+                id: defaultShipping.id,
+                ...shippingAddressInput
+              }, getCookie(AUTH_TOKEN));
+            } else {
+              const shippingAddressResult = await createCustomerAddress(shippingAddressInput, getCookie(AUTH_TOKEN));
+              if (shippingAddressResult.createCustomerAddress.__typename !== 'Address') {
+                console.error('Failed to create customer shipping address', shippingAddressResult);
+              }
+            }
+
+            if (useDifferentBilling.value) {
+              const defaultBilling = customerAddresses?.addresses?.find((a) => a.defaultBillingAddress);
+              const billingAddressInput = {
+                fullName: `${appState.billingAddress.firstName || ''} ${appState.billingAddress.lastName || ''}`.trim(),
+                streetLine1: appState.billingAddress.streetLine1 || '',
+                streetLine2: appState.billingAddress.streetLine2 || '',
+                city: appState.billingAddress.city || '',
+                province: appState.billingAddress.province || '',
+                postalCode: appState.billingAddress.postalCode || '',
+                countryCode: appState.billingAddress.countryCode || '',
+                defaultBillingAddress: true,
+                defaultShippingAddress: false,
+              };
+
+              if (defaultBilling && defaultBilling.id !== defaultShipping?.id) {
+                await updateCustomerAddress({
+                  id: defaultBilling.id,
+                  ...billingAddressInput
+                }, getCookie(AUTH_TOKEN));
+              } else {
+                const billingAddressResult = await createCustomerAddress(billingAddressInput, getCookie(AUTH_TOKEN));
+
+                if (billingAddressResult.createCustomerAddress.__typename !== 'Address') {
+                  console.error('Failed to create customer billing address', billingAddressResult);
+                }
+              }
+            }
+          } catch (err) {
+            console.error('Error creating/updating customer address:', err);
+          }
+        }
       } else {
         // console.log('🛒 Local cart mode: Skipping order mutations until Place Order is clicked');
       }
@@ -596,7 +633,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
       if (!emailResultCheck.isValid) {
         // console.log('❌ Email validation failed at auto-forward:', emailResultCheck.message);
         // Only show error if field was already touched by user interaction
-        if (emailTouched.value || hasInitializedValidation.value) {
+        if (emailTouched.value) {
           emailTouched.value = true;
           emailValidationError.value = emailResultCheck.message || 'Invalid email address';
         }
@@ -606,7 +643,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
       if (!firstNameResultCheck.isValid) {
         // console.log('❌ First name validation failed at auto-forward:', firstNameResultCheck.message);
         // Only show error if field was already touched by user interaction
-        if (firstNameTouched.value || hasInitializedValidation.value) {
+        if (firstNameTouched.value) {
           firstNameTouched.value = true;
           firstNameValidationError.value = firstNameResultCheck.message || 'Invalid first name';
         }
@@ -616,7 +653,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
       if (!lastNameResultCheck.isValid) {
         // console.log('❌ Last name validation failed at auto-forward:', lastNameResultCheck.message);
         // Only show error if field was already touched by user interaction
-        if (lastNameTouched.value || hasInitializedValidation.value) {
+        if (lastNameTouched.value) {
           lastNameTouched.value = true;
           lastNameValidationError.value = lastNameResultCheck.message || 'Invalid last name';
         }
@@ -626,7 +663,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
       if (!phoneResultCheck.isValid && !currentIsPhoneOptional) {
         // console.log('❌ Phone validation failed at auto-forward:', phoneResultCheck.message);
         // Only show error if field was already touched by user interaction
-        if (phoneTouched.value || hasInitializedValidation.value) {
+        if (phoneTouched.value) {
           phoneTouched.value = true;
           phoneValidationError.value = phoneResultCheck.message || 'Invalid phone number';
         }
@@ -639,43 +676,96 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
       
       // Save addresses to LocalAddressService after successful submission
        try {
+          // Determine source based on customer login status
+          const isLoggedIn = appState.customer?.id && appState.customer.id !== CUSTOMER_NOT_DEFINED_ID;
+          
           if (appState.shippingAddress.streetLine1) {
-            LocalAddressService.saveAddress({
-              firstName: appState.customer?.firstName || '',
-              lastName: appState.customer?.lastName || '',
-              fullName: `${appState.customer?.firstName || ''} ${appState.customer?.lastName || ''}`.trim(),
-              company: appState.shippingAddress.company || '',
-              streetLine1: appState.shippingAddress.streetLine1 || '',
-              streetLine2: appState.shippingAddress.streetLine2 || '',
-              city: appState.shippingAddress.city || '',
-              province: appState.shippingAddress.province || '',
-              postalCode: appState.shippingAddress.postalCode || '',
-              countryCode: appState.shippingAddress.countryCode || '',
-              phoneNumber: appState.customer?.phoneNumber || '',
-              defaultShippingAddress: true,
-              defaultBillingAddress: false,
-              source: 'checkout' as const
-            });
+            const savedShippingAddress = isLoggedIn
+              ? LocalAddressService.saveOrUpdateDefaultShippingAddress({
+                  firstName: appState.customer?.firstName || '',
+                  lastName: appState.customer?.lastName || '',
+                  fullName: `${appState.customer?.firstName || ''} ${appState.customer?.lastName || ''}`.trim(),
+                  company: appState.shippingAddress.company || '',
+                  streetLine1: appState.shippingAddress.streetLine1 || '',
+                  streetLine2: appState.shippingAddress.streetLine2 || '',
+                  city: appState.shippingAddress.city || '',
+                  province: appState.shippingAddress.province || '',
+                  postalCode: appState.shippingAddress.postalCode || '',
+                  countryCode: appState.shippingAddress.countryCode || '',
+                  phoneNumber: appState.customer?.phoneNumber || '',
+                  defaultShippingAddress: true,
+                  defaultBillingAddress: !useDifferentBilling.value, // Set as billing address if not using separate billing
+                  source: 'customer'
+                })
+              : LocalAddressService.saveAddress({
+                  firstName: appState.customer?.firstName || '',
+                  lastName: appState.customer?.lastName || '',
+                  fullName: `${appState.customer?.firstName || ''} ${appState.customer?.lastName || ''}`.trim(),
+                  company: appState.shippingAddress.company || '',
+                  streetLine1: appState.shippingAddress.streetLine1 || '',
+                  streetLine2: appState.shippingAddress.streetLine2 || '',
+                  city: appState.shippingAddress.city || '',
+                  province: appState.shippingAddress.province || '',
+                  postalCode: appState.shippingAddress.postalCode || '',
+                  countryCode: appState.shippingAddress.countryCode || '',
+                  phoneNumber: appState.customer?.phoneNumber || '',
+                  defaultShippingAddress: true,
+                  defaultBillingAddress: false,
+                  source: 'checkout'
+                });
+            
+            // If customer is logged in, sync to Vendure
+            if (isLoggedIn) {
+              LocalAddressService.syncToVendure(savedShippingAddress).catch(error => {
+                console.warn('Failed to sync shipping address to Vendure:', error);
+              });
+            }
           }
           
           if (useDifferentBilling.value && appState.billingAddress?.streetLine1) {
-            LocalAddressService.saveAddress({
-              firstName: appState.billingAddress.firstName || '',
-              lastName: appState.billingAddress.lastName || '',
-              fullName: `${appState.billingAddress.firstName || ''} ${appState.billingAddress.lastName || ''}`.trim(),
-              company: '',
-              streetLine1: appState.billingAddress.streetLine1 || '',
-              streetLine2: appState.billingAddress.streetLine2 || '',
-              city: appState.billingAddress.city || '',
-              province: appState.billingAddress.province || '',
-              postalCode: appState.billingAddress.postalCode || '',
-              countryCode: appState.billingAddress.countryCode || '',
-              phoneNumber: '',
-              defaultShippingAddress: false,
-              defaultBillingAddress: true,
-              source: 'checkout' as const
-            });
+            const savedBillingAddress = isLoggedIn
+              ? LocalAddressService.saveOrUpdateDefaultBillingAddress({
+                  firstName: appState.billingAddress.firstName || '',
+                  lastName: appState.billingAddress.lastName || '',
+                  fullName: `${appState.billingAddress.firstName || ''} ${appState.billingAddress.lastName || ''}`.trim(),
+                  company: '',
+                  streetLine1: appState.billingAddress.streetLine1 || '',
+                  streetLine2: appState.billingAddress.streetLine2 || '',
+                  city: appState.billingAddress.city || '',
+                  province: appState.billingAddress.province || '',
+                  postalCode: appState.billingAddress.postalCode || '',
+                  countryCode: appState.billingAddress.countryCode || '',
+                  phoneNumber: '',
+                  defaultShippingAddress: false,
+                  defaultBillingAddress: true,
+                  source: 'customer'
+                })
+              : LocalAddressService.saveAddress({
+                  firstName: appState.billingAddress.firstName || '',
+                  lastName: appState.billingAddress.lastName || '',
+                  fullName: `${appState.billingAddress.firstName || ''} ${appState.billingAddress.lastName || ''}`.trim(),
+                  company: '',
+                  streetLine1: appState.billingAddress.streetLine1 || '',
+                  streetLine2: appState.billingAddress.streetLine2 || '',
+                  city: appState.billingAddress.city || '',
+                  province: appState.billingAddress.province || '',
+                  postalCode: appState.billingAddress.postalCode || '',
+                  countryCode: appState.billingAddress.countryCode || '',
+                  phoneNumber: '',
+                  defaultShippingAddress: false,
+                  defaultBillingAddress: true,
+                  source: 'checkout'
+                });
+            
+            // If customer is logged in, sync to Vendure
+            if (isLoggedIn) {
+              LocalAddressService.syncToVendure(savedBillingAddress).catch(error => {
+                console.warn('Failed to sync billing address to Vendure:', error);
+              });
+            }
           }
+          
+
         } catch (error) {
           console.error('Failed to save addresses:', error);
           // Don't block checkout flow if address saving fails
@@ -685,12 +775,6 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
 
   // Individual field validation handlers - exactly like old implementation
   const handleEmailChange$ = $((value: string) => {
-    // Mark validation as initialized on first user interaction
-    if (!hasInitializedValidation.value) {
-      hasInitializedValidation.value = true;
-      // console.log('[CheckoutAddresses] Validation initialized - user started interacting');
-    }
-    
     appState.customer = { ...appState.customer, emailAddress: value };
     
     if (emailTouched.value) {
@@ -714,12 +798,6 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   });
 
   const handleFirstNameChange$ = $((value: string) => {
-    // Mark validation as initialized on first user interaction
-    if (!hasInitializedValidation.value) {
-      hasInitializedValidation.value = true;
-      // console.log('[CheckoutAddresses] Validation initialized - user started interacting');
-    }
-    
     appState.customer = { ...appState.customer, firstName: value };
     
     if (firstNameTouched.value) {
@@ -743,12 +821,6 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   });
 
   const handleLastNameChange$ = $((value: string) => {
-    // Mark validation as initialized on first user interaction
-    if (!hasInitializedValidation.value) {
-      hasInitializedValidation.value = true;
-      // console.log('[CheckoutAddresses] Validation initialized - user started interacting');
-    }
-    
     appState.customer = { ...appState.customer, lastName: value };
     
     if (lastNameTouched.value) {
@@ -772,12 +844,6 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   });
 
   const handlePhoneChange$ = $((value: string) => {
-    // Mark validation as initialized on first user interaction
-    if (!hasInitializedValidation.value) {
-      hasInitializedValidation.value = true;
-      // console.log('[CheckoutAddresses] Validation initialized - user started interacting');
-    }
-    
     // Filter input to only allow valid phone characters
     const filteredValue = filterPhoneInput(sanitizePhoneNumber(value));
     appState.customer = { ...appState.customer, phoneNumber: filteredValue };
@@ -808,14 +874,6 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   });
 
   // Auto-validation removed - validation will only occur on user interaction
-
-  // Callback to mark validation as initialized when user interacts with address forms
-  const handleAddressInteraction$ = $(() => {
-    if (!hasInitializedValidation.value) {
-      hasInitializedValidation.value = true;
-      // console.log('[CheckoutAddresses] Validation initialized - user started interacting with address form');
-    }
-  });
   
   return (
     <div class="space-y-4 CheckoutAddresses">
@@ -929,10 +987,10 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
 
       {/* Shipping Address */}
       <section>
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Shipping Address</h3>
         <AddressForm 
           shippingAddress={appState.shippingAddress}
           isReviewMode={false}
-          onUserInteraction$={handleAddressInteraction$}
         />
       </section>
 
@@ -954,11 +1012,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
                 // console.log('[CheckoutAddresses] Billing checkbox unchecked - reset activation flag');
               }
 
-              // Mark validation as initialized when user interacts with billing toggle
-              if (!hasInitializedValidation.value) {
-                hasInitializedValidation.value = true;
-                // console.log('[CheckoutAddresses] Validation initialized - user toggled billing address');
-              }
+              // Billing toggle interaction - validation will run automatically
             }}
             class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded-sm"
           />
@@ -981,13 +1035,15 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
                 postalCode: '',
                 countryCode: appState.shippingAddress.countryCode || '',
               }}
-              onUserInteraction$={handleAddressInteraction$}
+
             />
           </div>
         )}
       </section>
 
       {/* LoginModal moved to parent checkout component for proper full-screen rendering */}
+      
+
     </div>
   );
 });

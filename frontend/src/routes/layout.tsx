@@ -31,6 +31,7 @@ import { LoginModalProvider, useLoginModalState, useLoginModalActions } from '~/
 import LoginModal from '~/components/auth/LoginModal';
 import { sanitizePhoneNumber } from '~/utils/validation';
 import { CountryService } from '~/services/CountryService';
+import { LocalAddressService } from '~/services/LocalAddressService';
 
 export const onGet: RequestHandler = async ({ cacheControl, url, headers }) => {
 	// 🚀 ADVANCED CACHING: Intelligent cache strategies based on page type and user agent
@@ -233,6 +234,36 @@ export default component$(() => {
 		cleanup(() => {
 			// You can add cleanup logic here if needed
 		});
+	});
+
+	useVisibleTask$(async ({ track }) => {
+		track(() => state.customer?.id);
+		if (state.customer && state.customer.id !== CUSTOMER_NOT_DEFINED_ID && state.addressBook.length === 0) {
+			try {
+				await LocalAddressService.syncFromVendure(state.customer.id);
+				const addresses = LocalAddressService.getAddresses();
+				state.addressBook = addresses;
+				if (addresses.length > 0 && !state.shippingAddress.streetLine1) {
+					const defaultShipping = addresses.find(a => a.defaultShippingAddress) || addresses[0];
+					if (defaultShipping) {
+						state.shippingAddress = {
+							id: defaultShipping.id,
+							fullName: defaultShipping.fullName,
+							streetLine1: defaultShipping.streetLine1,
+							streetLine2: defaultShipping.streetLine2 || '',
+							city: defaultShipping.city,
+							province: defaultShipping.province,
+							postalCode: defaultShipping.postalCode,
+							countryCode: defaultShipping.countryCode,
+							phoneNumber: defaultShipping.phoneNumber || '',
+							company: defaultShipping.company || '',
+						};
+					}
+				}
+			} catch (error) {
+				console.error("Failed to sync addresses in layout:", error);
+			}
+		}
 	});
 
 	// Simplified: Remove loading state that causes unnecessary re-renders
