@@ -4,7 +4,8 @@ import {
  type PlatformNode,
 } from"@qwik.dev/router/middleware/node";
 import"dotenv/config";
-import express from"express";
+import express from "express";
+import { Request, Response, NextFunction } from "express";
 import { join } from"node:path";
 import { fileURLToPath } from"node:url";
 import render from"./entry.ssr";
@@ -54,7 +55,32 @@ app.use(router);
 // Use Qwik Router's 404 handler
 app.use(notFound);
 
+// Logging middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  console.log('Express handling request for:', req.url, 'from IP:', req.ip);
+  next();
+});
+
+// Error handling middleware
+const errorHandler = (err: Error, req: Request, res: Response, _next: NextFunction) => {
+  console.error(`SSR Error: ${err.message}`);
+  console.error(err.stack);
+
+  if ((err as any).code === 'ECANCELED') {
+    console.log('Request canceled by client');
+    return;
+  }
+
+  if (!res.headersSent) {
+    res.status(500).send('Internal Server Error');
+  } else {
+    console.error('Cannot send error response: headers already sent');
+  }
+};
+
+app.use(errorHandler);
+
 // Start the express server
 app.listen(PORT, HOST, () => {
- console.log(`Server started: http://${HOST}:${PORT}/`);
+  console.log(`Server started: http://${HOST}:${PORT}/`);
 });

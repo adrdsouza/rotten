@@ -1,4 +1,4 @@
-import { $, component$, useContext, useSignal, useTask$, QRL, useVisibleTask$, useComputed$ } from '@builder.io/qwik';
+import { $, component$, useContext, useSignal, QRL, useVisibleTask$, useComputed$ } from '@builder.io/qwik';
 import { APP_STATE, CUSTOMER_NOT_DEFINED_ID, AUTH_TOKEN } from '~/constants';
 import AddressForm from '~/components/address-form/AddressForm';
 import BillingAddressForm from '~/components/billing-address-form/BillingAddressForm';
@@ -25,6 +25,7 @@ import { useLoginModalActions } from '~/contexts/LoginModalContext';
 import { LocalAddressService } from '~/services/LocalAddressService';
 // Import shared addressState instead of defining it here
 import { addressState } from '~/utils/checkout-state';
+import { useCheckoutAddressState } from '~/contexts/CheckoutAddressContext';
 
 
 // Interfaces for the component
@@ -33,11 +34,12 @@ interface CheckoutAddressesProps {
 }
 
 export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddressesSubmitted$ }) => {
+  // ... existing hooks ...
   const appState = useContext(APP_STATE);
   const localCart = useLocalCart();
   const validationActions = useCheckoutValidationActions();
   const { openLoginModal } = useLoginModalActions();
-  // const addressContext = useAddressContext(); // Unused variable
+  const checkoutAddressState = useCheckoutAddressState();
   const useDifferentBilling = useSignal<boolean>(false);
   const isLoading = useSignal<boolean>(false);
   const billingHasBeenActivated = useSignal<boolean>(false); // Track if billing was ever activated
@@ -63,6 +65,93 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   const isFormValidSignal = useSignal(false);
   const hasProceeded = useSignal(false);
   const validationTimer = useSignal<NodeJS.Timeout | null>(null);
+  
+  // Complete customer validation with proper phone optional logic
+  // 🚨 MOVE THIS TO THE TOP TO ENSURE IT'S AVAILABLE FOR ALL TASKS
+  const validateCompleteForm$ = $(() => {
+    const countryCode = appState.shippingAddress.countryCode || 'US';
+    const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
+    
+    // Get current customer data - ensure all fields are strings
+    const customer = {
+      firstName: appState.customer?.firstName || '',
+      lastName: appState.customer?.lastName || '',
+      emailAddress: appState.customer?.emailAddress || '',
+      phoneNumber: appState.customer?.phoneNumber || '',
+    };
+    
+    // Individual validations
+    const firstNameResult = validateName(customer.firstName, 'First name');
+    const lastNameResult = validateName(customer.lastName, 'Last name');
+    const emailResult = validateEmail(customer.emailAddress);
+    const phoneResult = validatePhone(customer.phoneNumber, countryCode, isPhoneOptional);
+    
+    // Customer validation using utility with proper ActiveCustomer object
+    const customerForValidation = {
+      ...customer,
+      id: appState.customer?.id || '',
+    };
+    const customerValid = isActiveCustomerValid(customerForValidation as any);
+    
+    // Phone requirement validation (non-US/PR countries require phone)
+    const phoneRequirementValid = isPhoneOptional || phoneResult.isValid;
+    
+    // Shipping address validation
+    const shippingAddressValid = isShippingAddressValid(appState.shippingAddress);
+    
+    let billingAddressValid = true;
+    if (useDifferentBilling.value) {
+      billingAddressValid = isBillingAddressValid(appState.billingAddress);
+    }
+    // If checkbox is OFF, billing is always valid since it inherits from shipping
+    
+    const overallValid = customerValid && phoneResult.isValid && phoneRequirementValid && shippingAddressValid && billingAddressValid;
+
+    // Update individual error signals - use empty strings for signal clearing
+    emailValidationError.value = emailResult.isValid ? '' : (emailResult.message || 'Invalid email');
+    firstNameValidationError.value = firstNameResult.isValid ? '' : (firstNameResult.message || 'Invalid first name');
+    lastNameValidationError.value = lastNameResult.isValid ? '' : (lastNameResult.message || 'Invalid last name');
+    phoneValidationError.value = phoneResult.isValid ? '' : (phoneResult.message || 'Invalid phone number');
+    
+    // Update form valid state
+    isFormValidSignal.value = overallValid;
+    
+    // Update the checkout validation context
+    validationActions.updateCustomerValidation(
+      customerValid && phoneResult.isValid && phoneRequirementValid,
+      {
+        email: emailResult.isValid ? undefined : (emailResult.message || 'Invalid email'),
+        firstName: firstNameResult.isValid ? undefined : (firstNameResult.message || 'Invalid first name'),
+        lastName: lastNameResult.isValid ? undefined : (lastNameResult.message || 'Invalid last name'),
+        phone: phoneResult.isValid ? undefined : (phoneResult.message || 'Invalid phone number')
+      },
+      emailTouched.value || firstNameTouched.value || lastNameTouched.value || phoneTouched.value
+    );
+
+    validationActions.updateShippingAddressValidation(
+      shippingAddressValid,
+      shippingAddressValid ? {} : { streetLine1: 'Address is required' }, // Simplified error for now
+      true // Assume touched if we're validating
+    );
+
+    validationActions.updateBillingMode(useDifferentBilling.value);
+    
+    if (useDifferentBilling.value) {
+      validationActions.updateBillingAddressValidation(
+        billingAddressValid,
+        billingAddressValid ? {} : { streetLine1: 'Billing address is required' }, // Simplified error for now
+        true
+      );
+    }
+    
+    // Don't sync to appState here to prevent circular dependency
+    // State synchronization will be handled by the form submission process
+    if (overallValid) {
+      // console.log('[CheckoutAddresses] Customer validation passed');
+    } else {
+      // console.log('[CheckoutAddresses] Customer validation failed');
+    }
+  });
 
   // Computed signal for phone placeholder - ensures immediate reactivity to country changes
   const phonePlaceholder = useComputed$(() => {
@@ -76,6 +165,11 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     track(() => addressSubmissionComplete.value);
     track(() => addressSubmissionInProgress.value);
     
+    // Update the new context instead of the global state
+    checkoutAddressState.addressSubmissionComplete = addressSubmissionComplete.value;
+    checkoutAddressState.addressSubmissionInProgress = addressSubmissionInProgress.value;
+    
+    // Also update the legacy global state for backward compatibility during refactor
     addressState.addressSubmissionComplete = addressSubmissionComplete.value;
     addressState.addressSubmissionInProgress = addressSubmissionInProgress.value;
   });
@@ -85,7 +179,8 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   // Initialize billingAddress and handle inheritance from shipping - separated into multiple tasks to prevent conflicts
   
   // Task 1: Handle billing checkbox toggle (only runs when checkbox state changes)
-  useTask$(({ track }) => {
+  // Client-side execution to prevent Q20 SSR errors
+  useVisibleTask$(({ track }) => {
     track(() => useDifferentBilling.value);
     
     // If billing checkbox is OFF, always inherit from shipping
@@ -137,7 +232,8 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   });
   
   // Task 2: Handle country changes - only update billing country if checkbox is OFF (inherit mode)
-  useTask$(({ track }) => {
+  // Client-side execution to prevent Q20 SSR errors
+  useVisibleTask$(({ track }) => {
     track(() => appState.shippingAddress.countryCode);
     
     // Only update billing address country if checkbox is OFF (inherit mode)
@@ -153,7 +249,8 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   // Country initialization removed - will be handled by layout.tsx or user selection
 
   // Clear validation errors when customer data is updated (e.g., after login)
-  useTask$(({ track }) => {
+  // Client-side execution to prevent Q20 SSR errors
+  useVisibleTask$(({ track }) => {
     track(() => appState.customer?.emailAddress);
     track(() => appState.customer?.firstName);
     track(() => appState.customer?.lastName);
@@ -174,116 +271,28 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     }
   });
 
-  // Complete customer validation with proper phone optional logic
-  const validateCompleteForm$ = $(() => {
-    const countryCode = appState.shippingAddress.countryCode || 'US';
-    const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
+  // Update form fields when shipping address changes (e.g., after login)
+  // Client-side execution to prevent Q20 SSR errors
+  useVisibleTask$(({ track }) => {
+    // Track all shipping address fields that might change after login
+    track(() => appState.shippingAddress?.streetLine1);
+    track(() => appState.shippingAddress?.streetLine2);
+    track(() => appState.shippingAddress?.city);
+    track(() => appState.shippingAddress?.province);
+    track(() => appState.shippingAddress?.postalCode);
+    track(() => appState.shippingAddress?.countryCode);
     
-    // Get current customer data - ensure all fields are strings
-    const customer = {
-      firstName: appState.customer?.firstName || '',
-      lastName: appState.customer?.lastName || '',
-      emailAddress: appState.customer?.emailAddress || '',
-      phoneNumber: appState.customer?.phoneNumber || '',
-    };
-    
-    // Individual validations
-    const firstNameResult = validateName(customer.firstName, 'First name');
-    const lastNameResult = validateName(customer.lastName, 'Last name');
-    const emailResult = validateEmail(customer.emailAddress);
-    const phoneResult = validatePhone(customer.phoneNumber, countryCode, isPhoneOptional);
-    
-    // Customer validation using utility with proper ActiveCustomer object
-    const customerForValidation = {
-      ...customer,
-      id: appState.customer?.id || '',
-    };
-    const customerValid = isActiveCustomerValid(customerForValidation as any);
-    
-    // Validation debug logging (development only)
-    // if (import.meta.env.DEV) {
-    //   console.log('[CheckoutAddresses] Customer validation debug:', {
-    //     customerData: customer,
-    //     customerValid,
-    //     emailResult: { isValid: emailResult.isValid, message: emailResult.message },
-    //     firstNameResult: { isValid: firstNameResult.isValid, message: firstNameResult.message },
-    //     lastNameResult: { isValid: lastNameResult.isValid, message: lastNameResult.message },
-    //     phoneResult: { isValid: phoneResult.isValid, message: phoneResult.message }
-    //   });
-    // }
-    
-    // Phone requirement validation (non-US/PR countries require phone)
-    const phoneRequirementValid = isPhoneOptional || phoneResult.isValid;
-    
-    // Shipping address validation
-    const shippingAddressValid = isShippingAddressValid(appState.shippingAddress);
-    
-    let billingAddressValid = true;
-    if (useDifferentBilling.value) {
-      billingAddressValid = isBillingAddressValid(appState.billingAddress);
-    }
-    // If checkbox is OFF, billing is always valid since it inherits from shipping
-    
-    const overallValid = customerValid && phoneResult.isValid && phoneRequirementValid && shippingAddressValid && billingAddressValid;
-
-    // console.log('[CheckoutAddresses] Validation results:', {
-    //   customerValid,
-    //   phoneValid: phoneResult.isValid,
-    //   phoneRequirementValid,
-    //   shippingAddressValid,
-    //   billingAddressValid,
-    //   overallValid,
-    //   phoneMessage: phoneResult.message
-    // });
-    
-    // Update individual error signals - use empty strings for signal clearing
-    emailValidationError.value = emailResult.isValid ? '' : (emailResult.message || 'Invalid email');
-    firstNameValidationError.value = firstNameResult.isValid ? '' : (firstNameResult.message || 'Invalid first name');
-    lastNameValidationError.value = lastNameResult.isValid ? '' : (lastNameResult.message || 'Invalid last name');
-    phoneValidationError.value = phoneResult.isValid ? '' : (phoneResult.message || 'Invalid phone number');
-    
-    // Update form valid state
-    isFormValidSignal.value = overallValid;
-    
-    // Update the checkout validation context
-    validationActions.updateCustomerValidation(
-      customerValid && phoneResult.isValid && phoneRequirementValid,
-      {
-        email: emailResult.isValid ? undefined : (emailResult.message || 'Invalid email'),
-        firstName: firstNameResult.isValid ? undefined : (firstNameResult.message || 'Invalid first name'),
-        lastName: lastNameResult.isValid ? undefined : (lastNameResult.message || 'Invalid last name'),
-        phone: phoneResult.isValid ? undefined : (phoneResult.message || 'Invalid phone number')
-      },
-      emailTouched.value || firstNameTouched.value || lastNameTouched.value || phoneTouched.value
-    );
-
-    validationActions.updateShippingAddressValidation(
-      shippingAddressValid,
-      shippingAddressValid ? {} : { streetLine1: 'Address is required' }, // Simplified error for now
-      true // Assume touched if we're validating
-    );
-
-    validationActions.updateBillingMode(useDifferentBilling.value);
-    
-    if (useDifferentBilling.value) {
-      validationActions.updateBillingAddressValidation(
-        billingAddressValid,
-        billingAddressValid ? {} : { streetLine1: 'Billing address is required' }, // Simplified error for now
-        true
-      );
-    }
-    
-    // Don't sync to appState here to prevent circular dependency
-    // State synchronization will be handled by the form submission process
-    if (overallValid) {
-      // console.log('[CheckoutAddresses] Customer validation passed');
-    } else {
-      // console.log('[CheckoutAddresses] Customer validation failed');
+    // When shipping address is populated (e.g., after login), update form validation state
+    // This ensures the address fields are properly validated and the form can proceed
+    if (appState.shippingAddress?.streetLine1) {
+      // Trigger validation to update the form state
+      validateCompleteForm$();
     }
   });
 
   // Main validation task - track only address fields, not customer to prevent circular dependency
-  useTask$(({ track }) => {
+  // Client-side execution to prevent Q20 SSR errors
+  useVisibleTask$(({ track }) => {
     track(() => appState.shippingAddress);
     track(() => appState.shippingAddress.countryCode);
     track(() => useDifferentBilling.value);
@@ -306,7 +315,8 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   });
 
   // 🚀 IMMEDIATE country code change handler - enhanced validation logic
-  useTask$(({ track }) => {
+  // Client-side execution to prevent Q20 SSR errors
+  useVisibleTask$(({ track }) => {
     track(() => appState.shippingAddress.countryCode);
 
     // Immediately re-validate phone when country changes (no debounce for country changes)
@@ -338,6 +348,9 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
       addressSubmissionInProgress.value = true;
       isLoading.value = true;
 
+      // Update the new context
+      checkoutAddressState.addressSubmissionInProgress = true;
+      
       // Sync customer data to appState before submission since we removed the automatic sync
       const customerForSync = {
         firstName: appState.customer?.firstName || '',
@@ -474,7 +487,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
             city: appState.billingAddress.city || '',
             province: appState.billingAddress.province || '',
             postalCode: appState.billingAddress.postalCode || '',
-            countryCode: appState.billingAddress.countryCode,
+            countryCode: appState.billingAddress.countryCode || '',
           });
           if (billingResult.__typename !== 'Order') {
             // console.error('❌ Failed to set billing address. Detailed error:', JSON.stringify(billingResult, null, 2));
@@ -559,6 +572,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
 
       // Mark as complete for external coordination
       addressSubmissionComplete.value = true;
+      checkoutAddressState.addressSubmissionComplete = true;
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'An error occurred';
       // console.error('❌ Checkout error:', err);
@@ -566,6 +580,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     } finally {
       isLoading.value = false;
       addressSubmissionInProgress.value = false;
+      checkoutAddressState.addressSubmissionInProgress = false;
     }
   });
 
@@ -594,7 +609,8 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   });
 
   // Auto-proceed when form becomes valid - exactly like old implementation
-  useTask$(async ({ track }) => {
+  // Client-side only: Prevents Q20 SSR errors by running only after hydration
+  useVisibleTask$(async ({ track }) => {
     track(() => isFormValidSignal.value);
 
     if (isFormValidSignal.value && !hasProceeded.value) {

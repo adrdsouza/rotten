@@ -20,9 +20,9 @@ export default defineConfig((config) => {
       // 🚀 ENHANCED TERSER CONFIGURATION - 15-25% better compression than esbuild
       terserOptions: {
         compress: {
-          drop_console: true, // Remove console.logs in production
+          drop_console: false, // Keep console logs for debugging
           drop_debugger: true, // Remove debugger statements
-          pure_funcs: ['console.log', 'console.info', 'console.debug'], // Remove specific functions
+          pure_funcs: ['console.info', 'console.debug'], // Remove less critical logs
           passes: 2, // Multiple compression passes for maximum optimization
           dead_code: true, // Remove unreachable code
           conditionals: true, // Optimize if-s and conditional expressions

@@ -16,14 +16,20 @@ import Root from './root';
 import { extractBase } from './utils/i18n';
 
 export default function (opts: RenderToStreamOptions) {
-	return renderToStream(<Root />, {
-		manifest,
-		...opts,
-		base: extractBase,
-		// Use container attributes to set attributes on the html tag.
-		containerAttributes: {
-			lang: 'en-us',
-			...opts.containerAttributes,
-		},
-	});
+  console.log('SSR render started for path:', opts.base);
+  try {
+    return renderToStream(<Root />, {
+      manifest,
+      ...opts,
+      base: extractBase,
+      // Use container attributes to set attributes on the html tag.
+      containerAttributes: {
+        lang: 'en-us',
+        ...opts.containerAttributes,
+      },
+    });
+  } catch (error) {
+    console.error('Error during SSR render:', error);
+    throw error;
+  }
 }

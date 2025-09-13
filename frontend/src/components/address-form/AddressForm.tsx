@@ -98,6 +98,34 @@ export default component$<IProps>(({ shippingAddress, formApi, isReviewMode, onU
 		}
 	});
 
+	// Sync shipping address changes to local form data (e.g., after login)
+	useVisibleTask$(({ track }) => {
+		// Track the shipping address fields that might change after login
+		track(() => shippingAddress.streetLine1);
+		track(() => shippingAddress.streetLine2);
+		track(() => shippingAddress.city);
+		track(() => shippingAddress.province);
+		track(() => shippingAddress.postalCode);
+		track(() => shippingAddress.countryCode);
+		
+		// Update local form data when shipping address changes (but only if user hasn't interacted yet)
+		// This ensures address fields are populated when customer logs in
+		if (!hasUserInteracted.value) {
+			localFormData.value = {
+				streetLine1: shippingAddress.streetLine1 || localFormData.value.streetLine1,
+				streetLine2: shippingAddress.streetLine2 || localFormData.value.streetLine2,
+				city: shippingAddress.city || localFormData.value.city,
+				province: shippingAddress.province || localFormData.value.province,
+				postalCode: shippingAddress.postalCode || localFormData.value.postalCode,
+			};
+			
+			// Update country code if it changed
+			if (shippingAddress.countryCode && shippingAddress.countryCode !== localCountryCode.value) {
+				localCountryCode.value = shippingAddress.countryCode;
+			}
+		}
+	});
+
 	// Individual field validation
 	const validateField$ = $((fieldName: string, value: string, countryCode: string = 'US') => {
 		// No review mode: always validate

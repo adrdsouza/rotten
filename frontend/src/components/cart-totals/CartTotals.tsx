@@ -1,4 +1,4 @@
-import { $, component$, useContext, useSignal, useComputed$, useTask$ } from '@qwik.dev/core';
+import { $, component$, useContext, useSignal, useComputed$, useVisibleTask$ } from '@qwik.dev/core';
 import { Order } from '~/generated/graphql'; // Removed unused AdjustmentType
 import CartPrice from './CartPrice';
 import { APP_STATE } from '~/constants';
@@ -177,7 +177,8 @@ export default component$<{
 	});
 
 	// Clear error message after a delay
-	useTask$(({ track }) => {
+	// Client-side only: Prevents Q20 SSR errors by running only after hydration
+	useVisibleTask$(({ track }) => {
 		track(() => errorSignal.value);
 		if (errorSignal.value) {
 			const timer = setTimeout(() => {
@@ -188,7 +189,8 @@ export default component$<{
 	});
 
 	// Re-validate coupon when cart changes in local mode
-	useTask$(async ({ track }) => {
+	// Client-side only: Prevents Q20 SSR errors by running only after hydration
+	useVisibleTask$(async ({ track }) => {
 		// Track dependencies for re-validation
 		track(() => localCartContext.localCart.items);
 		track(() => localCartContext.localCart.subTotal);

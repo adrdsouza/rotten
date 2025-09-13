@@ -20,7 +20,7 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 	// Use external signal if provided, otherwise use internal signal
 	const _selectedPaymentMethod = externalSelectedPaymentMethod || internalSelectedPaymentMethod;
 
-	useVisibleTask$(async () => {
+	useVisibleTask$(() => {
 		// For local cart mode, we skip querying eligiblePaymentMethods since there's no active order
 		// Instead, we directly show Stripe payment (similar to how coupons work without active order)
 		console.log('[Payment] Local cart mode - showing Stripe payment directly');
@@ -35,14 +35,13 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 		console.log('[Payment] Set payment methods:', paymentMethods.value);
 	});
 
-
+	const handleDummyPayment$ = $(async () => { await _onForward$('dummy-order-code'); });
 
 	return (
 		<div class={`flex flex-col space-y-4 ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
 			{/* Payment Methods */}
 			<div class="flex flex-col space-y-24 items-center">
 				{paymentMethods.value?.map((method) => {
-					console.log('[Payment] Rendering method:', method.code);
 					return (
 					<div key={method.code} class="flex flex-col items-center w-full">
 						{method.code === 'standard-payment' && (
@@ -52,16 +51,13 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 								</p>
 								<button
 									class="flex px-6 bg-[#8a6d4a] hover:bg-[#4F3B26] items-center justify-center space-x-2 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8a6d4a] cursor-pointer"
-									onClick$={$(async () => {
-										_onForward$('dummy-order-code');
-									})}
+									onClick$={handleDummyPayment$}
 								>
 									<span>Pay with {method.name}</span>
 								</button>
 							</>
 						)}
 						{method.code.includes('stripe') && (
-							console.log('[Payment] Rendering Stripe elements for method:', method.code),
 							<div class="!w-full">
 								<StripePayment />
 							</div>

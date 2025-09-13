@@ -1,4 +1,4 @@
-import { component$, useContext, useSignal, useStore, useTask$, $, useResource$, Resource } from '@qwik.dev/core';
+import { component$, useContext, useSignal, useStore, useVisibleTask$, $, useResource$, Resource } from '@qwik.dev/core';
 import { useLocation, useNavigate } from '@qwik.dev/router';
 import { APP_STATE } from '~/constants';
 import { isCheckoutPage } from '~/utils';
@@ -63,7 +63,8 @@ export default component$(() => {
 
 	const isOutOfStock = useSignal(false);
 
-	useTask$(async ({track}) => {
+	// Client-side only: Prevents Q20 SSR errors by running only after hydration
+	useVisibleTask$(async ({track}) => {
 		track(() => localCart.localCart.items);
 		track(() => appState.activeOrder);
 		isOutOfStock.value = await hasOutOfStockItems();
@@ -72,7 +73,8 @@ export default component$(() => {
 	
 	
 	// 🚀 OPTIMIZED: Simple country code syncing (geolocation now demand-based)
-	useTask$(({ track }) => {
+	// Client-side only: Prevents Q20 SSR errors by running only after hydration
+	useVisibleTask$(({ track }) => {
 		const countryCode = track(() => appState.shippingAddress.countryCode);
 
 		// Sync country code to local signal for UI reactivity

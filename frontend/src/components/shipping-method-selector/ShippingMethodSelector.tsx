@@ -1,4 +1,4 @@
-import { component$, useStore, useTask$ } from '@qwik.dev/core';
+import { component$, useStore, useVisibleTask$ } from '@qwik.dev/core';
 import { getEligibleShippingMethodsCached } from '~/providers/shop/checkout/checkout';
 import { setOrderShippingMethodMutation } from '~/providers/shop/orders/order';
 import { AppState, EligibleShippingMethods } from '~/types';
@@ -18,7 +18,8 @@ export default component$<Props>(({ appState }) => {
 		methods: [],
 	});
 
-	useTask$(async () => {
+	// Client-side only: Load shipping methods after component is visible
+	useVisibleTask$(async () => {
 		// Skip in local cart mode since we can't calculate shipping without an order
 		if (localCart.isLocalMode) {
 			console.log('🛒 Local cart mode: Skipping shipping methods query');
@@ -33,8 +34,9 @@ export default component$<Props>(({ appState }) => {
 		state.selectedMethodId = state.methods[0]?.id;
 	});
 
-	useTask$(async (tracker) => {
-		const selected = tracker.track(() => state.selectedMethodId);
+	// Client-side only: Update shipping method when selection changes
+	useVisibleTask$(async ({ track }) => {
+		const selected = track(() => state.selectedMethodId);
 		if (selected) {
 			appState.activeOrder = await setOrderShippingMethodMutation([selected]);
 		}

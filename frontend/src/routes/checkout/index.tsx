@@ -5,6 +5,7 @@ import {
   zod$,
   z,
   Link,
+  routeLoader$,
 } from '@qwik.dev/router';
 import CartContents from '~/components/cart-contents/CartContents';
 import CartTotals from '~/components/cart-totals/CartTotals';
@@ -28,6 +29,7 @@ import {
   secureSetOrderShippingMethod,
   secureOrderStateTransition
 } from '~/utils/secure-api';
+import { CheckoutAddressProvider } from '~/contexts/CheckoutAddressContext';
 
 
 const prefetchOrderConfirmation = $((orderCode: string) => {
@@ -37,6 +39,21 @@ const prefetchOrderConfirmation = $((orderCode: string) => {
     link.href = `/checkout/confirmation/${orderCode}`;
     link.as = 'document';
     document.head.appendChild(link);
+  }
+});
+
+// Load checkout data for SSR
+export const useCheckoutLoader = routeLoader$(async (requestEvent) => {
+  console.log('Checkout loader started for request:', requestEvent.url.pathname);
+  try {
+    const activeOrder = await getActiveOrderQuery();
+    console.log('Fetched active order:', JSON.stringify(activeOrder, null, 2));
+    return {
+      activeOrder,
+    };
+  } catch (error) {
+    console.error('Error in checkout loader:', error);
+    throw error;
   }
 });
 
@@ -88,6 +105,7 @@ const CheckoutContent = component$(() => {
   const localCart = useLocalCart();
   const checkoutValidation = useCheckoutValidation();
   const validationActions = useCheckoutValidationActions();
+  const checkoutData = useCheckoutLoader();
   const state = useStore<CheckoutState>({
     loading: false,
     error: null,
@@ -111,6 +129,11 @@ const CheckoutContent = component$(() => {
   const paymentComplete = useSignal(false);
 
   useVisibleTask$(async ({ track }) => {
+    // Handle SSR data
+    if (checkoutData.value.activeOrder && !appState.activeOrder) {
+      appState.activeOrder = checkoutData.value.activeOrder;
+    }
+    
     if (pageLoading.value) {
       if (typeof window !== 'undefined') {
         (window as any).recordCacheHit = recordCacheHit;
@@ -264,6 +287,7 @@ const CheckoutContent = component$(() => {
         return;
       }
       
+      // Use the new utility to get checkout address state
       const waitForAddressSubmission = new Promise<void>((resolve, reject) => {
         const maxWaitTime = 10000;
         const intervalTime = 100;
@@ -271,7 +295,10 @@ const CheckoutContent = component$(() => {
 
         const checkInterval = setInterval(() => {
           elapsedTime += intervalTime;
-          if (addressState.addressSubmissionComplete || !addressState.addressSubmissionInProgress) {
+          // Try to get the state from the global addressState (legacy)
+          const currentAddressState = addressState;
+          
+          if (currentAddressState.addressSubmissionComplete || !currentAddressState.addressSubmissionInProgress) {
             clearInterval(checkInterval);
             resolve();
           }
@@ -569,7 +596,9 @@ const CheckoutContent = component$(() => {
 export default component$(() => {
   return (
     <CheckoutValidationProvider>
-      <CheckoutContent />
+      <CheckoutAddressProvider>
+        <CheckoutContent />
+      </CheckoutAddressProvider>
     </CheckoutValidationProvider>
   );
 });

@@ -1,4 +1,4 @@
-import { component$, useSignal, useStore, useVisibleTask$, useTask$ } from '@qwik.dev/core';
+import { component$, useSignal, useStore, useVisibleTask$ } from '@qwik.dev/core';
 import { getEligibleShippingMethodsCached } from '~/providers/shop/checkout/checkout';
 import { setOrderShippingMethodMutation, setOrderShippingAddressMutation } from '~/providers/shop/orders/order';
 import { AppState, EligibleShippingMethods, Order } from '~/types';
@@ -38,7 +38,8 @@ export default component$<Props>(({ appState }) => {
 	});
 
 	// Watch for country changes and trigger shipping query
-	useTask$(({ track }) => {
+	// Client-side only: Prevents Q20 SSR errors by running only after hydration
+	useVisibleTask$(({ track }) => {
 		const currentCountry = track(() => appState.shippingAddress.countryCode);
 		const subtotal = track(() => appState.activeOrder?.subTotalWithTax);
 		
@@ -52,7 +53,8 @@ export default component$<Props>(({ appState }) => {
 	});
 
 	// Execute shipping method query when triggered
-	useTask$(async ({ track }) => {
+	// Client-side only: Prevents Q20 SSR errors by running only after hydration
+	useVisibleTask$(async ({ track }) => {
 		const shouldQuery = track(() => shouldQueryShipping.value);
 
 		if (!shouldQuery) return;

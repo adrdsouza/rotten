@@ -1,4 +1,4 @@
-import { createContextId, useContext, useContextProvider, useStore, Slot, component$, useTask$, $ } from '@builder.io/qwik';
+import { createContextId, useContext, useContextProvider, useStore, Slot, component$, useVisibleTask$, $ } from '@builder.io/qwik';
 
 // Define the validation state structure
 export interface CheckoutValidationState {
@@ -68,8 +68,8 @@ const createInitialState = (): CheckoutValidationState => ({
 export const CheckoutValidationProvider = component$(() => {
   const state = useStore<CheckoutValidationState>(createInitialState());
 
-  // This task now correctly calculates the total validation for a single-page checkout
-  useTask$(({ track }) => {
+  // Use useVisibleTask$ to prevent SSR issues - this only runs on the client
+  useVisibleTask$(({ track }) => {
     const customerValid = track(() => state.isCustomerValid);
     const shippingValid = track(() => state.isShippingAddressValid);
     const billingValid = track(() => state.useDifferentBilling ? state.isBillingAddressValid : true);
