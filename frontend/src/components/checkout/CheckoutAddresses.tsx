@@ -987,7 +987,6 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
 
       {/* Shipping Address */}
       <section>
-        <h3 class="text-lg font-medium text-gray-900 mb-4">Shipping Address</h3>
         <AddressForm 
           shippingAddress={appState.shippingAddress}
           isReviewMode={false}

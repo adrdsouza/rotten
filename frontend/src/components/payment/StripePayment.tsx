@@ -289,20 +289,6 @@ export default component$(() => {
 
 	return (
 		<div class="w-full max-w-full">
-			{/* Debug Info Panel */}
-			{store.debugInfo && (
-				<div class="rounded-md bg-blue-50 p-3 mb-4 border border-blue-200">
-					<div class="flex items-center">
-						<div class="flex-shrink-0">
-							<div class="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-						</div>
-						<div class="ml-3">
-							<p class="text-sm text-blue-700 font-mono">{store.debugInfo}</p>
-						</div>
-					</div>
-				</div>
-			)}
-			
 			<div class="payment-tabs-container relative">
 				<div id="payment-form" class="mb-8 w-full max-w-full"></div>
 			</div>

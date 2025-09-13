@@ -154,7 +154,6 @@ export const CheckoutForm = component$(() => {
 
         {/* Shipping Address */}
         <div class="bg-white border border-gray-200 rounded-lg p-6">
-          <h3 class="text-lg font-semibold mb-4">Shipping Address</h3>
           
           <div class="space-y-4">
             <div>

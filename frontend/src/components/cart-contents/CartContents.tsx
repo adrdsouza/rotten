@@ -215,11 +215,11 @@ export default component$<{
 										<h3 class="text-lg sm:text-xl font-bold text-gray-900">
 											{productSlug ? (
 												<Link 
-													href={`/products/${productSlug}/`}
-													onClick$={() => handleProductLinkClick(productSlug, item.productVariant.featuredAsset?.preview)}
-												>
-													{productName}
-												</Link>
+															href={`/shop/`}
+															onClick$={() => handleProductLinkClick(productSlug, item.productVariant.featuredAsset?.preview)}
+														>
+															{productName}
+														</Link>
 											) : (
 												<span>{productName}</span>
 											)}
@@ -351,11 +351,11 @@ export default component$<{
 										<h3 class="text-lg sm:text-xl font-bold text-gray-900">
 											{line.productVariant.product?.slug ? (
 												<Link 
-													href={`/products/${line.productVariant.product.slug}/`}
-													onClick$={() => handleProductLinkClick(line.productVariant.product.slug, line.featuredAsset?.preview)}
-												>
-													{productName}
-												</Link>
+														href={`/shop/`}
+														onClick$={() => handleProductLinkClick(line.productVariant.product.slug, line.featuredAsset?.preview)}
+													>
+														{productName}
+													</Link>
 											) : (
 												<span>{productName}</span>
 											)}

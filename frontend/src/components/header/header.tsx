@@ -32,7 +32,13 @@ export default component$(() => {
 
 		// 🚀 OPTIMIZED: Listen for cart updates to sync badge
 		const handleCartUpdate = (event: CustomEvent) => {
-			cartQuantitySignal.value = event.detail.totalQuantity;
+			// Add null check to prevent "Cannot read properties of null" error
+			if (event.detail && typeof event.detail.totalQuantity === 'number') {
+				cartQuantitySignal.value = event.detail.totalQuantity;
+			} else {
+				// Fallback to localStorage if event data is invalid
+				cartQuantitySignal.value = LocalCartService.getCartQuantityFromStorage();
+			}
 		};
 
 		window.addEventListener('cart-updated', handleCartUpdate as EventListener);

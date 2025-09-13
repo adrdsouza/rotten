@@ -445,7 +445,11 @@ export class LocalCartService {
     
     for (const item of cart.items) {
       const stockLevel = parseInt(item.productVariant.stockLevel || '0');
-      if (item.quantity > stockLevel) {
+      if (stockLevel <= 0) {
+        errors.push(
+          `${item.productVariant.name}: Out of stock. Please remove from cart.`
+        );
+      } else if (item.quantity > stockLevel) {
         errors.push(
           `${item.productVariant.name}: Only ${stockLevel} available (you have ${item.quantity})`
         );
