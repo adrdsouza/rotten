@@ -364,7 +364,7 @@ export class LocalCartService {
     return Date.now() - item.lastStockCheck > this.STOCK_CACHE_DURATION;
   }
 
-  // 🚀 NEW: Refresh stock levels using fresh GraphQL data
+  // 🚀 OPTIMIZED: Refresh stock levels using lightweight stock-only queries for better performance
   static async refreshAllStockLevels(): Promise<LocalCart> {
     const cart = this.getCart();
 
@@ -374,47 +374,62 @@ export class LocalCartService {
 
     try {
       // Import GraphQL function dynamically to avoid circular dependencies
-      const { getProductBySlug } = await import('~/providers/shop/products/products');
+      const { getProductStockLevelsOnly } = await import('~/providers/shop/products/products');
 
       // Get unique product slugs from cart items
       const productSlugs = [...new Set(cart.items.map(item => item.productVariant.product.slug))];
 
-      // Fetch fresh product data for all products in cart
-      const productPromises = productSlugs.map(slug => getProductBySlug(slug));
-      const products = await Promise.all(productPromises);
+      console.log(`🚀 Refreshing stock for ${productSlugs.length} unique products using lightweight stock queries`);
+
+      // Fetch only stock levels for all products (much faster, smaller payload)
+      const stockResults = await Promise.all(
+        productSlugs.map(async (slug) => {
+          try {
+            const stockData = await getProductStockLevelsOnly(slug);
+            return { slug, data: stockData?.product, error: null };
+          } catch (error) {
+            console.error(`❌ Failed to fetch stock levels for ${slug}:`, error);
+            return { slug, data: null, error };
+          }
+        })
+      );
 
       // Update stock levels for all items
+      let updatedItemCount = 0;
       cart.items.forEach((item) => {
-        const product = products.find((p: { slug?: string }) => p?.slug === item.productVariant.product.slug);
-        if (product) {
-          const variant = product.variants?.find((v: { id: string; stockLevel?: string }) => v.id === item.productVariantId);
+        const stockResult = stockResults.find(result => result.slug === item.productVariant.product.slug);
+        if (stockResult?.data?.variants) {
+          const variant = stockResult.data.variants.find((v: { id: string; stockLevel?: string }) => v.id === item.productVariantId);
           if (variant) {
             // Update with fresh stock level
             const freshStockLevel = parseInt(variant.stockLevel || '0');
             item.productVariant.stockLevel = freshStockLevel.toString();
             item.lastStockCheck = Date.now();
+            updatedItemCount++;
           } else {
             // Variant not found, so it's unavailable
             item.productVariant.stockLevel = '0';
             item.lastStockCheck = Date.now();
           }
-        } else {
-          // Product not found, so it's unavailable
+        } else if (stockResult?.error) {
+          // Error fetching stock, mark as unavailable
           item.productVariant.stockLevel = '0';
           item.lastStockCheck = Date.now();
         }
+        // If no data and no error, keep existing stock level
       });
-      
+
+      console.log(`✅ Stock refreshed for ${updatedItemCount}/${cart.items.length} cart items using lightweight queries`);
+
       // Note: Items with zero stock are kept in cart for user visibility
       // The UI should display warnings for out-of-stock items
 
       this.recalculateTotals(cart);
       this.saveCart(cart);
       return cart;
-
-    } catch (_error) {
-      // Fallback to old method if GraphQL fails
-      return this.refreshAllStockLevelsLocal();
+    } catch (error) {
+      console.error('❌ LocalCartService: Failed to refresh stock levels:', error);
+      throw error;
     }
   }
 

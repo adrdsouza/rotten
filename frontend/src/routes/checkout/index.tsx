@@ -17,12 +17,12 @@ import { CheckoutAddresses } from '~/components/checkout/CheckoutAddresses';
 import { addressState } from '~/utils/checkout-state';
 import { createSEOHead } from '~/utils/seo';
 import Payment from '~/components/payment/Payment';
-import { useLocalCart, refreshCartStock, loadCartIfNeeded } from '~/contexts/CartContext';
+import { useLocalCart, loadCartIfNeeded, refreshCartStock } from '~/contexts/CartContext';
 import { CheckoutValidationProvider, useCheckoutValidation, useCheckoutValidationActions } from '~/contexts/CheckoutValidationContext';
 import { OrderProcessingModal } from '~/components/OrderProcessingModal';
 import { clearAllValidationCache } from '~/utils/cached-validation';
-import { recordCacheHit, recordCacheMiss, resetCacheMonitoring, enablePerformanceLogging, disablePerformanceLogging } from '~/utils/validation-cache-debug';
-import { enableAutoCleanup, disableAutoCleanup } from '~/utils/validation-cache';
+import { recordCacheHit, recordCacheMiss, resetCacheMonitoring, enablePerformanceLogging } from '~/utils/validation-cache-debug';
+import { enableAutoCleanup } from '~/utils/validation-cache';
 import { LocalCartService } from '~/services/LocalCartService';
 import {
   secureCartConversion,
@@ -47,13 +47,15 @@ export const useCheckoutLoader = routeLoader$(async (requestEvent) => {
   console.log('Checkout loader started for request:', requestEvent.url.pathname);
   try {
     const activeOrder = await getActiveOrderQuery();
-    console.log('Fetched active order:', JSON.stringify(activeOrder, null, 2));
+    console.log('Fetched active order in loader');
     return {
       activeOrder,
     };
   } catch (error) {
     console.error('Error in checkout loader:', error);
-    throw error;
+    return {
+      activeOrder: null,
+    };
   }
 });
 
@@ -144,33 +146,66 @@ const CheckoutContent = component$(() => {
       clearAllValidationCache();
       resetCacheMonitoring();
       appState.showCart = false;
-      await loadCartIfNeeded(localCart);
+      
+      // Only load cart if needed for local mode
+      if (localCart.isLocalMode) {
+        await loadCartIfNeeded(localCart);
 
-      if (localCart.isLocalMode && localCart.localCart.items.length > 0) {
-        try {
-          await refreshCartStock(localCart);
-        } catch (error) {
-          console.error('❌ Checkout: Failed to refresh stock levels:', error);
-        }
-      }
-
-      try {
-        if (!localCart.isLocalMode) {
-          const actualOrder = await getActiveOrderQuery();
-          if (actualOrder && actualOrder.id && !(actualOrder as any).errorCode) {
-            appState.activeOrder = actualOrder;
+        // Refresh stock levels for all cart items - this is required on every checkout load
+        if (localCart.localCart.items.length > 0) {
+          try {
+            // Refresh stock levels to ensure we have fresh data for checkout validation
+            await refreshCartStock(localCart);
+            
+            // Validate stock after refresh
+            const stockValidation = LocalCartService.validateStock();
+            validationActions.updateStockValidation(stockValidation.valid, stockValidation.errors);
+          } catch (error) {
+            console.error('❌ Checkout: Failed to refresh stock levels:', error);
           }
         }
-      } catch (error) {
-        console.error('[Checkout] Error during checkout initialization:', error);
-        state.error = 'Failed to load checkout. Please try again.';
-      } finally {
-        pageLoading.value = false;
+      } else {
+        // For Vendure mode, only fetch order if we don't have it from SSR
+        if (!appState.activeOrder?.id) {
+          try {
+            const actualOrder = await getActiveOrderQuery();
+            if (actualOrder && actualOrder.id && !(actualOrder as any).errorCode) {
+              appState.activeOrder = actualOrder;
+            }
+          } catch (error) {
+            console.error('[Checkout] Error during checkout initialization:', error);
+            state.error = 'Failed to load checkout. Please try again.';
+          }
+        }
+        
+        // Validate stock for Vendure mode
+        if (appState.activeOrder?.lines && appState.activeOrder.lines.length > 0) {
+          const stockErrors: string[] = [];
+          let hasStockIssues = false;
+          for (const line of appState.activeOrder.lines) {
+            const { stockLevel } = line.productVariant;
+            const isOutOfStock = stockLevel === 'OUT_OF_STOCK' || (typeof stockLevel === 'number' && stockLevel <= 0);
+
+            if (isOutOfStock) {
+              stockErrors.push(`${line.productVariant.name} is out of stock.`);
+              hasStockIssues = true;
+            } else if (typeof stockLevel === 'number' && line.quantity > stockLevel) {
+              stockErrors.push(`Only ${stockLevel} of ${line.productVariant.name} available.`);
+              hasStockIssues = true;
+            }
+          }
+          validationActions.updateStockValidation(!hasStockIssues, stockErrors);
+        } else {
+          validationActions.updateStockValidation(true, []);
+        }
       }
+
+      pageLoading.value = false;
     }
 
     track(() => localCart.isLocalMode ? localCart.localCart.items : appState.activeOrder?.lines);
 
+    // Detailed stock validation for both modes
     if (localCart.isLocalMode && localCart.localCart.items.length > 0) {
         const stockValidation = LocalCartService.validateStock();
         validationActions.updateStockValidation(stockValidation.valid, stockValidation.errors);
@@ -193,11 +228,6 @@ const CheckoutContent = component$(() => {
     } else {
         validationActions.updateStockValidation(true, []);
     }
-
-    return () => {
-      disablePerformanceLogging();
-      disableAutoCleanup();
-    };
   });
 
   const _processPayment = $(async (paymentMethod: string = 'stripe') => {

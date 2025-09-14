@@ -137,7 +137,6 @@ export default component$(() => {
 						</div>						{/* Centered Navigation - Hidden on mobile, shown on desktop */}
 						<nav class="hidden md:flex flex-1 justify-center items-center space-x-8">							<Link
 								href="/shop"
-								prefetch
 								class={`hover:scale-105 transition-all duration-500 ease-in-out uppercase text-lg xl:text-xl 2xl:text-2xl font-bold font-heading border-b-2 text-white hover:text-gray-200 ${
 									location.url.pathname.startsWith('/shop')
 										? 'border-white'
@@ -171,13 +170,24 @@ export default component$(() => {
 											}
 										}
 
-										// 🚀 FRESH STOCK: Refresh stock levels when opening cart (before showing)
-										if (!appState.showCart && localCart.localCart.items.length > 0) {
-											await refreshCartStock(localCart);
-										}
-
-										// Only show cart after stock refresh is complete
-										appState.showCart = !appState.showCart;
+										// If cart is already open, just close it
+						if (appState.showCart) {
+							appState.showCart = false;
+						} else {
+							// Show cart immediately
+							appState.showCart = true;
+							
+							// 🚀 FRESH STOCK: Refresh stock levels when opening cart (in background)
+							// Refresh stock levels in background without blocking UI
+							if (localCart.localCart.items.length > 0) {
+								refreshCartStock(localCart).then(() => {
+									// Trigger cart update event to refresh UI with new stock levels
+									window.dispatchEvent(new CustomEvent('cart-updated'));
+								}).catch((error) => {
+									console.error('Background stock refresh failed:', error);
+								});
+							}
+						}
 										// Sync badge with loaded cart state
 										if (localCart.hasLoadedOnce) {
 											cartQuantitySignal.value = localCart.localCart.totalQuantity;

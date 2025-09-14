@@ -37,6 +37,9 @@ export interface CartContextState {
 
   // Applied coupon for local cart mode
   appliedCoupon: AppliedCoupon | null;
+  
+  // 🚀 OPTIMIZED: Track last stock refresh time to prevent excessive refreshes
+  lastStockRefresh: number | null; // Timestamp of last stock refresh
 }
 
 // Create context for state only
@@ -58,7 +61,9 @@ export const CartProvider = component$(() => {
     hasLoadedOnce: false,
     isRefreshingStock: false,
     lastStockValidation: {},
-    appliedCoupon: null
+    appliedCoupon: null,
+    // 🚀 OPTIMIZED: Initialize last stock refresh time
+    lastStockRefresh: null
   });
 
   // 🔄 CROSS-TAB SYNC: Setup storage listeners and cart update callbacks
@@ -123,6 +128,16 @@ export const refreshCartStock = $(async (cartState: CartContextState) => {
     return;
   }
 
+  // 🚀 OPTIMIZED: Only refresh stock if it's been more than 5 minutes since last refresh
+  const lastRefresh = cartState.lastStockRefresh || 0;
+  const now = Date.now();
+  const FIVE_MINUTES = 5 * 60 * 1000; // 5 minutes
+  
+  if (now - lastRefresh < FIVE_MINUTES) {
+    // console.log('⏭️ CartContext: Skipping stock refresh - last refresh was less than 5 minutes ago');
+    return;
+  }
+
   try {
     cartState.isLoading = true;
     cartState.isRefreshingStock = true;
@@ -130,6 +145,7 @@ export const refreshCartStock = $(async (cartState: CartContextState) => {
     // Get fresh stock data for all cart items
     const updatedCart = await LocalCartService.refreshAllStockLevels();
     cartState.localCart = updatedCart;
+    cartState.lastStockRefresh = now; // Record the refresh time
 
     // console.log('✅ CartContext: Stock levels refreshed');
   } catch (error) {

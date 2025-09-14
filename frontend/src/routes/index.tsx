@@ -181,7 +181,6 @@ export default component$(() => {
             </p>
             <Link
               href="/shop"
-              prefetch
               class="inline-block bg-[#8a6d4a] text-white px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:scale-105 hover:shadow-xl rounded-lg shadow-lg border border-[#8a6d4a] animate-scale"
               style="animation-delay: 0.4s;"
             >
@@ -260,7 +259,6 @@ export default component$(() => {
               <div>
                 <Link
                   href="/shop"
-                  prefetch
                   class="inline-block bg-[#8a6d4a] text-black px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:text-white hover:scale-105 rounded-lg shadow-lg border border-[#8a6d4a]"
                 >
                   <div class="text-4xl font-bold uppercase tracking-widest">SHOP</div>

@@ -512,53 +512,53 @@ export default component$(() => {
 												</div>
 											)}
 											<div class="space-y-2 w-full">
-												<button
-													onClick$={$(async () => {
-														// Prevent multiple clicks
-														if (isNavigatingToCheckout.value) return;
-														isNavigatingToCheckout.value = true;
-														
-														// Track checkout navigation performance - DISABLED
-														// const checkoutTimer = await performanceTracking.trackCheckoutStep$('navigate-to-checkout');
-														
-														try {
-															// Check if we have the required data
-															// In local cart mode, we don't need activeOrder.id yet (will be created during checkout)
-															if (!localCart.isLocalMode && !appState.activeOrder?.id) {
-																console.error('Missing order data for Vendure mode');
-																return;
-															}
+																										<button
+														onClick$={$(async () => {
+															// Prevent multiple clicks
+															if (isNavigatingToCheckout.value) return;
+															isNavigatingToCheckout.value = true;
 															
-															// In local cart mode, check if we have items
-															if (localCart.isLocalMode && localCart.localCart.items.length === 0) {
-																console.error('No items in local cart');
-																return;
-															}
+															// Track checkout navigation performance - DISABLED
+															// const checkoutTimer = await performanceTracking.trackCheckoutStep$('navigate-to-checkout');
 															
-															if (!shippingState.selectedMethod) {
-																console.error('No shipping method selected');
-																return;
-															}
-															
-															if (!appState.shippingAddress.countryCode) {
-																console.error('No country selected');
-																return;
-															}
+															try {
+																// Check if we have the required data
+																// In local cart mode, we don't need activeOrder.id yet (will be created during checkout)
+																if (!localCart.isLocalMode && !appState.activeOrder?.id) {
+																	console.error('Missing order data for Vendure mode');
+																	return;
+																}
+																
+																// In local cart mode, check if we have items
+																if (localCart.isLocalMode && localCart.localCart.items.length === 0) {
+																	console.error('No items in local cart');
+																	return;
+																}
+																
+																if (!shippingState.selectedMethod) {
+																	console.error('No shipping method selected');
+																	return;
+																}
+																
+																if (!appState.shippingAddress.countryCode) {
+																	console.error('No country selected');
+																	return;
+																}
 
-															// console.log('Navigating to checkout, no backend updates at this stage. All data managed in localStorage until final order placement. Mode:', localCart.isLocalMode ? 'Local Cart Mode' : 'Vendure Mode');
+																// console.log('Navigating to checkout, no backend updates at this stage. All data managed in localStorage until final order placement. Mode:', localCart.isLocalMode ? 'Local Cart Mode' : 'Vendure Mode');
 
-															// Navigate to checkout page without backend updates
-															await navigate('/checkout/');
-															// await checkoutTimer.end$(); // Track successful checkout navigation - DISABLED
-														} catch (error) {
-															console.error('Error navigating to checkout:', error);
-															// await checkoutTimer.end$(); // Track failed checkout navigation - DISABLED
-															// Reopen cart if navigation fails
-															appState.showCart = true;
-														} finally {
-															isNavigatingToCheckout.value = false;
-														}
-													})}
+																// Navigate to checkout page without backend updates
+																await navigate('/checkout/');
+																// await checkoutTimer.end$(); // Track successful checkout navigation - DISABLED
+															} catch (error) {
+																console.error('Error navigating to checkout:', error);
+																// await checkoutTimer.end$(); // Track failed checkout navigation - DISABLED
+																// Reopen cart if navigation fails
+																appState.showCart = true;
+															} finally {
+																isNavigatingToCheckout.value = false;
+															}
+														})}
 													disabled={isNavigatingToCheckout.value || !shippingState.selectedMethod || 
 										!appState.shippingAddress.countryCode || 
 										(!localCart.isLocalMode && !appState.activeOrder?.id) ||

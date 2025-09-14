@@ -5,7 +5,7 @@ import Price from '~/components/products/Price';
 import { getBatchedProductsForShop, getProductAssets, getShirtStylesForSelection, getStockLevelsOnly } from '~/providers/shop/products/products';
 import { Product, ProductOption } from '~/types';
 import { createSEOHead } from '~/utils/seo';
-import { useLocalCart, addToLocalCart } from '~/contexts/CartContext';
+import { useLocalCart, addToLocalCart, refreshCartStock } from '~/contexts/CartContext';
 import { APP_STATE } from '~/constants';
 import { loadCountryOnDemand } from '~/utils/addressStorage';
 import { LocalCartService } from '~/services/LocalCartService';
@@ -104,7 +104,6 @@ const checkColorAvailable = (colorOption: ProductOption, selectedSize: ProductOp
 
 
 
-// 🚀 PROGRESSIVE LOADING: Load only style selection data initially (~85% smaller payload)
 export const useShirtStylesLoader = routeLoader$(async () => {
   try {
     console.log('🚀 Loading ultra-lightweight style selection data...');
@@ -227,12 +226,12 @@ export default component$(() => {
     }
     updateVariantSelection();
     
-    // Auto-advance to next step after short delay
+    // Auto-advance to next step after shorter delay for better UX
     setTimeout(() => {
       if (currentStep.value === 2) {
         currentStep.value = 3;
       }
-    }, 800);
+    }, 300); // Reduced from 800ms to 300ms for smoother transition
   });
 
   const handleColorSelect = $((colorOption: ProductOption) => {
@@ -302,12 +301,12 @@ export default component$(() => {
     // Load full product data in background
     loadFullProductData();
     
-    // Auto-advance to next step after short delay
+    // Auto-advance to next step after shorter delay for better UX
     setTimeout(() => {
       if (currentStep.value === 1) {
         currentStep.value = 2;
       }
-    }, 800);
+    }, 300); // Reduced from 800ms to 300ms for smoother transition
   });
 
   const prevStep = $(() => {
@@ -371,6 +370,17 @@ export default component$(() => {
       // Show cart if successful
       if (!localCart.lastError) {
         appState.showCart = true;
+        
+        // 🚀 FRESH STOCK: Refresh stock levels when opening cart (in background)
+        // Refresh stock levels in background without blocking UI
+        if (localCart.localCart.items.length > 0) {
+          refreshCartStock(localCart).then(() => {
+            // Trigger cart update event to refresh UI with new stock levels
+            window.dispatchEvent(new CustomEvent('cart-updated'));
+          }).catch((error: Error) => {
+            console.error('Background stock refresh failed:', error);
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to add to cart:', error);
@@ -411,9 +421,18 @@ export default component$(() => {
         assetsLoading.value = false;
       }, 8000); // 8 second timeout
 
-      // Lazy load assets for the selected product
-      getProductAssets(selectedProduct.value.slug || '')
-        .then((assets) => {
+      // Add a small delay to prevent blocking UI when switching products
+      const loadAssets = async () => {
+        try {
+          // Small delay to allow UI to update
+          await new Promise(resolve => setTimeout(resolve, 10));
+          
+          // Check if component is still mounted and product is still selected
+          if (controller.signal.aborted || !selectedProduct.value) return;
+          
+          // Lazy load assets for the selected product
+          const assets = await getProductAssets(selectedProduct.value.slug || '');
+          
           // Check if component is still mounted
           if (controller.signal.aborted) return;
           
@@ -429,19 +448,18 @@ export default component$(() => {
             currentProductImage.value = { id: 'placeholder', preview: '/asset_placeholder.webp' };
           }
 
-          // 🚀 FIXED: Removed aggressive image preloading that was causing route prefetching
-          // Images will load on-demand when needed, preventing 404 errors for non-existent routes
-
           assetsLoading.value = false;
-        })
-        .catch((error) => {
+        } catch (error) {
           if (!controller.signal.aborted) {
             clearTimeout(timeoutId);
             console.error('Failed to load assets:', error);
             currentProductImage.value = { id: 'placeholder', preview: '/asset_placeholder.webp' };
             assetsLoading.value = false;
           }
-        });
+        }
+      };
+      
+      loadAssets();
     } else {
       // No product selected - clear assets
       productAssets.value = null;
@@ -460,11 +478,18 @@ export default component$(() => {
 
   // 🚀 CACHE CLEANUP: Only cleanup old cache entries (removed cache warming that was causing 5s delay)
   useVisibleTask$(() => {
-    // Clean up old cache entries
-    cleanupCache();
+    // Add a small delay to prevent blocking initial render
+    const timeoutId = setTimeout(() => {
+      // Clean up old cache entries
+      cleanupCache();
+      
+      // Enable auto cleanup for product cache
+      enableAutoCleanup();
+    }, 200);
     
-    // Enable auto cleanup for product cache
-    enableAutoCleanup();
+    return () => {
+      clearTimeout(timeoutId);
+    };
   });
 
   // Disable auto cleanup when component is unmounted
@@ -481,6 +506,11 @@ export default component$(() => {
     
     const loadStockLevelsOnly = async () => {
       try {
+        // Only load stock levels if we haven't already loaded them
+        if (fullProductData.value.shortSleeve || fullProductData.value.longSleeve) {
+          return;
+        }
+        
         console.log('🔄 Loading stock levels only on page load...');
         const stockData = await getStockLevelsOnly();
         
@@ -501,69 +531,80 @@ export default component$(() => {
       }
     };
     
-    loadStockLevelsOnly();
+    // Add a small delay to prevent blocking initial render
+    const timeoutId = setTimeout(() => {
+      loadStockLevelsOnly();
+    }, 50);
     
     cleanup(() => {
       controller.abort();
+      clearTimeout(timeoutId);
     });
   });
 
   // Load cart quantities for all variants when products are available
   useVisibleTask$(() => {
-    const loadQuantities = () => {
-      const allVariants: string[] = [];
+    // Add a small delay to prevent blocking initial render
+    const timeoutId = setTimeout(() => {
+      const loadQuantities = () => {
+        const allVariants: string[] = [];
 
-      // Collect all variant IDs from progressively loaded products (only when available)
-      if (fullProductData.value.shortSleeve?.variants && Array.isArray(fullProductData.value.shortSleeve.variants)) {
-        allVariants.push(...fullProductData.value.shortSleeve.variants.map((v: any) => v.id).filter(Boolean));
-      }
-      if (fullProductData.value.longSleeve?.variants && Array.isArray(fullProductData.value.longSleeve.variants)) {
-        allVariants.push(...fullProductData.value.longSleeve.variants.map((v: any) => v.id).filter(Boolean));
-      }
+        // Collect all variant IDs from progressively loaded products (only when available)
+        if (fullProductData.value.shortSleeve?.variants && Array.isArray(fullProductData.value.shortSleeve.variants)) {
+          allVariants.push(...fullProductData.value.shortSleeve.variants.map((v: any) => v.id).filter(Boolean));
+        }
+        if (fullProductData.value.longSleeve?.variants && Array.isArray(fullProductData.value.longSleeve.variants)) {
+          allVariants.push(...fullProductData.value.longSleeve.variants.map((v: any) => v.id).filter(Boolean));
+        }
 
-      if (allVariants.length === 0) return;
+        if (allVariants.length === 0) return;
 
-      // Check if we're in local cart mode or have loaded cart context
-      if (localCart.isLocalMode && localCart.hasLoadedOnce) {
-        // Use loaded cart context data
-        const result: Record<string, number> = {};
-        allVariants.forEach((variantId) => {
-          const localItem = localCart.localCart.items.find(
-            (item: any) => item.productVariantId === variantId
-          );
-          result[variantId] = localItem?.quantity || 0;
-        });
-        quantitySignal.value = result;
-      } else if (localCart.isLocalMode) {
-        // Use lightweight localStorage check (no context loading)
-        quantitySignal.value = LocalCartService.getItemQuantitiesFromStorage(allVariants);
-      } else {
-        // Fallback to Vendure order (checkout mode)
-        const result: Record<string, number> = {};
-        allVariants.forEach((variantId) => {
-          const orderLine = (appState.activeOrder?.lines || []).find(
-            (l: any) => l.productVariant.id === variantId
-          );
-          result[variantId] = orderLine?.quantity || 0;
-        });
-        quantitySignal.value = result;
-      }
-    };
+        // Check if we're in local cart mode or have loaded cart context
+        if (localCart.isLocalMode && localCart.hasLoadedOnce) {
+          // Use loaded cart context data
+          const result: Record<string, number> = {};
+          allVariants.forEach((variantId) => {
+            const localItem = localCart.localCart.items.find(
+              (item: any) => item.productVariantId === variantId
+            );
+            result[variantId] = localItem?.quantity || 0;
+          });
+          quantitySignal.value = result;
+        } else if (localCart.isLocalMode) {
+          // Use lightweight localStorage check (no context loading)
+          quantitySignal.value = LocalCartService.getItemQuantitiesFromStorage(allVariants);
+        } else {
+          // Fallback to Vendure order (checkout mode)
+          const result: Record<string, number> = {};
+          allVariants.forEach((variantId) => {
+            const orderLine = (appState.activeOrder?.lines || []).find(
+              (l: any) => l.productVariant.id === variantId
+            );
+            result[variantId] = orderLine?.quantity || 0;
+          });
+          quantitySignal.value = result;
+        }
+      };
 
-    // Load quantities initially
-    loadQuantities();
+      // Load quantities initially
+      loadQuantities();
 
-    // Listen for cart updates to sync quantities
-    const handleCartUpdate = () => {
-      if (localCart.hasLoadedOnce) {
-        loadQuantities();
-      }
-    };
+      // Listen for cart updates to sync quantities
+      const handleCartUpdate = () => {
+        if (localCart.hasLoadedOnce) {
+          loadQuantities();
+        }
+      };
 
-    window.addEventListener('cart-updated', handleCartUpdate);
+      window.addEventListener('cart-updated', handleCartUpdate);
+
+      return () => {
+        window.removeEventListener('cart-updated', handleCartUpdate);
+      };
+    }, 100); // Small delay to prevent blocking initial render
 
     return () => {
-      window.removeEventListener('cart-updated', handleCartUpdate);
+      clearTimeout(timeoutId);
     };
   });
 
@@ -881,6 +922,8 @@ export default component$(() => {
                           'border-gray-200 hover:border-[#8a6d4a]': selectedStyle.value !== 'short' && (fullProductData.value.shortSleeve ? hasAnyAvailableVariants(fullProductData.value.shortSleeve) : false)
                         }}
                         onClick$={() => {
+                          // Prevent multiple clicks while loading
+                          if (isLoadingStep.value) return;
                           if (fullProductData.value.shortSleeve && hasAnyAvailableVariants(fullProductData.value.shortSleeve)) {
                             handleStyleSelect('short');
                           }
@@ -890,7 +933,7 @@ export default component$(() => {
                           <div class="absolute top-3 right-4 text-[#8a6d4a] font-bold text-lg">✓</div>
                         )}
                         {isLoadingStep.value && selectedStyle.value === 'short' && (
-                          <div class="absolute inset-0 bg-white/80 flex items-center justify-center rounded-xl">
+                          <div class="absolute top-3 right-4 flex items-center justify-center">
                             <div class="w-6 h-6 border-2 border-[#8a6d4a] border-t-transparent rounded-full animate-spin"></div>
                           </div>
                         )}
@@ -913,6 +956,8 @@ export default component$(() => {
                           'border-gray-200 hover:border-[#8a6d4a]': selectedStyle.value !== 'long' && (fullProductData.value.longSleeve ? hasAnyAvailableVariants(fullProductData.value.longSleeve) : false)
                         }}
                         onClick$={() => {
+                          // Prevent multiple clicks while loading
+                          if (isLoadingStep.value) return;
                           if (fullProductData.value.longSleeve && hasAnyAvailableVariants(fullProductData.value.longSleeve)) {
                             handleStyleSelect('long');
                           }
@@ -922,7 +967,7 @@ export default component$(() => {
                           <div class="absolute top-3 right-4 text-[#8a6d4a] font-bold text-lg">✓</div>
                         )}
                         {isLoadingStep.value && selectedStyle.value === 'long' && (
-                          <div class="absolute inset-0 bg-white/80 flex items-center justify-center rounded-xl">
+                          <div class="absolute top-3 right-4 flex items-center justify-center">
                             <div class="w-6 h-6 border-2 border-[#8a6d4a] border-t-transparent rounded-full animate-spin"></div>
                           </div>
                         )}
