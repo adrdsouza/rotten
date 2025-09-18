@@ -1,111 +1,61 @@
 import { $, component$, useContext, useSignal, useComputed$, useVisibleTask$ } from '@qwik.dev/core';
-import { Order } from '~/generated/graphql'; // Removed unused AdjustmentType
-import CartPrice from './CartPrice';
 import { APP_STATE } from '~/constants';
-import { applyCouponCodeMutation, removeCouponCodeMutation, validateLocalCartCouponQuery } from '~/providers/shop/orders/order';
+import { validateLocalCartCouponQuery } from '~/providers/shop/orders/order';
 import { formatPrice } from '~/utils';
 import TrashIcon from '../icons/TrashIcon';
 import Alert from '../alert/Alert';
 import { useLocalCart } from '~/contexts/CartContext';
 
 export default component$<{
-	order?: Order; // order prop might become redundant if we solely rely on appState.activeOrder
 	readonly?: boolean;
 	localCart?: any; // Local cart data for Local Cart Mode
-}>(({ order, readonly = false, localCart }) => {
+}>(({ readonly = false, localCart }) => {
 	const appState = useContext(APP_STATE);
 	const localCartContext = useLocalCart();
 	const couponCodeSignal = useSignal('');
 	const errorSignal = useSignal('');
 
-	// Use passed order prop if available, otherwise fall back to appState.activeOrder
-	const activeOrder = useComputed$(() => order || appState.activeOrder);
-
-	// Determine if we should use local cart data (must be defined before other computed values that use it)
-	const shouldUseLocalCartData = useComputed$(() => {
-		const shouldUseLocal = localCart && (localCart.isLocalMode === true || (localCart.localCart && localCart.localCart.items));
-		// console.log('CartTotals: Should use local cart?', shouldUseLocal, 'Local Cart Mode:', localCart?.isLocalMode, 'Local Cart Available:', !!localCart, 'Local Cart Structure:', localCart);
-		return shouldUseLocal;
-	});
-
 	const activeCouponCode = useComputed$(() => {
-		// In local cart mode, use the applied coupon from local cart context
-		if (shouldUseLocalCartData.value && localCartContext.appliedCoupon) {
-			return localCartContext.appliedCoupon.code;
-		}
-		// Otherwise use the active order coupon
-		return activeOrder.value?.couponCodes?.[0];
+		return localCartContext.appliedCoupon?.code;
 	});
+
 	const subtotal = useComputed$(() => {
-		const sub = shouldUseLocalCartData.value ? (localCart.localCart?.subTotal || localCart.subTotal || 0) : activeOrder.value?.subTotalWithTax || 0;
-		// console.log('CartTotals: Subtotal calculated as', sub, 'Using local cart:', shouldUseLocalCartData.value, 'Local Cart Data:', localCart?.localCart || localCart);
-		return sub;
+		return localCart.localCart?.subTotal || localCart.subTotal || 0;
 	});
-	// Calculate order total after discount (but before shipping) for free shipping eligibility
+
 	const orderTotalAfterDiscount = useComputed$(() => {
-		if (shouldUseLocalCartData.value) {
-			let total = subtotal.value;
-			// Apply discount if a coupon is active
-			if (localCartContext.appliedCoupon) {
-				total -= localCartContext.appliedCoupon.discountAmount;
-			}
-			return total;
+		let total = subtotal.value;
+		if (localCartContext.appliedCoupon) {
+			total -= localCartContext.appliedCoupon.discountAmount;
 		}
-		// For server mode, use the order total minus shipping
-		return (activeOrder.value?.totalWithTax || 0) - (activeOrder.value?.shippingWithTax || 0);
+		return total;
 	});
 
 	const shipping = useComputed$(() => {
-		if (shouldUseLocalCartData.value && appState.shippingAddress && appState.shippingAddress.countryCode) {
-			// Check if coupon provides free shipping
+		if (appState.shippingAddress && appState.shippingAddress.countryCode) {
 			if (localCartContext.appliedCoupon?.freeShipping) {
 				return 0;
 			}
 
 			const countryCode = appState.shippingAddress.countryCode;
-			// Use order total after discount for free shipping eligibility
 			const orderTotal = orderTotalAfterDiscount.value;
 			if (countryCode === 'US' || countryCode === 'PR') {
-				const ship = orderTotal >= 10000 ? 0 : 800; // Free shipping over $100 after discount, otherwise $8
-				// console.log('CartTotals: Shipping calculated for US/PR as', ship, 'Order Total After Discount:', orderTotal, 'Country:', countryCode);
-				return ship;
+				return orderTotal >= 10000 ? 0 : 800;
 			}
-			// console.log('CartTotals: Shipping calculated for International as 2000, Country:', countryCode);
-			return 2000; // International shipping $20
-		}
-		const ship = activeOrder.value?.shippingWithTax || 0;
-		// console.log('CartTotals: Shipping from active order as', ship);
-		return ship;
-	});
-	const total = useComputed$(() => {
-		if (shouldUseLocalCartData.value) {
-			// In local cart mode, use the order total after discount plus shipping
-			const tot = orderTotalAfterDiscount.value + shipping.value;
-			// console.log('CartTotals: Total calculated as', tot, 'Order Total After Discount:', orderTotalAfterDiscount.value, 'Shipping:', shipping.value);
-			return tot;
-		} else {
-			// In server mode, use the active order total (already includes discounts)
-			const tot = activeOrder.value?.totalWithTax || 0;
-			// console.log('CartTotals: Server total:', tot);
-			return tot;
-		}
-	});
-
-	// Ensure coupon display updates even in Local Cart Mode
-	const displayDiscount = useComputed$(() => {
-		// In local cart mode, use the applied coupon discount
-		if (shouldUseLocalCartData.value && localCartContext.appliedCoupon) {
-			return localCartContext.appliedCoupon.discountAmount;
-		}
-		// Otherwise use the active order discount
-		if (activeOrder.value?.discounts && activeOrder.value.discounts.length > 0) {
-			const discount = activeOrder.value.discounts[0].amountWithTax || 0;
-			return discount;
+			return 2000;
 		}
 		return 0;
 	});
 
-	const handleInput$ = $((_event: Event, element: HTMLInputElement) => { // Changed event type to general Event as event arg is not used
+	const total = useComputed$(() => {
+		return orderTotalAfterDiscount.value + shipping.value;
+	});
+
+	const displayDiscount = useComputed$(() => {
+		return localCartContext.appliedCoupon?.discountAmount || 0;
+	});
+
+	const handleInput$ = $((_event: Event, element: HTMLInputElement) => {
 		couponCodeSignal.value = element.value;
 		errorSignal.value = '';
 	});
@@ -114,70 +64,45 @@ export default component$<{
 		if (!couponCodeSignal.value) return;
 		errorSignal.value = '';
 
-		// Use local cart coupon validation in local cart mode
-		if (localCartContext.isLocalMode) {
-			try {
-				const cartItems = localCartContext.localCart.items.map(item => ({
-					productVariantId: item.productVariantId,
-					quantity: item.quantity,
-					unitPrice: item.productVariant.price
-				}));
+		try {
+			const cartItems = localCartContext.localCart.items.map(item => ({
+				productVariantId: item.productVariantId,
+				quantity: item.quantity,
+				unitPrice: item.productVariant.price
+			}));
 
-				const result = await validateLocalCartCouponQuery({
-					couponCode: couponCodeSignal.value,
-					cartTotal: localCartContext.localCart.subTotal,
-					cartItems,
-					customerId: appState.customer?.id
-				});
+			const result = await validateLocalCartCouponQuery({
+				couponCode: couponCodeSignal.value,
+				cartTotal: localCartContext.localCart.subTotal,
+				cartItems,
+				customerId: appState.customer?.id
+			});
 
-				if (result.isValid) {
-					// Store coupon validation result for display
-					localCartContext.appliedCoupon = {
-						code: result.appliedCouponCode || couponCodeSignal.value,
-						discountAmount: result.discountAmount,
-						discountPercentage: result.discountPercentage,
-						freeShipping: result.freeShipping,
-						promotionName: result.promotionName,
-						promotionDescription: result.promotionDescription
-					};
-					couponCodeSignal.value = ''; // Clear input after successful validation
-					errorSignal.value = '';
-				} else {
-					errorSignal.value = result.validationErrors.join(', ');
-				}
-			} catch (error) {
-				console.error('Error validating coupon:', error);
-				errorSignal.value = 'Failed to validate coupon. Please try again.';
+			if (result.isValid) {
+				localCartContext.appliedCoupon = {
+					code: result.appliedCouponCode || couponCodeSignal.value,
+					discountAmount: result.discountAmount,
+					discountPercentage: result.discountPercentage,
+					freeShipping: result.freeShipping,
+					promotionName: result.promotionName,
+					promotionDescription: result.promotionDescription
+				};
+				couponCodeSignal.value = '';
+				errorSignal.value = '';
+			} else {
+				errorSignal.value = result.validationErrors.join(', ');
 			}
-			return;
-		}
-
-		const res = await applyCouponCodeMutation(couponCodeSignal.value);
-		if (res.__typename === 'Order') {
-			appState.activeOrder = res as Order;
-			couponCodeSignal.value = ''; // Clear input after successful application
-		} else {
-			errorSignal.value = res.message;
+		} catch (error) {
+			console.error('Error validating coupon:', error);
+			errorSignal.value = 'Failed to validate coupon. Please try again.';
 		}
 	});
 
-	const removeCoupon$ = $(async (code: string) => {
-		// Handle coupon removal in local cart mode
-		if (localCartContext.isLocalMode) {
-			localCartContext.appliedCoupon = null;
-			errorSignal.value = '';
-			return;
-		}
-
-		const res = await removeCouponCodeMutation(code);
-		if (res && res.__typename === 'Order') {
-			appState.activeOrder = res as Order;
-			errorSignal.value = '';
-		}
+	const removeCoupon$ = $(async (_code: string) => {
+		localCartContext.appliedCoupon = null;
+		errorSignal.value = '';
 	});
 
-	// Clear error message after a delay
-	// Client-side only: Prevents Q20 SSR errors by running only after hydration
 	useVisibleTask$(({ track }) => {
 		track(() => errorSignal.value);
 		if (errorSignal.value) {
@@ -188,14 +113,10 @@ export default component$<{
 		}
 	});
 
-	// Re-validate coupon when cart changes in local mode
-	// Client-side only: Prevents Q20 SSR errors by running only after hydration
 	useVisibleTask$(async ({ track }) => {
-		// Track dependencies for re-validation
 		track(() => localCartContext.localCart.items);
 		track(() => localCartContext.localCart.subTotal);
 
-		// Only run if in local mode and a coupon is applied
 		if (localCartContext.isLocalMode && localCartContext.appliedCoupon) {
 			try {
 				const cartItems = localCartContext.localCart.items.map(item => ({
@@ -205,14 +126,13 @@ export default component$<{
 				}));
 
 				const result = await validateLocalCartCouponQuery({
-					couponCode: localCartContext.appliedCoupon.code, // Use the applied coupon code
+					couponCode: localCartContext.appliedCoupon.code,
 					cartTotal: localCartContext.localCart.subTotal,
 					cartItems,
 					customerId: appState.customer?.id
 				});
 
 				if (result.isValid) {
-					// Update the applied coupon details in case discount amount changed
 					localCartContext.appliedCoupon = {
 						code: result.appliedCouponCode || localCartContext.appliedCoupon.code,
 						discountAmount: result.discountAmount,
@@ -222,49 +142,29 @@ export default component$<{
 						promotionDescription: result.promotionDescription
 					};
 				} else {
-					// Coupon is no longer valid, remove it and show an error
 					errorSignal.value = result.validationErrors.join(', ');
 					localCartContext.appliedCoupon = null;
 				}
 			} catch (error) {
 				console.error('Error re-validating coupon:', error);
 				errorSignal.value = 'Failed to re-validate coupon.';
-				localCartContext.appliedCoupon = null; // Remove on error
+				localCartContext.appliedCoupon = null;
 			}
 		}
 	});
 
 	return (
-		<dl class="border-t mt-6 border-gray-200 py-6 space-y-4"> {/* Reduced space-y for tighter layout if needed */}
-      {/* Subtotal */}
+		<dl class="border-t mt-6 border-gray-200 py-6 space-y-4">
       <div class="flex items-center justify-between">
         <dt>{`Subtotal`}</dt>
-        {shouldUseLocalCartData.value ? (
-          <dd class="font-medium text-gray-900">{formatPrice(subtotal.value, localCart.currencyCode || 'USD')}</dd>
-        ) : (
-          <CartPrice
-            order={activeOrder.value}
-            field={'subTotalWithTax'}
-            forcedClass="font-medium text-gray-900"
-          />
-        )}
+        <dd class="font-medium text-gray-900">{formatPrice(subtotal.value, localCart.currencyCode || 'USD')}</dd>
       </div>
 
-      {/* Shipping Fee */}
       <div class="flex items-center justify-between">
         <dt>{`Shipping fee`}</dt>
-        {shouldUseLocalCartData.value ? (
-          <dd class="font-medium text-gray-900">{formatPrice(shipping.value, localCart.currencyCode || 'USD')}</dd>
-        ) : (
-          <CartPrice
-            order={activeOrder.value}
-            field={'shippingWithTax'}
-            forcedClass="font-medium text-gray-900"
-          />
-        )}
+        <dd class="font-medium text-gray-900">{formatPrice(shipping.value, localCart.currencyCode || 'USD')}</dd>
       </div>
 
-      {/* Coupon Section - New Implementation */}
       {!readonly && (
         <div class="space-y-1">
           <div class="flex items-center justify-between">
@@ -282,8 +182,8 @@ export default component$<{
                 </div>
                 <dd class="font-medium text-green-600 whitespace-nowrap">
                   {displayDiscount.value > 0
-                    ? '-' + formatPrice(displayDiscount.value, shouldUseLocalCartData.value ? localCart.currencyCode || 'USD' : activeOrder.value?.currencyCode || 'USD').substring(1)
-                    : '-' + formatPrice(0, shouldUseLocalCartData.value ? localCart.currencyCode || 'USD' : activeOrder.value?.currencyCode || 'USD').substring(1)}
+                    ? '-' + formatPrice(displayDiscount.value, localCart.currencyCode || 'USD').substring(1)
+                    : '-' + formatPrice(0, localCart.currencyCode || 'USD').substring(1)}
                 </dd>
               </div>
             ) : (
@@ -314,13 +214,12 @@ export default component$<{
                 </div>
                 <dd class="font-medium text-primary-600 whitespace-nowrap">
                   {displayDiscount.value > 0
-                    ? '-' + formatPrice(displayDiscount.value, shouldUseLocalCartData.value ? localCart.currencyCode || 'USD' : activeOrder.value?.currencyCode || 'USD').substring(1)
-                    : '-' + formatPrice(0, shouldUseLocalCartData.value ? localCart.currencyCode || 'USD' : activeOrder.value?.currencyCode || 'USD').substring(1)}
+                    ? '-' + formatPrice(displayDiscount.value, localCart.currencyCode || 'USD').substring(1)
+                    : '-' + formatPrice(0, localCart.currencyCode || 'USD').substring(1)}
                 </dd>
               </div>
             )}
           </div>
-          {/* Error Message Area (Alert component) */}
           {errorSignal.value && (
             <div class="text-right mt-1">
              <Alert message={errorSignal.value} />
@@ -328,18 +227,9 @@ export default component$<{
           )}
         </div>
       )}
-      {/* Total */}
 			<div class="flex items-center justify-between border-t border-gray-200 pt-6">
 				<dt class="font-medium">{`Total`}</dt>
-				{shouldUseLocalCartData.value ? (
-					<dd class="font-medium text-gray-900">{formatPrice(total.value, localCart.currencyCode || 'USD')}</dd>
-				) : (
-					<CartPrice
-						order={activeOrder.value}
-						field={'totalWithTax'}
-						forcedClass="font-medium text-gray-900"
-					/>
-				)}
+				<dd class="font-medium text-gray-900">{formatPrice(total.value, localCart.currencyCode || 'USD')}</dd>
 			</div>
 		</dl>
 	);

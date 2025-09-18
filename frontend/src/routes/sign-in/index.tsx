@@ -2,8 +2,7 @@ import { $, component$, useSignal } from '@qwik.dev/core';
 import { useNavigate } from '@qwik.dev/router';
 import XCircleIcon from '~/components/icons/XCircleIcon';
 import { isEnvVariableEnabled } from '~/utils';
-import { loginMutation } from '~/providers/shop/account/account';
-import { secureAuthSubmission } from '~/utils/secure-api';
+import { loginMutation, registerCustomerAccountMutation } from '~/providers/shop/account/account';
 import { createSEOHead } from '~/utils/seo';
 
 export default component$(() => {
@@ -132,37 +131,34 @@ export default component$(() => {
 			return;		}
 		
 		successSignal.value = false;		try {
-			const result = await secureAuthSubmission({
-				email: signUpEmail.value,
-				password: signUpPassword.value,
-				firstName: firstName.value,
-				lastName: lastName.value,
-			}, false, { skipRecaptcha: true }); // Disable reCAPTCHA
+			const registrationResult = await registerCustomerAccountMutation({
+				input: {
+					emailAddress: signUpEmail.value,
+					password: signUpPassword.value,
+					firstName: firstName.value,
+					lastName: lastName.value,
+				}
+			});
 			
-			// Parse the response - handle the actual response structure
-			const response = await result.json();
-			console.log('[SignUp] Full response:', response);
+			console.log('[SignUp] Registration result:', registrationResult);
 			
-			// The actual response structure is { data: { registerCustomerAccount: { success: true } } }
-			const registrationResult = response?.data?.registerCustomerAccount;
-			console.log('[SignUp] Registration account result:', registrationResult);
-			
-			if (registrationResult?.success === true) {
+			if (registrationResult.registerCustomerAccount.__typename === 'Success') {
 				successSignal.value = true;
-			} else {// Enhanced error detection for better user messages
+			} else {
+				// Enhanced error detection for better user messages
 				let errorMessage = 'Registration failed';
 				
-				if (registrationResult?.errorCode === 'EMAIL_ADDRESS_CONFLICT_ERROR' ||
-					registrationResult?.message?.toLowerCase().includes('email') ||
-					registrationResult?.message?.toLowerCase().includes('already') ||
-					registrationResult?.message?.toLowerCase().includes('exists')) {
+				if (registrationResult.registerCustomerAccount.errorCode === 'EMAIL_ADDRESS_CONFLICT_ERROR' ||
+					registrationResult.registerCustomerAccount.message?.toLowerCase().includes('email') ||
+					registrationResult.registerCustomerAccount.message?.toLowerCase().includes('already') ||
+					registrationResult.registerCustomerAccount.message?.toLowerCase().includes('exists')) {
 					errorMessage = 'An account with this email address already exists';
-				} else if (registrationResult?.message?.toLowerCase().includes('password')) {
+				} else if (registrationResult.registerCustomerAccount.message?.toLowerCase().includes('password')) {
 					errorMessage = 'Password does not meet requirements';
-				} else if (registrationResult?.message?.toLowerCase().includes('validation')) {
+				} else if (registrationResult.registerCustomerAccount.message?.toLowerCase().includes('validation')) {
 					errorMessage = 'Please check your information and try again';
-				} else if (registrationResult?.message) {
-					errorMessage = registrationResult.message;
+				} else if (registrationResult.registerCustomerAccount.message) {
+					errorMessage = registrationResult.registerCustomerAccount.message;
 				}
 				
 				console.error('[SignUp] Registration failed:', errorMessage);

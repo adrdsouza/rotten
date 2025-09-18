@@ -161,6 +161,81 @@ export const linkPaymentIntentToOrderMutation = async (
 	}
 };
 
+// New Explicit Stripe Payment Confirmation Mutations
+
+export const confirmStripePaymentSuccessMutation = async (
+	orderId: string,
+	paymentIntentId: string
+) => {
+	try {
+		const { requester } = await import('~/utils/api');
+		const result = await requester<
+			{ confirmStripePaymentSuccess: any },
+			{ orderId: string; paymentIntentId: string }
+		>(
+			gql`
+				mutation confirmStripePaymentSuccess($orderId: ID!, $paymentIntentId: String!) {
+					confirmStripePaymentSuccess(orderId: $orderId, paymentIntentId: $paymentIntentId) {
+						...CustomOrderDetail
+						... on ErrorResult {
+							errorCode
+							message
+						}
+					}
+				}
+			`,
+			{ orderId, paymentIntentId }
+		);
+		
+		// Check if the result is an error
+		if (result.confirmStripePaymentSuccess && 'errorCode' in result.confirmStripePaymentSuccess) {
+			throw new Error(`Payment confirmation failed: ${result.confirmStripePaymentSuccess.message}`);
+		}
+		
+		return result.confirmStripePaymentSuccess;
+	} catch (error) {
+		console.error('Failed to confirm Stripe payment success:', error);
+		throw error;
+	}
+};
+
+export const confirmStripePaymentFailureMutation = async (
+	orderId: string,
+	paymentIntentId: string,
+	errorMessage?: string
+) => {
+	try {
+		const { requester } = await import('~/utils/api');
+		const result = await requester<
+			{ confirmStripePaymentFailure: any },
+			{ orderId: string; paymentIntentId: string; errorMessage?: string }
+		>(
+			gql`
+				mutation confirmStripePaymentFailure($orderId: ID!, $paymentIntentId: String!, $errorMessage: String) {
+					confirmStripePaymentFailure(orderId: $orderId, paymentIntentId: $paymentIntentId, errorMessage: $errorMessage) {
+						...CustomOrderDetail
+						... on ErrorResult {
+							errorCode
+							message
+						}
+					}
+				}
+			`,
+			{ orderId, paymentIntentId, errorMessage }
+		);
+		
+		// Check if the result is an error
+		if (result.confirmStripePaymentFailure && 'errorCode' in result.confirmStripePaymentFailure) {
+			throw new Error(`Payment failure confirmation failed: ${result.confirmStripePaymentFailure.message}`);
+		}
+		
+		return result.confirmStripePaymentFailure;
+	} catch (error) {
+		console.error('Failed to confirm Stripe payment failure:', error);
+		throw error;
+	}
+};
+
 export const calculateEstimatedTotalQuery = async (cartItems: Array<{
 	productVariantId: string;
 	quantity: number;

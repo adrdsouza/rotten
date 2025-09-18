@@ -1,46 +1,58 @@
-import { component$, useStore, useVisibleTask$ } from '@qwik.dev/core';
+import { component$, useContext, useStore, useVisibleTask$ } from '@qwik.dev/core';
 import { Link, useLocation } from '@qwik.dev/router';
 import CartContents from '~/components/cart-contents/CartContents';
 import CartTotals from '~/components/cart-totals/CartTotals';
 import CheckCircleIcon from '~/components/icons/CheckCircleIcon';
+import { APP_STATE } from '~/constants';
+import { CartContextId } from '~/contexts/CartContext';
 import { Order } from '~/generated/graphql';
 import { getOrderByCodeQuery } from '~/providers/shop/orders/order';
+import { LocalCartService } from '~/services/LocalCartService';
 import { createSEOHead } from '~/utils/seo';
 
 export default component$(() => {
-	const location = useLocation();
 	const {
-		params: { code }
-	} = location;
-
-	// Store for fresh order data from database
+		params: { code },
+	} = useLocation();
+	const appState = useContext(APP_STATE);
+	const localCart = useContext(CartContextId);
 	const store = useStore<{
-		orderData: Order | null;
+		order?: Order;
 		loading: boolean;
-		error: string | null;
+		error?: string;
 	}>({
-		orderData: null,
 		loading: true,
-		error: null
 	});
 
-	// Query fresh order data from database
 	useVisibleTask$(async () => {
 		try {
-			console.log('[Confirmation] Querying order data for code:', code);
-			const orderData = await getOrderByCodeQuery(code);
+			store.order = await getOrderByCodeQuery(code);
 
-			if (orderData) {
-				store.orderData = orderData;
+			if (store.order?.id) {
+				// Clear the active order and reset to empty state
+				appState.activeOrder = {
+					...appState.activeOrder,
+					id: '',
+					code: '',
+					lines: [],
+					state: 'Completed',
+					totalWithTax: 0,
+					subTotal: 0,
+					shippingLines: [],
+					payments: []
+				} as Order;
+
+				// Clear local cart and set to local mode
+				localCart.localCart = LocalCartService.clearCart();
+				localCart.isLocalMode = true;
+				
 				store.loading = false;
-				console.log('[Confirmation] Order data loaded successfully');
 			} else {
-				store.error = 'Order not found';
+				store.error = `Order ${code} not found`;
 				store.loading = false;
 			}
 		} catch (error) {
-			console.error('[Confirmation] Failed to load order:', error);
-			store.error = 'Failed to load order details';
+			store.error = `Failed to load order: ${error}`;
 			store.loading = false;
 		}
 	});
@@ -58,21 +70,59 @@ export default component$(() => {
 	}
 
 	// Show error state if query failed
-	if (store.error || !store.orderData) {
+	if (store.error || !store.order) {
 		return (
 			<div class="min-h-screen bg-gray-50 flex items-center justify-center">
-				<div class="text-center">
-					<p class="text-red-600 mb-4">{store.error || 'Order not found'}</p>
-					<Link href="/" class="text-[#B09983] hover:text-[#4F3B26] underline">
-						Return to Home
-					</Link>
+				<div class="max-w-md mx-auto text-center px-4">
+					<div class="mb-6">
+						<svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+						</svg>
+					</div>
+					<h1 class="text-2xl font-semibold text-gray-900 mb-4">Order Not Found</h1>
+					<p class="text-gray-600 mb-6">
+						The order you're looking for could not be found. This may happen if:
+					</p>
+					<ul class="text-left text-gray-600 mb-8 space-y-2">
+						<li class="flex items-start">
+							<span class="text-gray-400 mr-2">•</span>
+							The order link has expired or is invalid
+						</li>
+						<li class="flex items-start">
+							<span class="text-gray-400 mr-2">•</span>
+							The order was automatically cleaned up due to inactivity
+						</li>
+						<li class="flex items-start">
+							<span class="text-gray-400 mr-2">•</span>
+							There was an issue with the order processing
+						</li>
+					</ul>
+					<div class="space-y-3">
+						<Link 
+							href="/" 
+							class="block w-full bg-[#B09983] text-white px-6 py-3 rounded-md hover:bg-[#4F3B26] transition-colors"
+						>
+							Continue Shopping
+						</Link>
+						<Link 
+							href="/contact" 
+							class="block w-full text-[#B09983] hover:text-[#4F3B26] underline"
+						>
+							Contact Support
+						</Link>
+					</div>
+					{store.error && (
+						<p class="text-xs text-gray-500 mt-4">
+							Error: {store.error}
+						</p>
+					)}
 				</div>
 			</div>
 		);
 	}
 
 	// Use fresh order data
-	const orderData = store.orderData;
+	const orderData = store.order;
 
 	return (
 		<div>
@@ -118,9 +168,8 @@ export default component$(() => {
 								</p>
 							</div>
 
-						{/* Main Content Grid - 3 Box Layout */}
-						<div class="lg:grid lg:grid-cols-3 lg:gap-6">
-							{/* Box 1 - Complete Order (Items + Summary) */}
+						<div class="lg:grid lg:grid-cols-2 lg:gap-6">
+							{/* Column 1 - Complete Order (Items + Summary) */}
 							<div class="mb-8 lg:mb-0">
 								<div class="bg-[#f5f5f5] rounded-2xl shadow-xs border border-gray-200/50 p-6">
 									<h2 class="text-xl font-semibold text-gray-900 mb-6 flex items-center">
@@ -130,20 +179,18 @@ export default component$(() => {
 										{`Your Order`}
 									</h2>
 									
-									{/* Order Items */}
 									<div class="mb-6">
-										<CartContents order={orderData} />
+										{orderData && <CartContents order={orderData} />}
 									</div>
-
-									{/* Order Totals */}
+									
 									<div class="border-t border-gray-100 pt-4">
-										<CartTotals order={orderData} readonly />
+										{orderData && <CartTotals localCart={orderData} readonly />}
 									</div>
 								</div>
 							</div>
 
-							{/* Box 2 - Customer & Address Details */}
-							<div class="mb-8 lg:mb-0">
+							{/* Column 2 - Customer, Address, Shipping & Payment Details */}
+							<div>
 								<div class="bg-[#f5f5f5] rounded-2xl shadow-xs border border-gray-200/50 p-6">
 									<h2 class="text-xl font-semibold text-gray-900 mb-6 flex items-center">
 										<svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -182,11 +229,11 @@ export default component$(() => {
 											</div>
 										</div>
 
-										{/* Billing Address */}
-										<div>
-											<h3 class="text-sm font-medium text-gray-700 mb-2">{`Billing Address`}</h3>
-											<div class="bg-gray-50 rounded-lg p-3">
-												{orderData?.billingAddress ? (
+										{/* Billing Address (Conditional) - UPDATED */}
+										{orderData?.billingAddress?.streetLine1 && (
+											<div>
+												<h3 class="text-sm font-medium text-gray-700 mb-2">{`Billing Address`}</h3>
+												<div class="bg-gray-50 rounded-lg p-3">
 													<address class="not-italic text-gray-700 leading-relaxed text-xs">
 														{orderData.billingAddress.fullName && <div class="font-medium text-gray-900">{orderData.billingAddress.fullName}</div>}
 														<div>{orderData.billingAddress.streetLine1}</div>
@@ -195,35 +242,17 @@ export default component$(() => {
 														<div>{orderData.billingAddress.countryCode}</div>
 														{orderData.billingAddress.phoneNumber && <div class="mt-1 text-gray-600">{orderData.billingAddress.phoneNumber}</div>}
 													</address>
-												) : (
-													<div class="text-gray-600 italic text-xs">
-														{`Same as shipping address`}
-													</div>
-												)}
+												</div>
 											</div>
-										</div>
-									</div>
-								</div>
-							</div>
+										)}
 
-							{/* Box 3 - Shipping & Payment Methods */}
-							<div>
-								<div class="bg-[#f5f5f5] rounded-2xl shadow-xs border border-gray-200/50 p-6">
-									<h2 class="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-										<svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-										</svg>
-										{`Shipping & Payment`}
-									</h2>
-									
-									<div class="space-y-6">
 										{/* Shipping Method */}
 										<div>
 											<h3 class="text-sm font-medium text-gray-700 mb-2">{`Shipping Method`}</h3>
 											<div class="bg-gray-50 rounded-lg p-3">
 												{orderData?.shippingLines?.length ? (
 													<div class="space-y-2">
-														{orderData.shippingLines.map((line, idx) => (
+														{orderData.shippingLines.map((line: any, idx: number) => (
 															<div key={idx} class="flex justify-between items-center">
 																<span class="text-gray-700 text-xs">{line.shippingMethod.name}</span>
 																<span class="font-medium text-gray-900 text-xs">${(line.priceWithTax / 100).toFixed(2)}</span>
@@ -242,25 +271,17 @@ export default component$(() => {
 											<div class="bg-gray-50 rounded-lg p-3">
 												{orderData?.payments?.length ? (
 													<div class="space-y-2">
-														{orderData.payments.map((payment, idx) => (
-															<div key={idx} class="text-gray-700 space-y-1">
-																{/* Payment Method Display - Clean & Simple */}
-																<div class="text-sm font-medium text-gray-900">
-																	{payment.method === 'stripe' ? 'Card Payment' :
-																	 payment.method.charAt(0).toUpperCase() + payment.method.slice(1)}
+														{orderData.payments.map((payment: any, idx: number) => (
+															<div key={idx} class="text-gray-700">
+																<div class="flex justify-between items-center">
+																	<span class="text-xs">{payment.method}</span>
+																	<span class="text-xs text-gray-500">({payment.state})</span>
 																</div>
-
-																{/* Transaction ID */}
-																{payment.transactionId && (
-																	<div class="text-xs text-gray-600">
-																		Transaction ID: {payment.transactionId}
+																{payment.metadata?.cardType && payment.metadata?.last4 && (
+																	<div class="text-xs text-gray-600 mt-1">
+																		{payment.metadata.cardType} ending in {payment.metadata.last4}
 																	</div>
 																)}
-
-																{/* Amount */}
-																<div class="text-xs text-gray-600">
-																	Amount: ${(payment.amount / 100).toFixed(2)}
-																</div>
 															</div>
 														))}
 													</div>

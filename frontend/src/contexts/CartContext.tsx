@@ -275,3 +275,21 @@ export const convertLocalCartToVendureOrder = $(async (cartState: CartContextSta
     cartState.isLoading = false;
   }
 });
+
+export const clearLocalCart = $((cartState: CartContextState) => {
+  try {
+    cartState.localCart = LocalCartService.clearCart();
+    cartState.lastStockValidation = {};
+    cartState.appliedCoupon = null;
+    cartState.lastError = null;
+
+    // 🚀 OPTIMIZED: Trigger header badge update
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('cart-updated', {
+        detail: { totalQuantity: 0 }
+      }));
+    }
+  } catch (error) {
+    cartState.lastError = error instanceof Error ? error.message : 'Failed to clear cart';
+  }
+});

@@ -120,31 +120,52 @@ export default component$(() => {
 					// Check for payment confirmation errors
 					if (error) {
 						console.error('[StripePayment] Payment confirmation failed:', error);
+						// Import the confirmStripePaymentFailureMutation function directly
+						const { confirmStripePaymentFailureMutation } = await import('~/providers/shop/checkout/checkout');
+						// Confirm payment failure with backend
+						await confirmStripePaymentFailureMutation(
+							order.id,
+							store.paymentIntentId,
+							error?.message || 'Payment confirmation failed'
+						);
 						throw new Error(error?.message || 'Payment confirmation failed');
 					}
 
-					// Payment successful - now add payment to Vendure order to complete the flow
-					console.log('[StripePayment] Stripe payment confirmed successfully - adding payment to Vendure order...');
+					// Verify Stripe payment actually succeeded before telling backend
+					const { paymentIntent } = await store.resolvedStripe?.retrievePaymentIntent(store.clientSecret) || {};
+					if (paymentIntent && paymentIntent.status !== 'succeeded') {
+						console.error('[StripePayment] Payment not successful. Status:', paymentIntent?.status);
+						// Import the confirmStripePaymentFailureMutation function directly
+						const { confirmStripePaymentFailureMutation } = await import('~/providers/shop/checkout/checkout');
+						// Confirm payment failure with backend
+						await confirmStripePaymentFailureMutation(
+							order.id,
+							store.paymentIntentId,
+							`Payment not successful. Status: ${paymentIntent?.status}`
+						);
+						throw new Error(`Payment not successful. Status: ${paymentIntent?.status}`);
+					}
+
+					// Payment successful - now confirm with backend to transition order to PaymentSettled
+					console.log('[StripePayment] Stripe payment confirmed successfully - confirming with backend...');
 					
 					try {
-						// Import the addPaymentToOrder function directly
-						const { addPaymentToOrderMutation } = await import('~/providers/shop/checkout/checkout');
+						// Import the confirmStripePaymentSuccessMutation function directly
+						const { confirmStripePaymentSuccessMutation } = await import('~/providers/shop/checkout/checkout');
 						
-						// Add payment to order with Stripe payment method using standard Vendure approach
-						const addPaymentResult = await addPaymentToOrderMutation({
-							method: 'stripe',
-							metadata: {
-								paymentIntentId: store.paymentIntentId,
-							}
-						});
+						// Confirm payment success with backend
+						const confirmedOrder = await confirmStripePaymentSuccessMutation(
+							order.id,
+							store.paymentIntentId
+						);
 						
-						console.log('[StripePayment] Payment successfully added to Vendure order:', addPaymentResult);
+						console.log('[StripePayment] Payment successfully confirmed with backend:', confirmedOrder);
 						
 						// Order should now be in PaymentSettled state and redirect will happen
 						return { success: true };
 						
-					} catch (addPaymentError) {
-						console.error('[StripePayment] Failed to add payment to Vendure order:', addPaymentError);
+					} catch (confirmError) {
+						console.error('[StripePayment] Failed to confirm payment with backend:', confirmError);
 						throw new Error('Payment processed but failed to complete order. Please contact support.');
 					}
 

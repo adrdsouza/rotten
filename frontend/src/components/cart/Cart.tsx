@@ -561,8 +561,7 @@ export default component$(() => {
 														})}
 													disabled={isNavigatingToCheckout.value || !shippingState.selectedMethod || 
 										!appState.shippingAddress.countryCode || 
-										(!localCart.isLocalMode && !appState.activeOrder?.id) ||
-										(localCart.isLocalMode && localCart.localCart.items.length === 0) || isOutOfStock.value}
+										(localCart.localCart.items.length === 0) || isOutOfStock.value}
 													class="w-full bg-[#8a6d4a] hover:bg-[#4F3B26] text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg hover:shadow-xl flex items-center justify-center uppercase font-heading text-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
 												>
 													{isNavigatingToCheckout.value ? (

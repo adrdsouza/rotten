@@ -24,11 +24,7 @@ import { clearAllValidationCache } from '~/utils/cached-validation';
 import { recordCacheHit, recordCacheMiss, resetCacheMonitoring, enablePerformanceLogging } from '~/utils/validation-cache-debug';
 import { enableAutoCleanup } from '~/utils/validation-cache';
 import { LocalCartService } from '~/services/LocalCartService';
-import {
-  secureCartConversion,
-  secureSetOrderShippingMethod,
-  secureOrderStateTransition
-} from '~/utils/secure-api';
+// Removed Vendure-specific secure API imports
 import { CheckoutAddressProvider } from '~/contexts/CheckoutAddressContext';
 
 
@@ -43,20 +39,11 @@ const prefetchOrderConfirmation = $((orderCode: string) => {
 });
 
 // Load checkout data for SSR
-export const useCheckoutLoader = routeLoader$(async (requestEvent) => {
-  console.log('Checkout loader started for request:', requestEvent.url.pathname);
-  try {
-    const activeOrder = await getActiveOrderQuery();
-    console.log('Fetched active order in loader');
-    return {
-      activeOrder,
-    };
-  } catch (error) {
-    console.error('Error in checkout loader:', error);
-    return {
-      activeOrder: null,
-    };
-  }
+export const useCheckoutLoader = routeLoader$(async (_requestEvent) => {
+  // For local cart mode, we don't need to fetch active order from server
+  return {
+    activeOrder: null
+  };
 });
 
 // CORRECTED: The routeAction$ signature is now untyped.
@@ -105,9 +92,9 @@ const CheckoutContent = component$(() => {
   const navigate = useNavigate();
   const appState = useContext(APP_STATE);
   const localCart = useLocalCart();
-  const checkoutValidation = useCheckoutValidation();
   const validationActions = useCheckoutValidationActions();
-  const checkoutData = useCheckoutLoader();
+  const checkoutValidation = useCheckoutValidation();
+  const _checkoutData = useCheckoutLoader(); // Prefixed with _ to indicate unused
   const state = useStore<CheckoutState>({
     loading: false,
     error: null,
@@ -131,10 +118,7 @@ const CheckoutContent = component$(() => {
   const paymentComplete = useSignal(false);
 
   useVisibleTask$(async ({ track }) => {
-    // Handle SSR data
-    if (checkoutData.value.activeOrder && !appState.activeOrder) {
-      appState.activeOrder = checkoutData.value.activeOrder;
-    }
+    // Handle SSR data - not needed for local cart mode
     
     if (pageLoading.value) {
       if (typeof window !== 'undefined') {
@@ -147,84 +131,32 @@ const CheckoutContent = component$(() => {
       resetCacheMonitoring();
       appState.showCart = false;
       
-      // Only load cart if needed for local mode
-      if (localCart.isLocalMode) {
-        await loadCartIfNeeded(localCart);
+      // Only load cart for local mode
+      await loadCartIfNeeded(localCart);
 
-        // Refresh stock levels for all cart items - this is required on every checkout load
-        if (localCart.localCart.items.length > 0) {
-          try {
-            // Refresh stock levels to ensure we have fresh data for checkout validation
-            await refreshCartStock(localCart);
-            
-            // Validate stock after refresh
-            const stockValidation = LocalCartService.validateStock();
-            validationActions.updateStockValidation(stockValidation.valid, stockValidation.errors);
-          } catch (error) {
-            console.error('❌ Checkout: Failed to refresh stock levels:', error);
-          }
-        }
-      } else {
-        // For Vendure mode, only fetch order if we don't have it from SSR
-        if (!appState.activeOrder?.id) {
-          try {
-            const actualOrder = await getActiveOrderQuery();
-            if (actualOrder && actualOrder.id && !(actualOrder as any).errorCode) {
-              appState.activeOrder = actualOrder;
-            }
-          } catch (error) {
-            console.error('[Checkout] Error during checkout initialization:', error);
-            state.error = 'Failed to load checkout. Please try again.';
-          }
-        }
-        
-        // Validate stock for Vendure mode
-        if (appState.activeOrder?.lines && appState.activeOrder.lines.length > 0) {
-          const stockErrors: string[] = [];
-          let hasStockIssues = false;
-          for (const line of appState.activeOrder.lines) {
-            const { stockLevel } = line.productVariant;
-            const isOutOfStock = stockLevel === 'OUT_OF_STOCK' || (typeof stockLevel === 'number' && stockLevel <= 0);
-
-            if (isOutOfStock) {
-              stockErrors.push(`${line.productVariant.name} is out of stock.`);
-              hasStockIssues = true;
-            } else if (typeof stockLevel === 'number' && line.quantity > stockLevel) {
-              stockErrors.push(`Only ${stockLevel} of ${line.productVariant.name} available.`);
-              hasStockIssues = true;
-            }
-          }
-          validationActions.updateStockValidation(!hasStockIssues, stockErrors);
-        } else {
-          validationActions.updateStockValidation(true, []);
+      // Refresh stock levels for all cart items - this is required on every checkout load
+      if (localCart.localCart.items.length > 0) {
+        try {
+          // Refresh stock levels to ensure we have fresh data for checkout validation
+          await refreshCartStock(localCart);
+          
+          // Validate stock after refresh
+          const stockValidation = LocalCartService.validateStock();
+          validationActions.updateStockValidation(stockValidation.valid, stockValidation.errors);
+        } catch (error) {
+          console.error('❌ Checkout: Failed to refresh stock levels:', error);
         }
       }
 
       pageLoading.value = false;
     }
 
-    track(() => localCart.isLocalMode ? localCart.localCart.items : appState.activeOrder?.lines);
+    track(() => localCart.localCart.items);
 
-    // Detailed stock validation for both modes
-    if (localCart.isLocalMode && localCart.localCart.items.length > 0) {
+    // Stock validation for local cart mode
+    if (localCart.localCart.items.length > 0) {
         const stockValidation = LocalCartService.validateStock();
         validationActions.updateStockValidation(stockValidation.valid, stockValidation.errors);
-    } else if (!localCart.isLocalMode && appState.activeOrder?.lines) {
-        const stockErrors: string[] = [];
-        let hasStockIssues = false;
-        for (const line of appState.activeOrder.lines) {
-            const { stockLevel } = line.productVariant;
-            const isOutOfStock = stockLevel === 'OUT_OF_STOCK' || (typeof stockLevel === 'number' && stockLevel <= 0);
-
-            if (isOutOfStock) {
-                stockErrors.push(`${line.productVariant.name} is out of stock.`);
-                hasStockIssues = true;
-            } else if (typeof stockLevel === 'number' && line.quantity > stockLevel) {
-                stockErrors.push(`Only ${stockLevel} of ${line.productVariant.name} available.`);
-                hasStockIssues = true;
-            }
-        }
-        validationActions.updateStockValidation(!hasStockIssues, stockErrors);
     } else {
         validationActions.updateStockValidation(true, []);
     }
@@ -288,9 +220,11 @@ const CheckoutContent = component$(() => {
         throw new Error('Please complete all required billing address information');
       }
       
+      // Convert local cart to Vendure order
       if (localCart.isLocalMode) {
         try {
-          const vendureOrder = await secureCartConversion(localCart);
+          const { convertLocalCartToVendureOrder } = await import('~/contexts/CartContext');
+          const vendureOrder = await convertLocalCartToVendureOrder(localCart);
 
           if (!vendureOrder) {
             throw new Error('Failed to create order from cart');
@@ -308,6 +242,7 @@ const CheckoutContent = component$(() => {
         }
       }
 
+      // Submit address form
       if (typeof window !== 'undefined' && (window as any).submitCheckoutAddressForm) {
         await (window as any).submitCheckoutAddressForm();
       } else {
@@ -317,7 +252,7 @@ const CheckoutContent = component$(() => {
         return;
       }
       
-      // Use the new utility to get checkout address state
+      // Wait for address submission to complete
       const waitForAddressSubmission = new Promise<void>((resolve, reject) => {
         const maxWaitTime = 10000;
         const intervalTime = 100;
@@ -325,7 +260,6 @@ const CheckoutContent = component$(() => {
 
         const checkInterval = setInterval(() => {
           elapsedTime += intervalTime;
-          // Try to get the state from the global addressState (legacy)
           const currentAddressState = addressState;
           
           if (currentAddressState.addressSubmissionComplete || !currentAddressState.addressSubmissionInProgress) {
@@ -342,6 +276,7 @@ const CheckoutContent = component$(() => {
       try {
         await waitForAddressSubmission;
         
+        // Set shipping method
         try {
           let shippingMethodId: string | undefined;
           
@@ -355,7 +290,8 @@ const CheckoutContent = component$(() => {
               shippingMethodId = '7';
             }
             
-            const shippingResult = await secureSetOrderShippingMethod([shippingMethodId]);
+            const { setOrderShippingMethodMutation } = await import('~/providers/shop/orders/order');
+            const shippingResult = await setOrderShippingMethodMutation([shippingMethodId]);
             
             if (shippingResult && '__typename' in shippingResult && shippingResult.__typename === 'Order') {
               appState.activeOrder = shippingResult;
@@ -363,7 +299,7 @@ const CheckoutContent = component$(() => {
               // Attempt to fallback
               const fallbackMethod = appState.activeOrder?.shippingLines?.find(line => line.shippingMethod.id !== shippingMethodId);
               if (fallbackMethod) {
-                const fallbackResult = await secureSetOrderShippingMethod([fallbackMethod.shippingMethod.id]);
+                const fallbackResult = await setOrderShippingMethodMutation([fallbackMethod.shippingMethod.id]);
                 if (fallbackResult && '__typename' in fallbackResult && fallbackResult.__typename === 'Order') {
                   appState.activeOrder = fallbackResult;
                 } else {
@@ -380,9 +316,11 @@ const CheckoutContent = component$(() => {
           state.error = 'There was an error setting the shipping method. Proceeding with default shipping options.';
         }
         
+        // Transition order to ArrangingPayment state
         if (appState.activeOrder && appState.activeOrder?.state !== 'ArrangingPayment') {
           try {
-            const transitionResult = await secureOrderStateTransition('ArrangingPayment');
+            const { transitionOrderToStateMutation } = await import('~/providers/shop/checkout/checkout');
+            const transitionResult = await transitionOrderToStateMutation('ArrangingPayment');
 
             if (transitionResult && 'state' in transitionResult) {
               appState.activeOrder = transitionResult as any;
@@ -395,6 +333,7 @@ const CheckoutContent = component$(() => {
           }
         }
         
+        // Get latest order and trigger payment
         const latestOrder = await getActiveOrderQuery();
         if (latestOrder && latestOrder.id) {
           appState.activeOrder = latestOrder;
@@ -434,8 +373,10 @@ const CheckoutContent = component$(() => {
         showProcessingModal.value = false;
         isOrderProcessing.value = false;
       }
-    } catch (_error) {
-      orderError.value = 'There was a problem processing your order. Please check your information and try again.';
+      showProcessingModal.value = false;
+      isOrderProcessing.value = false;
+    } catch (error) {
+      state.error = error instanceof Error ? error.message : 'An unexpected error occurred';
       showProcessingModal.value = false;
       isOrderProcessing.value = false;
     }
@@ -508,7 +449,7 @@ const CheckoutContent = component$(() => {
                     <div class="p-4">
                       <CartContents />
                       <div class="border-t border-gray-100 pt-4 mt-4">
-                        <CartTotals order={localCart.isLocalMode ? undefined : appState.activeOrder} localCart={localCart.isLocalMode ? localCart : undefined} />
+                        <CartTotals localCart={localCart.isLocalMode ? localCart : undefined} />
                       </div>
                     </div>
                   </div>

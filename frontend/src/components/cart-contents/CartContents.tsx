@@ -1,9 +1,9 @@
 import { component$, useContext, useSignal, useTask$, useVisibleTask$, $ } from '@builder.io/qwik';
-import { Link, useLocation, useNavigate } from '@qwik.dev/router';
+import { Link, useLocation } from '@qwik.dev/router';
 import { OptimizedImage } from '~/components/ui';
 import { APP_STATE } from '~/constants';
 import { Order } from '~/generated/graphql';
-import { removeOrderLineMutation, adjustOrderLineMutation } from '~/providers/shop/orders/order';
+import { adjustOrderLineMutation } from '~/providers/shop/orders/order';
 import { getProductBySlug } from '~/providers/shop/products/products';
 import { isCheckoutPage } from '~/utils';
 import { isImageCached } from '~/utils/image-cache';
@@ -29,7 +29,6 @@ const handleProductLinkClick = $((productSlug: string, featuredAssetPreview?: st
 export default component$<{
 	order?: Order;
 }>(({ order }) => {
-	const navigate = useNavigate();
 	const location = useLocation();
 	const appState = useContext(APP_STATE);
 	const localCart = useLocalCart();
@@ -414,41 +413,12 @@ export default component$<{
 											onClick$={async () => {
 												// const removeTimer = await performanceTracking.trackCartOperation$('remove-item'); // DISABLED
 												try {
-													// Check if we're in local cart mode
-													if (localCart.isLocalMode) {
-														// Use local cart service for removal
-														await removeFromLocalCart(localCart, line.productVariant.id);
+													// Use local cart service for removal
+													await removeFromLocalCart(localCart, line.productVariant.id);
 				
-														// Close cart popup if it becomes empty
-														if (localCart.localCart.items.length === 0) {
-															appState.showCart = false;
-														}
-													} else {
-														// Use Vendure order mutations for checkout mode
-														const updatedOrder = await removeOrderLineMutation(line.id);
-				
-														// Handle the case where Vendure returns null (order becomes empty/invalid)
-														if (updatedOrder === null) {
-															// Order is now empty or invalid, set to empty order
-															appState.activeOrder = {} as Order;
-															appState.showCart = false;
-														} else {
-															// Update with the valid order
-															appState.activeOrder = updatedOrder;
-				
-															// Close cart popup if it becomes empty
-															if (!updatedOrder.lines || updatedOrder.lines.length === 0) {
-																appState.showCart = false;
-															}
-														}
-														
-														// Navigate away from checkout if on checkout page and cart is empty
-														if (
-															(!updatedOrder || !updatedOrder.lines || updatedOrder.lines.length === 0) &&
-															isCheckoutPage(location.url.toString())
-														) {
-															navigate(`/shop`);
-														}
+													// Close cart popup if it becomes empty
+													if (localCart.localCart.items.length === 0) {
+														appState.showCart = false;
 													}
 													// await removeTimer.end$(); // Track successful removal - DISABLED
 												} catch (error) {
