@@ -1,5 +1,9 @@
 /// <reference types="vite/client" />
 
+declare interface Window {
+  braintree: any;
+}
+
 // Vite image import types - specific patterns with AVIF support
 declare module "~/media/hero.png?format=avif&quality=85&url" {
   const src: string;

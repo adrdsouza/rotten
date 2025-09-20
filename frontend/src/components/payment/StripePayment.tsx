@@ -28,7 +28,7 @@ const extractPaymentIntentId = (clientSecret: string): string => {
 // Utility function to calculate estimated total from local cart
 const calculateCartTotal = (localCart: any): number => {
 	console.log('[calculateCartTotal] Input localCart:', localCart);
-	
+
 	// Check if cart has items
 	if (!localCart || !localCart.isLocalMode || !localCart.localCart || !localCart.localCart.items || localCart.localCart.items.length === 0) {
 		console.log('[calculateCartTotal] No items found, returning default $50');
@@ -56,7 +56,7 @@ const calculateCartTotal = (localCart: any): number => {
 export default component$(() => {
 	const baseUrl = useLocation().url.origin;
 	const localCart = useLocalCart();
-	
+
 	const store = useStore({
 		clientSecret: '',
 		paymentIntentId: '',
@@ -70,23 +70,33 @@ export default component$(() => {
 
 	// Expose both submit and payment confirmation functions to window for checkout flow
 	useVisibleTask$(() => {
+		console.log('[StripePayment] Setting up window functions...');
 		if (typeof window !== 'undefined') {
 			// Function to submit elements immediately when user clicks pay
 			(window as any).submitStripeElements = async () => {
 				console.log('[StripePayment] Submitting elements for form validation...');
 				const { error: submitError } = await store.stripeElements?.submit() || { error: new Error('Elements not initialized') };
-				
+
 				if (submitError) {
 					console.error('[StripePayment] Elements submit failed:', submitError);
 					throw new Error(submitError?.message || 'Form validation failed');
 				}
-				
+
 				console.log('[StripePayment] Elements submitted successfully');
 				return { success: true };
 			};
-			
+
 			// Function to confirm payment after order is created and linked
 			(window as any).confirmStripePreOrderPayment = async (order: any) => {
+				console.log('[StripePayment] *** confirmStripePreOrderPayment CALLED ***');
+				console.log('[StripePayment] Order received:', order);
+				console.log('[StripePayment] Store state:', {
+					paymentIntentId: store.paymentIntentId,
+					clientSecret: store.clientSecret,
+					resolvedStripe: !!store.resolvedStripe,
+					stripeElements: !!store.stripeElements
+				});
+
 				try {
 					store.isProcessing = true;
 					console.log('[StripePayment] Confirming payment for order:', order.code);
@@ -107,65 +117,107 @@ export default component$(() => {
 						throw new Error('Failed to link payment to order');
 					}
 
-					// Elements already submitted earlier, now just confirm payment with Stripe
-					console.log('[StripePayment] Confirming payment...');
-					const { error } = await store.resolvedStripe?.confirmPayment({
+					// Persistent logging function
+					const logAndStore = (message: string, data?: any) => {
+						console.log(message, data);
+						const logs = JSON.parse(localStorage.getItem('stripe_payment_logs') || '[]');
+						logs.push({ timestamp: new Date().toISOString(), message, data });
+						localStorage.setItem('stripe_payment_logs', JSON.stringify(logs.slice(-20)));
+					};
+
+					// Submit elements first (required by newer Stripe API)
+					logAndStore('[StripePayment] Submitting Stripe Elements...');
+					const { error: submitError } = await store.stripeElements?.submit() || { error: new Error('Elements not initialized') };
+
+					if (submitError) {
+						logAndStore('[StripePayment] Elements submit failed:', submitError);
+						throw new Error(submitError?.message || 'Form validation failed');
+					}
+
+					logAndStore('[StripePayment] Elements submitted successfully');
+
+					// Now confirm payment with Stripe
+					logAndStore('[StripePayment] Confirming payment...');
+					console.log('[StripePayment] Using clientSecret:', store.clientSecret);
+					console.log('[StripePayment] Using paymentIntentId:', store.paymentIntentId);
+					console.log('[StripePayment] Stripe instance:', store.resolvedStripe);
+					console.log('[StripePayment] Elements instance:', store.stripeElements);
+
+					const confirmResult = await store.resolvedStripe?.confirmPayment({
 						elements: store.stripeElements,
 						clientSecret: store.clientSecret,
-						confirmParams: {
-							return_url: `${baseUrl}/checkout/confirmation/${order.code}`,
-						},
+						redirect: 'if_required', // Prevent automatic redirect so we can settle first
 					}) || { error: new Error('Stripe not initialized') };
+
+					logAndStore('[StripePayment] Confirm payment result:', confirmResult);
+					const { error } = confirmResult;
+
+					if ('paymentIntent' in confirmResult && confirmResult.paymentIntent) {
+						console.log('[StripePayment] PaymentIntent from confirmPayment:', confirmResult.paymentIntent);
+						const paymentIntent = confirmResult.paymentIntent as any;
+						console.log('[StripePayment] PaymentIntent status from confirmPayment:', paymentIntent?.status);
+					}
 
 					// Check for payment confirmation errors
 					if (error) {
-						console.error('[StripePayment] Payment confirmation failed:', error);
-						// Import the confirmStripePaymentFailureMutation function directly
-						const { confirmStripePaymentFailureMutation } = await import('~/providers/shop/checkout/checkout');
-						// Confirm payment failure with backend
-						await confirmStripePaymentFailureMutation(
-							order.id,
-							store.paymentIntentId,
-							error?.message || 'Payment confirmation failed'
-						);
+						logAndStore('[StripePayment] Payment confirmation failed:', error);
 						throw new Error(error?.message || 'Payment confirmation failed');
 					}
 
 					// Verify Stripe payment actually succeeded before telling backend
 					const { paymentIntent } = await store.resolvedStripe?.retrievePaymentIntent(store.clientSecret) || {};
 					if (paymentIntent && paymentIntent.status !== 'succeeded') {
-						console.error('[StripePayment] Payment not successful. Status:', paymentIntent?.status);
-						// Import the confirmStripePaymentFailureMutation function directly
-						const { confirmStripePaymentFailureMutation } = await import('~/providers/shop/checkout/checkout');
-						// Confirm payment failure with backend
-						await confirmStripePaymentFailureMutation(
-							order.id,
-							store.paymentIntentId,
-							`Payment not successful. Status: ${paymentIntent?.status}`
-						);
+						logAndStore('[StripePayment] Payment not successful. Status:', paymentIntent?.status);
 						throw new Error(`Payment not successful. Status: ${paymentIntent?.status}`);
 					}
 
-					// Payment successful - now confirm with backend to transition order to PaymentSettled
-					console.log('[StripePayment] Stripe payment confirmed successfully - confirming with backend...');
-					
+					// Payment successful - now settle with backend to transition order to PaymentSettled
+					logAndStore('[StripePayment] Stripe payment confirmed successfully - settling with backend...');
+
 					try {
-						// Import the confirmStripePaymentSuccessMutation function directly
-						const { confirmStripePaymentSuccessMutation } = await import('~/providers/shop/checkout/checkout');
-						
-						// Confirm payment success with backend
-						const confirmedOrder = await confirmStripePaymentSuccessMutation(
-							order.id,
-							store.paymentIntentId
-						);
-						
-						console.log('[StripePayment] Payment successfully confirmed with backend:', confirmedOrder);
-						
-						// Order should now be in PaymentSettled state and redirect will happen
+						// Import the settleStripePaymentMutation function directly
+						const { settleStripePaymentMutation } = await import('~/providers/shop/checkout/checkout');
+
+						// Settle payment with backend using PaymentIntent ID
+						logAndStore('[StripePayment] Calling settleStripePaymentMutation...');
+						const settleResult = await settleStripePaymentMutation(store.paymentIntentId);
+						logAndStore('[StripePayment] settleStripePaymentMutation response:', settleResult);
+
+						if (!settleResult.success) {
+							logAndStore('[StripePayment] Settlement failed:', settleResult);
+							throw new Error(settleResult.error || 'Failed to settle payment');
+						}
+
+						logAndStore('[StripePayment] Payment successfully settled with backend:', settleResult);
+						logAndStore('[StripePayment] Order should now be in PaymentSettled state');
+
+						// Clear the local cart after successful payment
+						try {
+							const { LocalCartService } = await import('~/services/LocalCartService');
+							LocalCartService.clearCart();
+							logAndStore('[StripePayment] Local cart cleared after successful payment');
+						} catch (clearCartError) {
+							console.error('[StripePayment] Failed to clear local cart after payment:', clearCartError);
+						}
+
+						// Store successful payment info in localStorage for confirmation page
+						const paymentInfo = {
+							orderCode: order.code,
+							paymentIntentId: store.paymentIntentId,
+							amount: paymentIntent ? ((paymentIntent as any).amount_received || paymentIntent.amount) : 0,
+							status: 'succeeded',
+							timestamp: new Date().toISOString()
+						};
+						localStorage.setItem('stripe_payment_success', JSON.stringify(paymentInfo));
+
+						// Order should now be in PaymentSettled state - redirect to confirmation
+						logAndStore('[StripePayment] Payment settled successfully, redirecting to confirmation page...');
+						window.location.href = `${baseUrl}/checkout/confirmation/${order.code}`;
+
 						return { success: true };
-						
-					} catch (confirmError) {
-						console.error('[StripePayment] Failed to confirm payment with backend:', confirmError);
+
+					} catch (settleError) {
+						logAndStore('[StripePayment] Failed to settle payment with backend:', settleError);
 						throw new Error('Payment processed but failed to complete order. Please contact support.');
 					}
 
@@ -176,12 +228,15 @@ export default component$(() => {
 					throw error;
 				}
 			};
+
+			console.log('[StripePayment] Window functions set up successfully');
+			console.log('[StripePayment] confirmStripePreOrderPayment available:', typeof (window as any).confirmStripePreOrderPayment);
 		}
 	});
 
 	useVisibleTask$(async () => {
 		store.debugInfo = 'Initializing payment form...';
-		
+
 		if (!localCart || !localCart.isLocalMode || !localCart.localCart || !localCart.localCart.items || localCart.localCart.items.length === 0) {
 			store.debugInfo = 'Waiting for cart items...';
 			store.error = 'Cart is empty. Please add items to continue.';
@@ -201,19 +256,26 @@ export default component$(() => {
 			}
 
 			store.debugInfo = 'Calling GraphQL mutation...';
-			
+
 			// Create pre-order PaymentIntent immediately - no order dependency
-			store.clientSecret = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');
-			
+			console.log('[StripePayment] Creating PaymentIntent with estimated total:', estimatedTotal);
+			const paymentIntentResult = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');
+			console.log('[StripePayment] PaymentIntent result:', paymentIntentResult);
+
+			store.clientSecret = paymentIntentResult.clientSecret;
+			console.log('[StripePayment] Client secret extracted:', store.clientSecret);
+
 			if (!store.clientSecret) {
 				store.error = 'Failed to initialize payment. Please try again.';
 				store.debugInfo = 'Error: No client secret returned from server';
+				console.error('[StripePayment] No client secret in result:', paymentIntentResult);
 				return;
 			}
 
 			store.paymentIntentId = extractPaymentIntentId(store.clientSecret);
+			console.log('[StripePayment] PaymentIntent ID extracted:', store.paymentIntentId);
 			store.debugInfo = `PaymentIntent created: ${store.paymentIntentId}`;
-			
+
 			// Clear any previous errors
 			store.error = '';
 
@@ -228,16 +290,16 @@ export default component$(() => {
 		try {
 			store.debugInfo = 'Loading Stripe...';
 			const stripe = await stripePromise;
-			
+
 			if (!stripe) {
 				store.error = 'Failed to load Stripe';
 				store.debugInfo = 'Error: Stripe failed to load';
 				return;
 			}
-			
+
 			store.debugInfo = 'Creating Stripe Elements...';
 			store.resolvedStripe = noSerialize(stripe);
-			
+
 			const elements = stripe.elements({
 				clientSecret: store.clientSecret,
 				locale: 'en',
@@ -256,10 +318,10 @@ export default component$(() => {
 					}
 				}
 			});
-			
+
 			store.stripeElements = noSerialize(elements);
 			store.debugInfo = 'Mounting payment element...';
-			
+
 			// Check if mount target exists
 			const mountTarget = document.getElementById('payment-form');
 			if (!mountTarget) {
@@ -267,7 +329,7 @@ export default component$(() => {
 				store.debugInfo = 'Error: #payment-form element missing';
 				return;
 			}
-			
+
 			// Create and mount payment element
 			const paymentElement = elements.create('payment', {
 				layout: {
@@ -275,16 +337,16 @@ export default component$(() => {
 					defaultCollapsed: false
 				}
 			});
-			
+
 			try {
 				await paymentElement.mount('#payment-form');
 				store.debugInfo = 'Payment form mounted successfully!';
-				
+
 				// Add event listeners for better debugging
 				paymentElement.on('ready', () => {
 					store.debugInfo = 'Payment element is ready and interactive!';
 				});
-				
+
 				paymentElement.on('change', (event: any) => {
 					if (event.error) {
 						store.error = event.error.message || 'Payment validation error';
@@ -294,13 +356,13 @@ export default component$(() => {
 						store.debugInfo = 'Payment form is valid and ready!';
 					}
 				});
-				
+
 			} catch (mountError) {
 				const errorMsg = mountError instanceof Error ? mountError.message : 'Unknown mount error';
 				store.error = `Failed to mount payment form: ${errorMsg}`;
 				store.debugInfo = `Mount error: ${errorMsg}`;
 			}
-			
+
 		} catch (elementsError) {
 			const errorMsg = elementsError instanceof Error ? elementsError.message : 'Unknown Elements error';
 			store.error = `Failed to initialize payment form: ${errorMsg}`;

@@ -543,33 +543,72 @@ export class LocalCartService {
       }
 
       // Dynamically import to avoid circular dependencies
-      const { addItemToOrderMutation, applyCouponCodeMutation } = await import('~/providers/shop/orders/order');
+      const { addItemsToOrderMutation, addItemToOrderMutation, applyCouponCodeMutation } = await import('~/providers/shop/orders/order');
       let order: Order | null = null;
-      let successfulItems = 0;
 
-      // Process items sequentially to avoid race conditions
-      for (const item of cart.items) {
-        try {
-          // console.log(`Adding item [${conversionId}]: ${item.productVariantId} x${item.quantity}`);
-          const result = await addItemToOrderMutation(item.productVariantId, item.quantity);
+      // Prepare batch input for all items
+      const batchInput = cart.items.map(item => ({
+        productVariantId: item.productVariantId,
+        quantity: item.quantity
+      }));
 
-          if (result && '__typename' in result && result.__typename === 'Order') {
-            order = result as Order;
-            successfulItems++;
-            // console.log(`Successfully added item ${item.productVariantId} [${conversionId}]. Order now has ${order.lines?.length || 0} lines`);
-          } else {
-            console.error(`Failed to add item ${item.productVariantId} [${conversionId}], received:`, result);
-            throw new Error(`Failed to add ${item.productVariant.name} to order`);
+      try {
+        // console.log(`Adding ${batchInput.length} items in batch [${conversionId}]:`, batchInput);
+        const batchResult = await addItemsToOrderMutation(batchInput);
+
+        if (batchResult && '__typename' in batchResult && batchResult.__typename === 'UpdateMultipleOrderItemsResult') {
+          if (batchResult.order) {
+            order = batchResult.order as Order;
+            // console.log(`Successfully added ${batchInput.length} items in batch [${conversionId}]. Order now has ${order.lines?.length || 0} lines`);
+          } else if (batchResult.errorResults && batchResult.errorResults.length > 0) {
+             // Handle specific batch errors
+             const errorMessages = batchResult.errorResults.map((error: any) => {
+               if (error.__typename === 'InsufficientStockError') {
+                 return `Insufficient stock for item (${error.quantityAvailable} available)`;
+               } else if (error.__typename === 'NegativeQuantityError') {
+                 return 'Invalid quantity specified';
+               } else if (error.__typename === 'OrderLimitError') {
+                 return 'Order limit exceeded';
+               } else if (error.__typename === 'OrderInterceptorError') {
+                 return error.errorCode || 'Order processing error';
+               }
+               return 'Unknown error occurred';
+             });
+             throw new Error(`Batch operation failed: ${errorMessages.join(', ')}`);
+           } else {
+            throw new Error('Batch operation returned no order or errors');
           }
-        } catch (itemError) {
-          console.error(`Error adding item ${item.productVariantId} [${conversionId}]:`, itemError);
-          throw itemError; // Don't continue if any item fails - this prevents partial orders
+        } else {
+          throw new Error('Invalid batch operation response');
         }
-      }
+      } catch (batchError) {
+        console.warn(`Batch operation failed [${conversionId}], falling back to sequential processing:`, batchError);
+        
+        // Fallback to sequential processing
+        let successfulItems = 0;
+        for (const item of cart.items) {
+          try {
+            // console.log(`Adding item sequentially [${conversionId}]: ${item.productVariantId} x${item.quantity}`);
+            const result = await addItemToOrderMutation(item.productVariantId, item.quantity);
 
-      // Verify all items were added successfully
-      if (successfulItems !== cart.items.length) {
-        throw new Error(`Only ${successfulItems} of ${cart.items.length} items were added to the order`);
+            if (result && '__typename' in result && result.__typename === 'Order') {
+              order = result as Order;
+              successfulItems++;
+              // console.log(`Successfully added item ${item.productVariantId} [${conversionId}]. Order now has ${order.lines?.length || 0} lines`);
+            } else {
+              console.error(`Failed to add item ${item.productVariantId} [${conversionId}], received:`, result);
+              throw new Error(`Failed to add ${item.productVariant.name} to order`);
+            }
+          } catch (itemError) {
+            console.error(`Error adding item ${item.productVariantId} [${conversionId}]:`, itemError);
+            throw itemError; // Don't continue if any item fails - this prevents partial orders
+          }
+        }
+
+        // Verify all items were added successfully in fallback mode
+        if (successfulItems !== cart.items.length) {
+          throw new Error(`Only ${successfulItems} of ${cart.items.length} items were added to the order`);
+        }
       }
 
       // Apply coupon after all items are added

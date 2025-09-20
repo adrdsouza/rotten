@@ -1,9 +1,0 @@
-mutation confirmStripePaymentSuccess($orderId: ID!, $paymentIntentId: String!) {
-  confirmStripePaymentSuccess(orderId: $orderId, paymentIntentId: $paymentIntentId) {
-    ...CustomOrderDetail
-    ... on ErrorResult {
-      errorCode
-      message
-    }
-  }
-}

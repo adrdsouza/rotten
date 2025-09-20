@@ -220,7 +220,6 @@ const handleColorSelect = $((colorOption: ProductOption) => {
 				<div class="mb-4">
 					<Price
 						priceWithTax={product.variants[0].priceWithTax}
-						currencyCode={product.variants[0].currencyCode}
 						forcedClass="text-xl font-semibold text-gray-800"
 					/>
 				</div>

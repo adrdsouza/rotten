@@ -941,7 +941,6 @@ export default component$(() => {
                         <div class="text-gray-600 text-sm mb-3">Summer confidence</div>
                         <Price
                           priceWithTax={stylesData.value.shortSleeve.variants[0]?.priceWithTax || 0}
-                          currencyCode={stylesData.value.shortSleeve.variants[0]?.currencyCode || 'USD'}
                           forcedClass="text-2xl font-bold text-[#8a6d4a]"
                         />
                       </div>
@@ -975,7 +974,6 @@ export default component$(() => {
                         <div class="text-gray-600 text-sm mb-3">Year-round essential</div>
                         <Price
                           priceWithTax={stylesData.value.longSleeve.variants[0]?.priceWithTax || 0}
-                          currencyCode={stylesData.value.longSleeve.variants[0]?.currencyCode || 'USD'}
                           forcedClass="text-2xl font-bold text-[#8a6d4a]"
                         />
                       </div>
@@ -1157,7 +1155,6 @@ export default component$(() => {
                             <span>Add to Cart - </span>
                             <Price
                               priceWithTax={selectedProduct.value?.variants[0]?.priceWithTax || 0}
-                              currencyCode={selectedProduct.value?.variants[0]?.currencyCode || 'USD'}
                               forcedClass="font-bold"
                             />
                           </span>
@@ -1195,7 +1192,6 @@ export default component$(() => {
                           {selectedProduct.value ? (
                             <Price
                               priceWithTax={selectedProduct.value?.variants[0]?.priceWithTax || 0}
-                              currencyCode={selectedProduct.value?.variants[0]?.currencyCode || 'USD'}
                               forcedClass="text-2xl font-bold text-[#8a6d4a]"
                             />
                           ) : (

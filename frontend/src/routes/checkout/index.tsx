@@ -1,32 +1,45 @@
-import { $, component$, useContext, useStore, useVisibleTask$, useSignal, useComputed$ } from '@builder.io/qwik';
-import {
-  useNavigate,
-  routeAction$,
-  zod$,
-  z,
-  Link,
+import { $, component$, useContext, useStore, useVisibleTask$, useSignal } from '@builder.io/qwik';
+import { 
+  useNavigate, 
+  routeAction$, 
   routeLoader$,
+  zod$, 
+  z, 
+  Link,
+  type DocumentHead
 } from '@qwik.dev/router';
 import CartContents from '~/components/cart-contents/CartContents';
 import CartTotals from '~/components/cart-totals/CartTotals';
 import { APP_STATE } from '~/constants';
-import {
-  getActiveOrderQuery,
-} from '~/providers/shop/orders/order';
+import { getActiveOrderQuery } from '~/providers/shop/orders/order';
 import { CheckoutAddresses } from '~/components/checkout/CheckoutAddresses';
-import { addressState } from '~/utils/checkout-state';
+import { CheckoutAddressProvider } from '~/contexts/CheckoutAddressContext';
 import { createSEOHead } from '~/utils/seo';
 import Payment from '~/components/payment/Payment';
-import { useLocalCart, loadCartIfNeeded, refreshCartStock } from '~/contexts/CartContext';
+import { useLocalCart, refreshCartStock, loadCartIfNeeded } from '~/contexts/CartContext';
 import { CheckoutValidationProvider, useCheckoutValidation, useCheckoutValidationActions } from '~/contexts/CheckoutValidationContext';
 import { OrderProcessingModal } from '~/components/OrderProcessingModal';
-import { clearAllValidationCache } from '~/utils/cached-validation';
-import { recordCacheHit, recordCacheMiss, resetCacheMonitoring, enablePerformanceLogging } from '~/utils/validation-cache-debug';
-import { enableAutoCleanup } from '~/utils/validation-cache';
-import { LocalCartService } from '~/services/LocalCartService';
-// Removed Vendure-specific secure API imports
-import { CheckoutAddressProvider } from '~/contexts/CheckoutAddressContext';
 
+import { clearAllValidationCache } from '~/utils/cached-validation';
+import { useCheckout } from '~/hooks/useCheckout';
+import { transitionOrderToStateMutation } from '~/providers/shop/checkout/checkout';
+import { setOrderShippingMethodMutation } from '~/providers/shop/orders/order';
+import { LocalCartService } from '~/services/LocalCartService';
+
+export const useCheckoutLoader = routeLoader$(async () => {
+  try {
+    const order = await getActiveOrderQuery();
+    return { 
+      order,
+      error: null
+    };
+  } catch (error) {
+    return {
+      order: null,
+      error: error instanceof Error ? error.message : 'Failed to load checkout data'
+    };
+  }
+});
 
 const prefetchOrderConfirmation = $((orderCode: string) => {
   if (typeof document !== 'undefined' && orderCode) {
@@ -38,26 +51,16 @@ const prefetchOrderConfirmation = $((orderCode: string) => {
   }
 });
 
-// Load checkout data for SSR
-export const useCheckoutLoader = routeLoader$(async (_requestEvent) => {
-  // For local cart mode, we don't need to fetch active order from server
-  return {
-    activeOrder: null
-  };
-});
-
-// CORRECTED: The routeAction$ signature is now untyped.
-// Qwik will automatically infer the correct types from the zod$ schema below.
 export const useCheckoutAction = routeAction$(async (formData, { fail }) => {
   try {
-    if (!formData.customerEmail || !formData.customerFirstName ||
+    if (!formData.customerEmail || !formData.customerFirstName || 
         !formData.customerLastName || !formData.shippingStreetLine1) {
       return fail(400, {
         error: 'Missing required fields',
         fields: formData
       });
     }
-
+    
     return {
       success: true,
       orderCode: 'ORDER_' + Date.now()
@@ -82,7 +85,6 @@ export const useCheckoutAction = routeAction$(async (formData, { fail }) => {
   paymentMethod: z.string().min(1),
 }));
 
-
 interface CheckoutState {
   loading: boolean;
   error: string | null;
@@ -92,68 +94,82 @@ const CheckoutContent = component$(() => {
   const navigate = useNavigate();
   const appState = useContext(APP_STATE);
   const localCart = useLocalCart();
-  const validationActions = useCheckoutValidationActions();
   const checkoutValidation = useCheckoutValidation();
-  const _checkoutData = useCheckoutLoader(); // Prefixed with _ to indicate unused
+  const validationActions = useCheckoutValidationActions();
+  const { checkoutState, convertLocalCartToVendureOrder } = useCheckout();
+  const loaderData = useCheckoutLoader();
+
   const state = useStore<CheckoutState>({
     loading: false,
-    error: null,
+    error: loaderData.value.error,
   });
 
   const stripeTriggerSignal = useSignal(0);
   const selectedPaymentMethod = useSignal<string>('stripe');
   const pageLoading = useSignal(true);
-
-  const isCartEmpty = useComputed$(() => {
-    if (pageLoading.value) return false;
-
-    return localCart.isLocalMode
-      ? localCart.localCart.items.length === 0
-      : !appState.activeOrder || !appState.activeOrder.lines || appState.activeOrder.lines.length === 0;
-  });
+  const paymentComplete = useSignal(false);
+  
+  // Fix hydration mismatch by using a signal instead of computed
+  const isCartEmpty = useSignal(false);
 
   const isOrderProcessing = useSignal(false);
-  const orderError = useSignal('');
   const showProcessingModal = useSignal(false);
-  const paymentComplete = useSignal(false);
 
-  useVisibleTask$(async ({ track }) => {
-    // Handle SSR data - not needed for local cart mode
-    
+  // Initial page loading task with proper cleanup
+  useVisibleTask$(async () => {
     if (pageLoading.value) {
-      if (typeof window !== 'undefined') {
-        (window as any).recordCacheHit = recordCacheHit;
-        (window as any).recordCacheMiss = recordCacheMiss;
-      }
-      enablePerformanceLogging();
-      enableAutoCleanup();
-      clearAllValidationCache();
-      resetCacheMonitoring();
-      appState.showCart = false;
-      
-      // Only load cart for local mode
-      await loadCartIfNeeded(localCart);
-
-      // Refresh stock levels for all cart items - this is required on every checkout load
-      if (localCart.localCart.items.length > 0) {
-        try {
-          // Refresh stock levels to ensure we have fresh data for checkout validation
-          await refreshCartStock(localCart);
-          
-          // Validate stock after refresh
-          const stockValidation = LocalCartService.validateStock();
-          validationActions.updateStockValidation(stockValidation.valid, stockValidation.errors);
-        } catch (error) {
-          console.error('❌ Checkout: Failed to refresh stock levels:', error);
+      try {
+        clearAllValidationCache();
+        appState.showCart = false;
+        
+        // Initialize active order from loader data if available
+        if (loaderData.value.order && !loaderData.value.error) {
+          appState.activeOrder = loaderData.value.order;
         }
+        
+        await loadCartIfNeeded(localCart);
+        
+        if (localCart.localCart.items.length > 0) {
+          try {
+            await refreshCartStock(localCart);
+          } catch (error) {
+            console.error('Checkout: Failed to refresh stock levels:', error);
+          }
+        }
+        
+        // Update cart empty state
+        isCartEmpty.value = localCart.localCart.items.length === 0 && 
+          (!appState.activeOrder || !appState.activeOrder.lines || appState.activeOrder.lines.length === 0);
+        
+      } catch (error) {
+        console.error('[Checkout] Error during checkout initialization:', error);
+        state.error = 'Failed to load checkout. Please try again.';
+      } finally {
+        pageLoading.value = false;
       }
-
-      pageLoading.value = false;
     }
 
-    track(() => localCart.localCart.items);
+    // Cleanup function for all resources
+    return () => {
+      // Clean up any global references
+      if (typeof window !== 'undefined') {
+        delete (window as any).recordCacheHit;
+        delete (window as any).recordCacheMiss;
+        delete (window as any).submitCheckoutAddressForm;
+        delete (window as any).submitStripeElements;
+        delete (window as any).confirmStripePreOrderPayment;
+      }
+    };
+  });
 
-    // Stock validation for local cart mode
+  // Separate task for cart validation that doesn't affect loading state
+  useVisibleTask$(async ({ track }) => {
+    track(() => localCart.localCart.items);
+    
+    // Update cart empty state when items change
+    isCartEmpty.value = localCart.localCart.items.length === 0 && 
+      (!appState.activeOrder || !appState.activeOrder.lines || appState.activeOrder.lines.length === 0);
+    
     if (localCart.localCart.items.length > 0) {
         const stockValidation = LocalCartService.validateStock();
         validationActions.updateStockValidation(stockValidation.valid, stockValidation.errors);
@@ -162,221 +178,94 @@ const CheckoutContent = component$(() => {
     }
   });
 
-  const _processPayment = $(async (paymentMethod: string = 'stripe') => {
-    try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      if (import.meta.env.DEV) {
-        console.log(`Address submission verified complete, triggering ${paymentMethod} payment...`);
-      }
-
-      if (paymentMethod === 'stripe' && stripeTriggerSignal.value === 0) {
-        stripeTriggerSignal.value++;
-        if (appState.activeOrder?.code) {
-          await prefetchOrderConfirmation(appState.activeOrder?.code);
-        }
-      }
-    } catch (error) {
-      console.error('[Checkout/processPayment] Error:', error);
-      state.error = error instanceof Error ? error.message : 'Order processing failed. Please try again.';
-      isOrderProcessing.value = false;
-    }
-  });
-
-  const _placeOrder = $(async () => {
+  const placeOrder = $(async () => {
     if (isOrderProcessing.value) return;
-    
-    if (typeof window !== 'undefined' && (window as any).submitStripeElements) {
-      try {
-        await (window as any).submitStripeElements();
-      } catch (submitError) {
-        state.error = `Payment validation failed: ${submitError instanceof Error ? submitError.message : 'Unknown error'}`;
-        return;
-      }
-    } else {
-      state.error = 'Payment system not ready. Please refresh and try again.';
-      return;
-    }
-    
+
     showProcessingModal.value = true;
     isOrderProcessing.value = true;
-    orderError.value = '';
     state.error = null;
 
     try {
       if (!appState.customer?.emailAddress || !appState.customer?.firstName || !appState.customer?.lastName) {
-        throw new Error('Please complete all required customer information (email, first name, last name)');
+        throw new Error('Please complete all required customer information.');
       }
       
-      if (!appState.shippingAddress?.streetLine1 || !appState.shippingAddress?.city ||
-          !appState.shippingAddress?.province || !appState.shippingAddress?.postalCode ||
-          !appState.shippingAddress?.countryCode) {
-        throw new Error('Please complete all required shipping address information');
+      if (!appState.shippingAddress?.streetLine1 || !appState.shippingAddress?.city || !appState.shippingAddress?.province) {
+        throw new Error('Please complete all required shipping address information.');
       }
 
-      if (checkoutValidation.useDifferentBilling && (!appState.billingAddress?.streetLine1 || !appState.billingAddress?.city ||
-          !appState.billingAddress?.province || !appState.billingAddress?.postalCode ||
-          !appState.billingAddress?.countryCode)) {
-        throw new Error('Please complete all required billing address information');
+      if (checkoutValidation.useDifferentBilling && !appState.billingAddress?.streetLine1) {
+        throw new Error('Please complete all required billing address information.');
       }
       
-      // Convert local cart to Vendure order
-      if (localCart.isLocalMode) {
-        try {
-          const { convertLocalCartToVendureOrder } = await import('~/contexts/CartContext');
-          const vendureOrder = await convertLocalCartToVendureOrder(localCart);
-
-          if (!vendureOrder) {
-            throw new Error('Failed to create order from cart');
-          }
-          appState.activeOrder = vendureOrder;
-        } catch (conversionError) {
-          if (conversionError instanceof Error) {
-            state.error = `Failed to create order: ${conversionError.message}`;
-          } else {
-            state.error = 'Failed to create order. Please check your cart and try again.';
-          }
-          showProcessingModal.value = false;
-          isOrderProcessing.value = false;
-          return;
+      // Always convert local cart to Vendure order
+      try {
+        const vendureOrder = await convertLocalCartToVendureOrder();
+        if (!vendureOrder) {
+          throw new Error(checkoutState.error || 'Failed to create order from your cart.');
         }
-      }
-
-      // Submit address form
-      if (typeof window !== 'undefined' && (window as any).submitCheckoutAddressForm) {
-        await (window as any).submitCheckoutAddressForm();
-      } else {
-        state.error = 'Failed to submit address form';
+        appState.activeOrder = vendureOrder;
+      } catch (conversionError) {
+        state.error = conversionError instanceof Error ? conversionError.message : 'An unknown error occurred while creating your order.';
         showProcessingModal.value = false;
         isOrderProcessing.value = false;
         return;
       }
-      
-      // Wait for address submission to complete
-      const waitForAddressSubmission = new Promise<void>((resolve, reject) => {
-        const maxWaitTime = 10000;
-        const intervalTime = 100;
-        let elapsedTime = 0;
 
-        const checkInterval = setInterval(() => {
-          elapsedTime += intervalTime;
-          const currentAddressState = addressState;
-          
-          if (currentAddressState.addressSubmissionComplete || !currentAddressState.addressSubmissionInProgress) {
-            clearInterval(checkInterval);
-            resolve();
-          }
-          if (elapsedTime >= maxWaitTime) {
-            clearInterval(checkInterval);
-            reject(new Error('Timeout waiting for address submission to complete'));
-          }
-        }, intervalTime);
-      });
-
-      try {
-        await waitForAddressSubmission;
-        
-        // Set shipping method
-        try {
-          let shippingMethodId: string | undefined;
-          
-          if (appState.shippingAddress.countryCode && appState.activeOrder) {
-            const countryCode = appState.shippingAddress.countryCode;
-            const subTotal = appState.activeOrder?.subTotal || 0;
-            
-            if (countryCode === 'US' || countryCode === 'PR') {
-              shippingMethodId = subTotal >= 10000 ? '6' : '3';
-            } else {
-              shippingMethodId = '7';
-            }
-            
-            const { setOrderShippingMethodMutation } = await import('~/providers/shop/orders/order');
-            const shippingResult = await setOrderShippingMethodMutation([shippingMethodId]);
-            
-            if (shippingResult && '__typename' in shippingResult && shippingResult.__typename === 'Order') {
-              appState.activeOrder = shippingResult;
-            } else {
-              // Attempt to fallback
-              const fallbackMethod = appState.activeOrder?.shippingLines?.find(line => line.shippingMethod.id !== shippingMethodId);
-              if (fallbackMethod) {
-                const fallbackResult = await setOrderShippingMethodMutation([fallbackMethod.shippingMethod.id]);
-                if (fallbackResult && '__typename' in fallbackResult && fallbackResult.__typename === 'Order') {
-                  appState.activeOrder = fallbackResult;
-                } else {
-                  state.error = 'There was an issue setting the shipping method. Proceeding without a specific shipping option.';
-                }
-              } else {
-                 state.error = 'There was an issue setting the shipping method. Proceeding with default shipping options.';
-              }
-            }
-          } else {
-            state.error = 'Unable to determine shipping method due to missing information. Proceeding with default shipping options.';
-          }
-        } catch (_shippingError) {
-          state.error = 'There was an error setting the shipping method. Proceeding with default shipping options.';
-        }
-        
-        // Transition order to ArrangingPayment state
-        if (appState.activeOrder && appState.activeOrder?.state !== 'ArrangingPayment') {
-          try {
-            const { transitionOrderToStateMutation } = await import('~/providers/shop/checkout/checkout');
-            const transitionResult = await transitionOrderToStateMutation('ArrangingPayment');
-
-            if (transitionResult && 'state' in transitionResult) {
-              appState.activeOrder = transitionResult as any;
-            }
-          } catch (transitionError) {
-            state.error = `Failed to prepare order for payment: ${transitionError instanceof Error ? transitionError.message : 'Unknown error'}`;
-            isOrderProcessing.value = false;
-            showProcessingModal.value = false;
-            return;
-          }
-        }
-        
-        // Get latest order and trigger payment
-        const latestOrder = await getActiveOrderQuery();
-        if (latestOrder && latestOrder.id) {
-          appState.activeOrder = latestOrder;
-          if (latestOrder.state === 'ArrangingPayment') {
-            if (selectedPaymentMethod.value === 'stripe' && stripeTriggerSignal.value === 0) {
-              stripeTriggerSignal.value++;
-              if (typeof window !== 'undefined' && (window as any).confirmStripePreOrderPayment) {
-                try {
-                  await (window as any).confirmStripePreOrderPayment(appState.activeOrder);
-                } catch (paymentError) {
-                  state.error = `Payment failed: ${paymentError instanceof Error ? paymentError.message : 'Unknown error'}`;
-                  showProcessingModal.value = false;
-                  isOrderProcessing.value = false;
-                }
-              } else {
-                state.error = 'Payment system not ready. Please refresh and try again.';
-                showProcessingModal.value = false;
-                isOrderProcessing.value = false;
-              }
-
-              if (appState.activeOrder?.code) {
-                await prefetchOrderConfirmation(appState.activeOrder?.code);
-              }
-            }
-          } else {
-            state.error = 'Order is not ready for payment. Please try again.';
-            showProcessingModal.value = false;
-            isOrderProcessing.value = false;
-          }
-        } else {
-          state.error = 'Order could not be found. Please restart the checkout process.';
-          showProcessingModal.value = false;
-          isOrderProcessing.value = false;
-        }
-      } catch (_waitError) {
-        state.error = 'Address submission took too long or failed. Please try again.';
-        showProcessingModal.value = false;
-        isOrderProcessing.value = false;
+      if (typeof window !== 'undefined' && (window as any).submitCheckoutAddressForm) {
+        await (window as any).submitCheckoutAddressForm();
+      } else {
+        throw new Error('Failed to submit address form.');
       }
-      showProcessingModal.value = false;
-      isOrderProcessing.value = false;
+      
+      // Address submission is now handled directly by CheckoutAddresses component
+      // No need to wait for address state as it's managed internally
+        
+      try {
+        if (appState.shippingAddress.countryCode && appState.activeOrder) {
+          const { countryCode } = appState.shippingAddress;
+          const subTotal = appState.activeOrder.subTotal || 0;
+          const shippingMethodId = (countryCode === 'US' || countryCode === 'PR') 
+            ? (subTotal >= 10000 ? '6' : '3') 
+            : '7';
+          
+          const shippingResult = await setOrderShippingMethodMutation([shippingMethodId]);
+          if (shippingResult && '__typename' in shippingResult && shippingResult.__typename === 'Order') {
+            appState.activeOrder = shippingResult;
+          } else {
+            console.warn('Could not set preferred shipping method. Proceeding with default.');
+          }
+        }
+      } catch (shippingError) {
+        console.error('Error setting shipping method:', shippingError);
+      }
+      
+      if (appState.activeOrder && appState.activeOrder.state !== 'ArrangingPayment') {
+        const transitionResult = await transitionOrderToStateMutation('ArrangingPayment');
+        if (transitionResult.transitionOrderToState && 'state' in transitionResult.transitionOrderToState) {
+          appState.activeOrder = transitionResult.transitionOrderToState as any;
+        } else {
+            throw new Error('Failed to prepare the order for payment.');
+        }
+      }
+      
+      // Get latest order and trigger payment
+      const latestOrder = await getActiveOrderQuery();
+      if (latestOrder?.state === 'ArrangingPayment') {
+        appState.activeOrder = latestOrder;
+        if (latestOrder.code) {
+          await prefetchOrderConfirmation(latestOrder.code);
+        }
+        // Only trigger payment if we haven't already triggered it for this order
+        // This prevents multiple payment attempts on the same order
+        if (selectedPaymentMethod.value === 'stripe' && stripeTriggerSignal.value === 0) {
+          stripeTriggerSignal.value++;
+        }
+      } else {
+        throw new Error('Order is not ready for payment. Please try again.');
+      }
     } catch (error) {
-      state.error = error instanceof Error ? error.message : 'An unexpected error occurred';
+      state.error = error instanceof Error ? error.message : 'An unknown error occurred. Please check your information and try again.';
       showProcessingModal.value = false;
       isOrderProcessing.value = false;
     }
@@ -394,12 +283,12 @@ const CheckoutContent = component$(() => {
             </div>
             <h2 class="font-heading tracking-wide text-2xl md:text-3xl font-bold mb-2">Your cart is empty</h2>
             <p class="font-body text-base text-gray-600 mb-6">Add some items to your cart to continue with checkout.</p>
-            <button
-              onClick$={() => navigate('/shop')}
-              class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-[#8a6d4a] hover:bg-[#4F3B26] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8a6d4a] transition-colors cursor-pointer"
+            <Link
+              href="/shop"
+              class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-[#d42838] hover:bg-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-800 transition-colors cursor-pointer font-heading"
             >
               Continue Shopping
-            </button>
+            </Link>
           </div>
         </div>
       ) : (
@@ -408,7 +297,7 @@ const CheckoutContent = component$(() => {
             visible={showProcessingModal.value}
           />
           
-          <div class="max-w-7xl mx-auto pt-8 mb-12 px-4 sm:px-6 lg:px-8">
+          <div class="max-w-7xl mx-auto pt-4 mb-12 px-4 sm:px-6 lg:px-8">
             {state.error && (
               <div class="rounded-xl bg-red-50 border border-red-200 p-6 my-6 shadow-sm">
                 <div class="flex">
@@ -446,11 +335,13 @@ const CheckoutContent = component$(() => {
                         <div class="h-1 w-16 bg-gradient-to-r from-primary-500 to-primary-600 rounded-full"></div>
                       </div>
                     </div>
-                    <div class="p-4">
-                      <CartContents />
-                      <div class="border-t border-gray-100 pt-4 mt-4">
-                        <CartTotals localCart={localCart.isLocalMode ? localCart : undefined} />
+                    <div class="bg-white mx-4 rounded-lg mb-4">
+                      <div class="p-4">
+                        <CartContents />
                       </div>
+                    </div>
+                    <div class="p-4">
+                      <CartTotals localCart={localCart.localCart} />
                     </div>
                   </div>
                 </div>
@@ -461,98 +352,116 @@ const CheckoutContent = component$(() => {
                   <div class="mb-6">
                     <CheckoutAddresses />
                   </div>
-
                   <div class="border-t border-gray-100 my-2"></div>
-
                   <div class="mb-6">
-                    <div class="space-y-6">
-                      {checkoutValidation.stockErrors.length > 0 && (
-                        <div class="text-sm text-red-500 mb-4 text-center p-4 bg-red-50 border border-red-200 rounded-lg">
-                          {checkoutValidation.stockErrors.map((error: string, index: number) => (
-                            <p key={index}>{error}</p>
-                          ))}
-                        </div>
-                      )}
-                      <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                        <Payment
-                          triggerStripeSignal={stripeTriggerSignal}
-                          selectedPaymentMethod={selectedPaymentMethod}
-                          hideButton={false}
-                          onForward$={$(async (orderCode: string) => {
-                            paymentComplete.value = true;
-                            navigate(`/checkout/confirmation/${orderCode}`);
-                            state.loading = true;
-                          })}
-                          onError$={$(async (errorMessage: string) => {
-                            showProcessingModal.value = false;
-                            state.error = errorMessage || 'Payment processing failed. Please check your details and try again.';
-                            state.loading = false;
-                            isOrderProcessing.value = false;
-                            stripeTriggerSignal.value = 0;
-                          })}
-                          onProcessingChange$={$(async (isProcessing: boolean) => {
-                            state.loading = isProcessing;
-                          })}
-                          isDisabled={!checkoutValidation.isPaymentReady}
-                        />
-                      </div>
-                      
-                      <div class="mt-6 pt-6 border-t border-gray-100">
-                        <div class="flex items-start space-x-3 mb-4">
-                          <input
-                            type="checkbox"
-                            id="termsAcceptance"
-                            class="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 shadow-sm focus:border-primary-300 focus:ring focus:ring-primary-200 focus:ring-opacity-50"
-                            checked={checkoutValidation.isTermsAccepted}
-                            onChange$={(_, el) => {
-                              validationActions.updateTermsAcceptance(el.checked);
-                            }}
-                          />
-                          <label for="termsAcceptance" class="text-sm text-gray-700">
-                            I have read and agree to the website's{' '}
-                            <Link 
-                              href="/terms-and-conditions" 
-                              target="_blank"
-                              class="font-medium text-primary-600 hover:text-primary-500 underline"
-                            >
-                              terms and conditions
-                            </Link>
-                            {' '}and{' '}
-                            <Link
-                              href="/privacy-policy" 
-                              target="_blank"
-                              class="font-medium text-primary-600 hover:text-primary-500 underline"
-                            >
-                              privacy policy
-                            </Link>
-                            . <span class="text-red-600">*</span>
-                          </label>
-                        </div>
+                    <Payment
+                      triggerStripeSignal={stripeTriggerSignal}
+                      selectedPaymentMethod={selectedPaymentMethod}
+                      hideButton={true}
+                      onForward$={$(async (orderCode: string) => {
+                        paymentComplete.value = true;
+                        navigate(`/checkout/confirmation/${orderCode}`);
+                        state.loading = true;
+                      })}
+                      onError$={$(async (errorMessage: string) => {
+                        showProcessingModal.value = false;
+                        state.error = errorMessage || 'Payment processing failed. Please check your details and try again.';
+                        isOrderProcessing.value = false;
+                        stripeTriggerSignal.value = 0;
                         
-                        <button
-                          onClick$={_placeOrder}
-                          disabled={!checkoutValidation.isAllValid || isOrderProcessing.value}
-                          class={`w-full flex items-center justify-center space-x-3 py-4 px-6 text-lg font-semibold rounded-lg shadow-lg transition-all duration-200 ${
-                            !checkoutValidation.isAllValid || isOrderProcessing.value
-                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
-                              : 'bg-gradient-to-r from-[#8a6d4a] to-[#4F3B26] hover:from-[#4F3B26] hover:to-[#3a2b1a] text-white cursor-pointer transform hover:scale-105'
-                          }`}
+                        // CRITICAL FIX: Restore cart to local mode after payment failure
+                        // This ensures the cart remains functional for retry attempts
+                        localCart.isLocalMode = true;
+                        
+                        try {
+                          await transitionOrderToStateMutation('AddingItems');
+                        } catch (transitionError) {
+                          console.error('Failed to transition order back to AddingItems state:', transitionError);
+                        }
+                      })}
+                      onProcessingChange$={$(async (isProcessing: boolean) => {
+                        state.loading = isProcessing;
+                        isOrderProcessing.value = isProcessing;
+                      })}
+                      isDisabled={false}
+                    />
+                  </div>
+                  <div class="pt-2 border-t border-gray-100">
+                    <div class="flex items-start space-x-3 mb-4">
+                      <input
+                        type="checkbox"
+                        id="termsAcceptance"
+                        checked={checkoutValidation.isTermsAccepted}
+                        onChange$={(_, el) => {
+                          validationActions.updateTermsAcceptance(el.checked);
+                        }}
+                        class="appearance-none mt-1 h-4 w-4 border-2 border-gray-300 rounded bg-white checked:border-primary-600 transition-colors duration-200"
+                      />
+                      <label for="termsAcceptance" class="text-sm text-gray-700 leading-5">
+                        I agree to the{' '}
+                        <Link 
+                          href="/terms" 
+                          target="_blank"
+                          class="text-primary-600 hover:text-primary-700 underline font-medium"
                         >
-                          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                          </svg>
-                          <span>
-                            {isOrderProcessing.value ? 'Processing Order...' : 'Place Order'}
-                          </span>
-                        </button>
-                        
-                        {!checkoutValidation.isAllValid && checkoutValidation.stockErrors.length === 0 && (
-                          <p class="text-sm text-gray-500 mt-2 text-center">
-                            Please complete all required fields and accept the terms to place your order
-                          </p>
-                        )}
-                      </div>
+                          Terms & Conditions
+                        </Link>
+                        {' '}and{' '}
+                        <Link
+                          href="/privacy" 
+                          target="_blank"
+                          class="text-primary-600 hover:text-primary-700 underline font-medium"
+                        >
+                          Privacy Policy
+                        </Link>
+                        {' '}<span class="text-red-500">*</span>
+                      </label>
                     </div>
+                  </div>
+                  <div>
+                    <button
+                      onClick$={placeOrder}
+                      disabled={state.loading || !checkoutValidation.isAllValid || checkoutState.isLoading}
+                      class={`w-full rounded-xl shadow-lg py-4 px-6 text-lg font-semibold focus:outline-none focus:ring-4 focus:ring-offset-2 focus:ring-offset-gray-50 transition-all duration-200 ${
+                        state.loading || !checkoutValidation.isAllValid || checkoutState.isLoading
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60 shadow-none'
+                          : selectedPaymentMethod.value === 'sezzle'
+                            ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 focus:ring-purple-500 transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
+                            : 'bg-[#d42838] text-white hover:bg-black focus:ring-gray-500 transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
+                      }`}
+                      title={!checkoutValidation.isAllValid ? 'Please complete all required fields and accept the terms to continue' : ''}
+                    >
+                      {state.loading || checkoutState.isLoading ? (
+                        <span class="flex items-center justify-center">
+                          <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Processing...
+                        </span>
+                      ) : (
+                        <span class="flex items-center justify-center">
+                          {selectedPaymentMethod.value === 'sezzle' ? (
+                            <>
+                              <span class="mr-2">🛍️</span>
+                              Continue with Sezzle
+                            </>
+                          ) : (
+                            <>
+                              <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Place Order
+                            </>
+                          )}
+                        </span>
+                      )}
+                    </button>
+                    {!checkoutValidation.isAllValid && (
+                      <p class="text-sm text-gray-500 mt-3 text-center">
+                        Please complete all required fields and accept the terms to continue
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -574,10 +483,10 @@ export default component$(() => {
   );
 });
 
-export const head = () => {
+export const head = (): DocumentHead => {
   return createSEOHead({
     title: 'Checkout',
-    description: 'Complete your purchase at Rotten Hand.',
+    description: 'Complete your purchase at Damned Designs.',
     noindex: true,
     links: []
   });

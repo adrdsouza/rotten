@@ -152,13 +152,16 @@ const executeOnTheServer = server$(async (options: Options, apiUrl: string) =>
 );
 
 const executeRequest = async (options: Options, apiUrl: string) => {
-	let httpResponse: Response = new Response();
 	try {
-		httpResponse = await fetch(apiUrl, options);
+		const httpResponse = await fetch(apiUrl, options);
+		if (!httpResponse.ok) {
+			throw new Error(`HTTP error! status: ${httpResponse.status}`);
+		}
+		return await extractTokenAndData(httpResponse, apiUrl);
 	} catch (error) {
 		console.error(`Could not fetch from ${apiUrl}. Reason: ${error}`);
+		throw error;
 	}
-	return await extractTokenAndData(httpResponse, apiUrl);
 };
 
 const extractTokenAndData = async (response: Response, apiUrl: string) => {

@@ -1,9 +1,0 @@
-mutation addPaymentToOrder($input: PaymentInput!) {
-  addPaymentToOrder(input: $input) {
-    ...CustomOrderDetail
-    ... on ErrorResult {
-      errorCode
-      message
-    }
-  }
-}

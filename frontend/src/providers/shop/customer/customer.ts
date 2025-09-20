@@ -19,9 +19,13 @@ import { shopSdk } from '~/graphql-wrapper';
 
 
 export const getActiveCustomerQuery = async () => {
+	console.log('[CustomerProvider] Fetching active customer data');
 	return shopSdk
 		.activeCustomer()
-		.then((res: ActiveCustomerQuery) => res.activeCustomer as Customer);
+		.then((res: ActiveCustomerQuery) => {
+			console.log('[CustomerProvider] Active customer response:', res);
+			return res.activeCustomer as Customer;
+		});
 };
 
 export const getActiveCustomerAddressesQuery = async () => {

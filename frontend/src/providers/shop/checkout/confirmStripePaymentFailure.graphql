@@ -1,9 +1,0 @@
-mutation confirmStripePaymentFailure($orderId: ID!, $paymentIntentId: String!, $errorMessage: String) {
-  confirmStripePaymentFailure(orderId: $orderId, paymentIntentId: $paymentIntentId, errorMessage: $errorMessage) {
-    ...CustomOrderDetail
-    ... on ErrorResult {
-      errorCode
-      message
-    }
-  }
-}

@@ -79,6 +79,7 @@ type Query {
   activeShippingMethods: [PublicShippingMethod]!
   validateLocalCartCoupon(input: ValidateLocalCartCouponInput!): CouponValidationResult!
   calculateEstimatedTotal(cartItems: [PreOrderCartItemInput!]!): Int!
+  getPaymentStatus(paymentIntentId: String!): PaymentStatusResult!
 }
 
 type Mutation {
@@ -231,8 +232,9 @@ type Mutation {
   subscribeToNewsletter(input: NewsletterSubscriptionInput!): NewsletterSubscriptionResult!
   unsubscribeFromNewsletter(email: String!): NewsletterUnsubscribeResult!
   createStripePaymentIntent: String!
-  createPreOrderStripePaymentIntent(estimatedTotal: Int!, currency: String = "usd"): String!
+  createPreOrderStripePaymentIntent(estimatedTotal: Int!, currency: String = "usd"): PaymentIntentResult!
   linkPaymentIntentToOrder(paymentIntentId: String!, orderId: String!, orderCode: String!, finalTotal: Int!, customerEmail: String): Boolean!
+  settleStripePayment(paymentIntentId: String!): SettlementResult!
 }
 
 type Address implements Node {
@@ -3701,6 +3703,37 @@ type NewsletterUnsubscribeError {
 }
 
 union NewsletterUnsubscribeResult = NewsletterUnsubscribeSuccess | NewsletterUnsubscribeError
+
+type PaymentIntentResult {
+  clientSecret: String!
+  paymentIntentId: String!
+  amount: Int!
+  currency: String!
+}
+
+type SettlementResult {
+  success: Boolean!
+  orderId: String!
+  orderCode: String!
+  paymentId: String
+  error: String
+}
+
+type PaymentStatusResult {
+  status: PaymentStatus!
+  paymentIntentId: String!
+  orderCode: String
+  amount: Int
+  createdAt: DateTime
+  settledAt: DateTime
+}
+
+enum PaymentStatus {
+  PENDING
+  SETTLED
+  FAILED
+  NOT_FOUND
+}
 
 input PreOrderCartItemInput {
   productVariantId: String!

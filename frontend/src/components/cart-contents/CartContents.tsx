@@ -3,7 +3,7 @@ import { Link, useLocation } from '@qwik.dev/router';
 import { OptimizedImage } from '~/components/ui';
 import { APP_STATE } from '~/constants';
 import { Order } from '~/generated/graphql';
-import { adjustOrderLineMutation } from '~/providers/shop/orders/order';
+
 import { getProductBySlug } from '~/providers/shop/products/products';
 import { isCheckoutPage } from '~/utils';
 import { isImageCached } from '~/utils/image-cache';
@@ -34,7 +34,6 @@ export default component$<{
 	const localCart = useLocalCart();
 	const currentOrderLineSignal = useSignal<{ id: string; value: number }>();
 	const isInEditableUrl = !isCheckoutPage(location.url.toString()) || !order;
-	const currencyCode = order?.currencyCode || appState.activeOrder?.currencyCode || 'USD';
 	
 	// Performance tracking for cart operations - DISABLED for performance
 	// const performanceTracking = useCartPerformanceTracking();
@@ -52,23 +51,14 @@ export default component$<{
 			id = setTimeout(async () => {
 				// Track cart operation performance
 				// const cartOpTimer = await performanceTracking.trackCartOperation$('update-quantity'); // Disabled
-				
+
 				try {
-					// Check if we're in local cart mode or Vendure order mode
-					if (localCart.isLocalMode) {
-						// Use local cart service for quantity updates
-						await updateLocalCartQuantity(
-							localCart,
-							currentOrderLineSignal.value!.id, // This will be the productVariantId for local cart
-							currentOrderLineSignal.value!.value
-						);
-					} else {
-						// Use Vendure order mutations for checkout mode
-						appState.activeOrder = await adjustOrderLineMutation(
-							currentOrderLineSignal.value!.id,
-							currentOrderLineSignal.value!.value
-						);
-					}
+					// Always use local cart service for quantity updates
+					await updateLocalCartQuantity(
+						localCart,
+						currentOrderLineSignal.value!.id, // This will be the productVariantId for local cart
+						currentOrderLineSignal.value!.value
+					);
 					// await cartOpTimer.end$(); // Track successful update - DISABLED
 				} catch (_error) {
 					// console.error('Failed to update cart quantity:', error);
@@ -230,7 +220,6 @@ export default component$<{
 									<div class="text-right">
 										<Price
 											priceWithTax={linePrice}
-											currencyCode={currencyCode}
 										/>
 									</div>
 								</div>
@@ -366,7 +355,6 @@ export default component$<{
 									<div class="text-right">
 										<Price
 											priceWithTax={linePriceWithTax}
-											currencyCode={currencyCode}
 										/>
 									</div>
 								</div>
@@ -411,21 +399,21 @@ export default component$<{
 											aria-label="Remove item"
 											class="p-1 rounded-full text-red-600 hover:text-red-800 hover:bg-red-50 transition-colors cursor-pointer"
 											onClick$={async () => {
-												// const removeTimer = await performanceTracking.trackCartOperation$('remove-item'); // DISABLED
-												try {
-													// Use local cart service for removal
-													await removeFromLocalCart(localCart, line.productVariant.id);
-				
-													// Close cart popup if it becomes empty
-													if (localCart.localCart.items.length === 0) {
-														appState.showCart = false;
-													}
-													// await removeTimer.end$(); // Track successful removal - DISABLED
-												} catch (error) {
-													console.error('Failed to remove item from cart:', error);
-													// await removeTimer.end$(); // Track failed removal - DISABLED
-												}
-											}}
+														// const removeTimer = await performanceTracking.trackCartOperation$('remove-item'); // DISABLED
+														try {
+															await removeFromLocalCart(localCart, line.productVariant.id);
+
+															// Close cart popup if it becomes empty
+															if (localCart.localCart.items.length === 0) {
+																appState.showCart = false;
+															}
+
+															// await removeTimer.end$(); // Track successful removal - DISABLED
+														} catch (error) {
+															console.error('Failed to remove item from cart:', error);
+															// await removeTimer.end$(); // Track failed removal - DISABLED
+														}
+													}}
 										>
 											<TrashIcon />
 										</button>

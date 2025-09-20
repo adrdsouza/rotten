@@ -7,26 +7,34 @@ import Alert from '../alert/Alert';
 import { useLocalCart } from '~/contexts/CartContext';
 
 export default component$<{
+	order?: any; // Order data for order confirmation
 	readonly?: boolean;
 	localCart?: any; // Local cart data for Local Cart Mode
-}>(({ readonly = false, localCart }) => {
+}>(({ order, readonly = false, localCart }) => {
 	const appState = useContext(APP_STATE);
 	const localCartContext = useLocalCart();
 	const couponCodeSignal = useSignal('');
 	const errorSignal = useSignal('');
+
+	// Use passed order prop if available, otherwise fall back to appState.activeOrder
+	const activeOrder = useComputed$(() => order || appState.activeOrder);
 
 	const activeCouponCode = useComputed$(() => {
 		return localCartContext.appliedCoupon?.code;
 	});
 
 	const subtotal = useComputed$(() => {
-		return localCart.localCart?.subTotal || localCart.subTotal || 0;
+		return localCart?.localCart?.subTotal || localCart?.subTotal || activeOrder.value?.subTotal || 0;
 	});
 
 	const orderTotalAfterDiscount = useComputed$(() => {
 		let total = subtotal.value;
 		if (localCartContext.appliedCoupon) {
 			total -= localCartContext.appliedCoupon.discountAmount;
+		}
+		// Fallback to order calculation for confirmation pages
+		if (total === 0 && activeOrder.value) {
+			total = (activeOrder.value.totalWithTax || 0) - (activeOrder.value.shippingWithTax || 0);
 		}
 		return total;
 	});
@@ -44,15 +52,25 @@ export default component$<{
 			}
 			return 2000;
 		}
-		return 0;
+		// Fallback to active order shipping for confirmation pages
+		return activeOrder.value?.shippingWithTax || 0;
 	});
 
 	const total = useComputed$(() => {
-		return orderTotalAfterDiscount.value + shipping.value;
+		const localTotal = orderTotalAfterDiscount.value + shipping.value;
+		// Fallback to active order total for confirmation pages
+		return localTotal || activeOrder.value?.totalWithTax || 0;
 	});
 
 	const displayDiscount = useComputed$(() => {
-		return localCartContext.appliedCoupon?.discountAmount || 0;
+		if (localCartContext.appliedCoupon) {
+			return localCartContext.appliedCoupon.discountAmount;
+		}
+		// Fallback to active order discount for confirmation pages
+		if (activeOrder.value?.discounts && activeOrder.value.discounts.length > 0) {
+			return activeOrder.value.discounts[0].amountWithTax || 0;
+		}
+		return 0;
 	});
 
 	const handleInput$ = $((_event: Event, element: HTMLInputElement) => {
@@ -157,12 +175,12 @@ export default component$<{
 		<dl class="border-t mt-6 border-gray-200 py-6 space-y-4">
       <div class="flex items-center justify-between">
         <dt>{`Subtotal`}</dt>
-        <dd class="font-medium text-gray-900">{formatPrice(subtotal.value, localCart.currencyCode || 'USD')}</dd>
+        <dd class="font-medium text-gray-900">{formatPrice(subtotal.value, 'USD')}</dd>
       </div>
 
       <div class="flex items-center justify-between">
         <dt>{`Shipping fee`}</dt>
-        <dd class="font-medium text-gray-900">{formatPrice(shipping.value, localCart.currencyCode || 'USD')}</dd>
+        <dd class="font-medium text-gray-900">{formatPrice(shipping.value, 'USD')}</dd>
       </div>
 
       {!readonly && (
@@ -182,8 +200,8 @@ export default component$<{
                 </div>
                 <dd class="font-medium text-green-600 whitespace-nowrap">
                   {displayDiscount.value > 0
-                    ? '-' + formatPrice(displayDiscount.value, localCart.currencyCode || 'USD').substring(1)
-                    : '-' + formatPrice(0, localCart.currencyCode || 'USD').substring(1)}
+                    ? '-' + formatPrice(displayDiscount.value, 'USD').substring(1)
+                    : '-' + formatPrice(0, 'USD').substring(1)}
                 </dd>
               </div>
             ) : (
@@ -214,8 +232,8 @@ export default component$<{
                 </div>
                 <dd class="font-medium text-primary-600 whitespace-nowrap">
                   {displayDiscount.value > 0
-                    ? '-' + formatPrice(displayDiscount.value, localCart.currencyCode || 'USD').substring(1)
-                    : '-' + formatPrice(0, localCart.currencyCode || 'USD').substring(1)}
+                    ? '-' + formatPrice(displayDiscount.value, 'USD').substring(1)
+                    : '-' + formatPrice(0, 'USD').substring(1)}
                 </dd>
               </div>
             )}
@@ -229,7 +247,7 @@ export default component$<{
       )}
 			<div class="flex items-center justify-between border-t border-gray-200 pt-6">
 				<dt class="font-medium">{`Total`}</dt>
-				<dd class="font-medium text-gray-900">{formatPrice(total.value, localCart.currencyCode || 'USD')}</dd>
+				<dd class="font-medium text-gray-900">{formatPrice(total.value, 'USD')}</dd>
 			</div>
 		</dl>
 	);

@@ -10,7 +10,7 @@ type Props = {
 };
 
 export default component$<Props>(({ field, forcedClass, order }) => {
-	const currencyCode = order?.currencyCode || 'USD';
+	const currencyCode = 'USD'; // Hardcode to USD
 	const priceWithTax = order?.[field] || 0;
 	return <div class={forcedClass}>{formatPrice(priceWithTax, currencyCode)}</div>;
 });

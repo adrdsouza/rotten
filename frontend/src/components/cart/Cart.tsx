@@ -382,15 +382,13 @@ export default component$(() => {
 												orderTotalAfterDiscount={localCart.isLocalMode 
 													? localCart.localCart.subTotal - (localCart.appliedCoupon?.discountAmount || 0)
 													: appState.activeOrder?.subTotalWithTax || 0}
-												currencyCode={localCart.isLocalMode 
-													? localCart.localCart.currencyCode 
-													: appState.activeOrder?.currencyCode || 'USD'}
+												currencyCode={'USD'}
 											/>
 											<div class="flex justify-between text-lg font-semibold text-slate-900 mb-2">
 												<p>Subtotal</p>
 												<p>
 													{localCart.isLocalMode ? (
-														formatPrice(localCart.localCart.subTotal, localCart.localCart.currencyCode)
+														formatPrice(localCart.localCart.subTotal, 'USD')
 													) : (
 														<CartPrice field={'subTotalWithTax'} order={appState.activeOrder} />
 													)}
@@ -477,11 +475,9 @@ export default component$(() => {
 														<p class="text-slate-700">{`Shipping`}: {shippingState.selectedMethod.name}</p>
 														<p class="text-slate-900">
 															{formatPrice(
-																shippingState.selectedMethod.priceWithTax, 
-																localCart.isLocalMode 
-																	? localCart.localCart.currencyCode 
-																	: appState.activeOrder?.currencyCode || 'USD'
-															)}
+															shippingState.selectedMethod.priceWithTax, 
+															'USD'
+														)}
 														</p>
 													</div>
 												) : appState.shippingAddress.countryCode ? (
@@ -503,7 +499,7 @@ export default component$(() => {
 														{localCart.isLocalMode ? (
 															formatPrice(
 																localCart.localCart.subTotal + shippingState.selectedMethod.priceWithTax, 
-																localCart.localCart.currencyCode
+																'USD'
 															)
 														) : (
 															<CartPrice field={'totalWithTax'} order={appState.activeOrder} />
