@@ -29,6 +29,7 @@ export const orderConfirmationHandler = new EmailEventListener('order-confirmati
             'lines.productVariant.product.translations',
             'shippingLines',
             'shippingLines.shippingMethod',
+            'surcharges',
         ]);
 
         if (order) {
