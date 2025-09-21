@@ -5,9 +5,15 @@ import {
 	createPreOrderStripePaymentIntentMutation,
 	linkPaymentIntentToOrderMutation
 } from '~/providers/shop/checkout/checkout';
+import { 
+	settleStripePaymentMutation, 
+	isSuccessfulDuplicateError, 
+	requiresUserAction, 
+	requiresPageRefresh 
+} from '~/providers/shop/checkout/settlement';
 import { useLocalCart } from '~/contexts/CartContext';
 
-import XCircleIcon from '../icons/XCircleIcon';
+import PaymentErrorDisplay, { extractErrorDisplayInfo } from './PaymentErrorDisplay';
 
 let _stripe: Promise<Stripe | null>;
 function getStripe(publishableKey: string) {
@@ -64,8 +70,10 @@ export default component$(() => {
 		resolvedStripe: noSerialize({} as Stripe),
 		stripeElements: noSerialize({} as StripeElements),
 		error: '',
+		errorInfo: noSerialize(null as any),
 		isProcessing: false,
 		debugInfo: 'Initializing...',
+		retryCount: 0,
 	});
 
 	// Expose both submit and payment confirmation functions to window for checkout flow
@@ -99,10 +107,12 @@ export default component$(() => {
 
 				try {
 					store.isProcessing = true;
+					store.error = 'Processing payment...'; // Provide immediate user feedback
 					console.log('[StripePayment] Confirming payment for order:', order.code);
 
 					// Link our pre-existing PaymentIntent to the newly created order
 					try {
+						store.error = 'Linking payment to order...';
 						console.log('[StripePayment] Linking PaymentIntent', store.paymentIntentId, 'to order', order.id);
 						await linkPaymentIntentToOrderMutation(
 							store.paymentIntentId,
@@ -117,6 +127,12 @@ export default component$(() => {
 						throw new Error('Failed to link payment to order');
 					}
 
+<<<<<<< HEAD
+					// Elements already submitted earlier, now just confirm payment with Stripe
+					store.error = 'Confirming payment with Stripe...';
+					console.log('[StripePayment] Confirming payment...');
+					const { error } = await store.resolvedStripe?.confirmPayment({
+=======
 					// Persistent logging function
 					const logAndStore = (message: string, data?: any) => {
 						console.log(message, data);
@@ -144,6 +160,7 @@ export default component$(() => {
 					console.log('[StripePayment] Elements instance:', store.stripeElements);
 
 					const confirmResult = await store.resolvedStripe?.confirmPayment({
+>>>>>>> 5a1e37c1313ea95d1a27f726d7a0aad98764c920
 						elements: store.stripeElements,
 						clientSecret: store.clientSecret,
 						redirect: 'if_required', // Prevent automatic redirect so we can settle first
@@ -164,6 +181,69 @@ export default component$(() => {
 						throw new Error(error?.message || 'Payment confirmation failed');
 					}
 
+<<<<<<< HEAD
+					// Payment successful - now settle payment using enhanced settlement service
+					console.log('[StripePayment] Stripe payment confirmed successfully - settling payment...');
+					
+					try {
+						// Clear any previous error messages before settlement
+						store.error = 'Finalizing payment...';
+						
+						// Validate that we have a PaymentIntent ID
+						if (!store.paymentIntentId) {
+							throw new Error('PaymentIntent ID is missing - cannot settle payment');
+						}
+						
+						// Use enhanced settlement with retry logic and error handling
+						const settlementSuccess = await settleStripePaymentMutation(store.paymentIntentId, {
+							maxRetries: 3,
+							retryDelayMs: 2000,
+							onRetry: (attempt, error) => {
+								console.log(`[StripePayment] Settlement retry ${attempt}/${3}:`, error);
+								store.error = `Finalizing payment (attempt ${attempt}/3)...`;
+							}
+						});
+						
+						if (settlementSuccess) {
+							console.log('[StripePayment] Payment successfully settled - PaymentIntent:', store.paymentIntentId);
+							store.error = ''; // Clear any retry messages
+							store.isProcessing = false; // Clear processing state
+							return { success: true };
+						} else {
+							throw new Error('Settlement returned false - this should not happen');
+						}
+						
+					} catch (settlementError) {
+						console.error('[StripePayment] Payment settlement failed for PaymentIntent:', store.paymentIntentId, settlementError);
+						
+						// Check if this is actually a successful duplicate
+						if (isSuccessfulDuplicateError(settlementError)) {
+							console.log('[StripePayment] Duplicate settlement detected - treating as success for PaymentIntent:', store.paymentIntentId);
+							store.error = ''; // Clear error message for successful duplicate
+							store.isProcessing = false; // Clear processing state
+							return { success: true };
+						}
+						
+						// Check if user action is required
+						if (requiresUserAction(settlementError)) {
+							const actionMessage = 'Payment requires additional verification. Please complete the payment process.';
+							console.warn('[StripePayment] User action required:', actionMessage);
+							throw new Error(actionMessage);
+						}
+						
+						// Check if page refresh is needed
+						if (requiresPageRefresh(settlementError)) {
+							const refreshMessage = 'Please refresh the page and try again.';
+							console.warn('[StripePayment] Page refresh required:', refreshMessage);
+							throw new Error(refreshMessage);
+						}
+						
+						// Use enhanced error message for other failures
+						const errorMessage = settlementError instanceof Error ? settlementError.message : 'Payment settlement failed';
+						const finalMessage = `Payment processed but settlement failed: ${errorMessage}. Please contact support if this persists.`;
+						console.error('[StripePayment] Final settlement error:', finalMessage);
+						throw new Error(finalMessage);
+=======
 					// Verify Stripe payment actually succeeded before telling backend
 					const { paymentIntent } = await store.resolvedStripe?.retrievePaymentIntent(store.clientSecret) || {};
 					if (paymentIntent && paymentIntent.status !== 'succeeded') {
@@ -223,12 +303,18 @@ export default component$(() => {
 					} catch (addPaymentError) {
 						logAndStore('[StripePayment] Failed to add payment to order:', addPaymentError);
 						throw new Error('Payment processed but failed to complete order. Please contact support.');
+>>>>>>> 5a1e37c1313ea95d1a27f726d7a0aad98764c920
 					}
 
 				} catch (error) {
 					console.error('[StripePayment] Payment confirmation error:', error);
-					store.error = error instanceof Error ? error.message : 'Payment failed';
+					
+					// Extract enhanced error information
+					const errorInfo = extractErrorDisplayInfo(error);
+					store.error = errorInfo.message;
+					store.errorInfo = noSerialize(errorInfo);
 					store.isProcessing = false;
+					
 					throw error;
 				}
 			};
@@ -284,9 +370,10 @@ export default component$(() => {
 			store.error = '';
 
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-			store.error = `Failed to initialize payment: ${errorMessage}`;
-			store.debugInfo = `Error: ${errorMessage}`;
+			const errorInfo = extractErrorDisplayInfo(error);
+			store.error = `Failed to initialize payment: ${errorInfo.message}`;
+			store.errorInfo = noSerialize(errorInfo);
+			store.debugInfo = `Error: ${errorInfo.message}`;
 			return;
 		}
 
@@ -353,10 +440,13 @@ export default component$(() => {
 
 				paymentElement.on('change', (event: any) => {
 					if (event.error) {
-						store.error = event.error.message || 'Payment validation error';
-						store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
+						const errorInfo = extractErrorDisplayInfo(event.error);
+						store.error = errorInfo.message;
+						store.errorInfo = noSerialize(errorInfo);
+						store.debugInfo = `Payment error: ${errorInfo.message}`;
 					} else {
 						store.error = '';
+						store.errorInfo = noSerialize(null);
 						store.debugInfo = 'Payment form is valid and ready!';
 					}
 				});
@@ -379,18 +469,25 @@ export default component$(() => {
 			<div class="payment-tabs-container relative">
 				<div id="payment-form" class="mb-8 w-full max-w-full"></div>
 			</div>
-			{store.error !== '' && (
-				<div class="rounded-md bg-red-50 p-4 mb-8">
-					<div class="flex">
-						<div class="flex-shrink-0">
-							<XCircleIcon />
-						</div>
-						<div class="ml-3">
-							<h3 class="text-sm font-medium text-red-800">We ran into a problem with payment!</h3>
-							<p class="text-sm text-red-700 mt-2">{store.error}</p>
-						</div>
-					</div>
-				</div>
+			{store.error !== '' && store.errorInfo && (
+				<PaymentErrorDisplay
+					error={store.error}
+					errorCode={store.errorInfo.errorCode}
+					isRetryable={store.errorInfo.isRetryable}
+					requiresUserAction={store.errorInfo.requiresUserAction}
+					requiresPageRefresh={store.errorInfo.requiresPageRefresh}
+					onRetry$={() => {
+						// Clear error and retry initialization
+						store.error = '';
+						store.errorInfo = noSerialize(null);
+						store.retryCount++;
+						// Trigger re-initialization by clearing client secret
+						store.clientSecret = '';
+					}}
+					onRefresh$={() => {
+						window.location.reload();
+					}}
+				/>
 			)}
 
 			{/* Button removed - payment is handled by the main checkout flow */}

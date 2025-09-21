@@ -1,0 +1,23 @@
+mutation CreatePreOrderStripePaymentIntent($estimatedTotal: Float!, $currency: String!) {
+  createPreOrderStripePaymentIntent(estimatedTotal: $estimatedTotal, currency: $currency)
+}
+
+mutation LinkPaymentIntentToOrder(
+  $paymentIntentId: String!,
+  $orderId: String!,
+  $orderCode: String!,
+  $finalTotal: Float!,
+  $customerEmail: String!
+) {
+  linkPaymentIntentToOrder(
+    paymentIntentId: $paymentIntentId,
+    orderId: $orderId,
+    orderCode: $orderCode,
+    finalTotal: $finalTotal,
+    customerEmail: $customerEmail
+  )
+}
+
+mutation SettleStripePayment($paymentIntentId: String!) {
+  settleStripePayment(paymentIntentId: $paymentIntentId)
+}

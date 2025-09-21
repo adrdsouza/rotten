@@ -1,0 +1,11 @@
+query GetPaymentIntentStatus($paymentIntentId: String!) {
+  getPaymentIntentStatus(paymentIntentId: $paymentIntentId)
+}
+
+query InvestigatePayment($paymentIntentId: String!) {
+  investigatePayment(paymentIntentId: $paymentIntentId)
+}
+
+query CalculateEstimatedTotal($cartItems: [PreOrderCartItemInput!]!) {
+  calculateEstimatedTotal(cartItems: $cartItems)
+}

@@ -37,11 +37,24 @@ export class AddPerformanceIndexes1753611000000 implements MigrationInterface {
             WHERE enabled = true
         `);
 
+        // 5. CRITICAL: Index for order active status (missing in original migration)
+        // This index is crucial for activeOrder query performance and behavior
+        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_order_active ON "order"(active)`);
+
+        // 6. Index for order state filtering (helps with order management)
+        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_order_state ON "order"(state)`);
+
+        // 7. Index for order creation date sorting
+        await queryRunner.query(`CREATE INDEX IF NOT EXISTS idx_order_created_at ON "order"("createdAt")`);
+
         console.log('✅ Performance indexes created successfully');
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
         // Drop indexes in reverse order
+        await queryRunner.query(`DROP INDEX IF EXISTS idx_order_created_at`);
+        await queryRunner.query(`DROP INDEX IF EXISTS idx_order_state`);
+        await queryRunner.query(`DROP INDEX IF EXISTS idx_order_active`);
         await queryRunner.query(`DROP INDEX IF EXISTS idx_product_variant_enabled`);
         await queryRunner.query(`DROP INDEX IF EXISTS idx_product_variant_sku`);
         await queryRunner.query(`DROP INDEX IF EXISTS idx_stock_level_location_variant`);

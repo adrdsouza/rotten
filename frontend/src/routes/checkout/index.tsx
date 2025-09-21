@@ -236,8 +236,64 @@ const CheckoutContent = component$(() => {
             console.warn('Could not set preferred shipping method. Proceeding with default.');
           }
         }
+<<<<<<< HEAD
+        
+        const latestOrder = await getActiveOrderQuery();
+        if (latestOrder && latestOrder.id) {
+          appState.activeOrder = latestOrder;
+          if (latestOrder.state === 'ArrangingPayment') {
+            if (selectedPaymentMethod.value === 'stripe' && stripeTriggerSignal.value === 0) {
+              stripeTriggerSignal.value++;
+              if (typeof window !== 'undefined' && (window as any).confirmStripePreOrderPayment) {
+                try {
+                  await (window as any).confirmStripePreOrderPayment(appState.activeOrder);
+                } catch (paymentError) {
+                  console.error('[Checkout] Payment error:', paymentError);
+                  
+                  // Extract enhanced error information
+                  const errorMessage = paymentError instanceof Error ? paymentError.message : 'Unknown error';
+                  
+                  // Check for specific error types that need special handling
+                  if (errorMessage.includes('refresh')) {
+                    state.error = `${errorMessage} The page will refresh automatically.`;
+                    setTimeout(() => window.location.reload(), 3000);
+                  } else if (errorMessage.includes('verification') || errorMessage.includes('action required')) {
+                    state.error = `${errorMessage} Please complete any required steps and try again.`;
+                  } else {
+                    state.error = `Payment failed: ${errorMessage}`;
+                  }
+                  
+                  showProcessingModal.value = false;
+                  isOrderProcessing.value = false;
+                }
+              } else {
+                state.error = 'Payment system not ready. Please refresh and try again.';
+                showProcessingModal.value = false;
+                isOrderProcessing.value = false;
+              }
+
+              if (appState.activeOrder?.code) {
+                await prefetchOrderConfirmation(appState.activeOrder?.code);
+              }
+            }
+          } else {
+            state.error = 'Order is not ready for payment. Please try again.';
+            showProcessingModal.value = false;
+            isOrderProcessing.value = false;
+          }
+        } else {
+          state.error = 'Order could not be found. Please restart the checkout process.';
+          showProcessingModal.value = false;
+          isOrderProcessing.value = false;
+        }
+      } catch (_waitError) {
+        state.error = 'Address submission took too long or failed. Please try again.';
+        showProcessingModal.value = false;
+        isOrderProcessing.value = false;
+=======
       } catch (shippingError) {
         console.error('Error setting shipping method:', shippingError);
+>>>>>>> 5a1e37c1313ea95d1a27f726d7a0aad98764c920
       }
       
       if (appState.activeOrder && appState.activeOrder.state !== 'ArrangingPayment') {
