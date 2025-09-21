@@ -12,6 +12,10 @@ import {
     ChannelService,
     Order,
     LanguageCode,
+    PaymentMethodHandler,
+    CreatePaymentResult,
+    SettlePaymentResult,
+    CreateRefundResult,
 } from '@vendure/core';
 import { Controller, Post, Body, Headers, Res, HttpStatus } from '@nestjs/common';
 import { Response } from 'express';
@@ -56,8 +60,6 @@ export class PendingStripePayment {
 /**
  * GraphQL Types
  */
-
-// Input Types
 @InputType()
 export class PreOrderCartItemInput {
     @Field()
@@ -70,7 +72,6 @@ export class PreOrderCartItemInput {
     unitPrice: number;
 }
 
-// Output Types
 @ObjectType()
 export class PaymentIntentResult {
     @Field()
@@ -86,60 +87,171 @@ export class PaymentIntentResult {
     currency: string;
 }
 
-@ObjectType()
-export class SettlementResult {
-    @Field()
-    success: boolean;
+/**
+ * Stripe Pre-Order Payment Method Handler
+ * Handles standard addPaymentToOrder calls for linked PaymentIntents
+ */
+export const stripePreOrderPaymentHandler = new PaymentMethodHandler({
+    code: 'stripe',
+    description: [
+        {
+            languageCode: LanguageCode.en,
+            value: 'Stripe Payment'
+        }
+    ],
+    args: {},
 
-    @Field()
-    orderId: string;
+    /** Called when a payment is added to an order */
+    createPayment: async (ctx, order, amount, args, metadata): Promise<CreatePaymentResult> => {
+        try {
+            Logger.info(`[STRIPE_HANDLER] Creating payment for order ${order.code}, amount: ${amount}`, 'StripePreOrderPlugin');
+            Logger.info(`[STRIPE_HANDLER] Received metadata: ${JSON.stringify(metadata)}`, 'StripePreOrderPlugin');
 
-    @Field()
-    orderCode: string;
+            // Extract PaymentIntent ID from metadata
+            // Handle both direct string and object with paymentIntentId property
+            let paymentIntentId: string;
+            
+            if (typeof metadata === 'string') {
+                paymentIntentId = metadata;
+            } else if (metadata && typeof metadata === 'object' && metadata.paymentIntentId) {
+                paymentIntentId = metadata.paymentIntentId;
+            } else {
+                Logger.error(`[STRIPE_HANDLER] No PaymentIntent ID provided in metadata: ${JSON.stringify(metadata)}`, 'StripePreOrderPlugin');
+                return {
+                    amount,
+                    state: 'Error' as any,
+                    errorMessage: 'PaymentIntent ID is required',
+                };
+            }
 
-    @Field(() => String, { nullable: true })
-    paymentId?: string;
+            if (!paymentIntentId || typeof paymentIntentId !== 'string') {
+                Logger.error(`[STRIPE_HANDLER] Invalid PaymentIntent ID: ${paymentIntentId}`, 'StripePreOrderPlugin');
+                return {
+                    amount,
+                    state: 'Declined' as any,
+                    errorMessage: 'PaymentIntent ID must be a valid string',
+                };
+            }
 
-    @Field(() => String, { nullable: true })
-    error?: string;
-}
+            Logger.info(`[STRIPE_HANDLER] Processing PaymentIntent: ${paymentIntentId}`, 'StripePreOrderPlugin');
 
-// Enum for payment status
-enum PaymentStatus {
-    PENDING = 'pending',
-    SETTLED = 'settled',
-    FAILED = 'failed',
-    NOT_FOUND = 'not_found'
-}
+            // Initialize Stripe
+            const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+            if (!stripeSecretKey) {
+                Logger.error(`[STRIPE_HANDLER] Stripe secret key not configured`, 'StripePreOrderPlugin');
+                return {
+                    amount,
+                    state: 'Declined' as any,
+                    errorMessage: 'Payment processing not available',
+                };
+            }
 
-registerEnumType(PaymentStatus, {
-    name: 'PaymentStatus',
-    description: 'Status of a Stripe payment'
+            const stripe = new Stripe(stripeSecretKey, { apiVersion: '2023-08-16' });
+
+            // Verify PaymentIntent with Stripe
+            const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {
+                expand: ['charges.data.payment_method_details']
+            });
+
+            if (paymentIntent.status !== 'succeeded') {
+                Logger.error(`[STRIPE_HANDLER] PaymentIntent ${paymentIntentId} not succeeded: ${paymentIntent.status}`, 'StripePreOrderPlugin');
+                return {
+                    amount,
+                    state: 'Declined' as any,
+                    errorMessage: `Payment not completed. Status: ${paymentIntent.status}`,
+                };
+            }
+
+            // Verify amount matches (convert to cents for comparison)
+            const expectedAmountInCents = Math.round(amount);
+            const actualAmountInCents = paymentIntent.amount;
+
+            if (Math.abs(expectedAmountInCents - actualAmountInCents) > 1) { // Allow 1 cent tolerance
+                Logger.error(`[STRIPE_HANDLER] Amount mismatch - Expected: ${expectedAmountInCents}, Actual: ${actualAmountInCents}`, 'StripePreOrderPlugin');
+                return {
+                    amount,
+                    state: 'Declined' as any,
+                    errorMessage: 'Payment amount does not match order total',
+                };
+            }
+
+            Logger.info(`[STRIPE_HANDLER] Payment verified successfully for ${paymentIntentId}`, 'StripePreOrderPlugin');
+
+            // Return successful payment result
+            return {
+                amount: actualAmountInCents,
+                state: 'Settled' as any,
+                transactionId: paymentIntentId,
+                metadata: {
+                    stripePaymentIntentId: paymentIntentId,
+                    stripePaymentStatus: paymentIntent.status,
+                    stripeAmount: actualAmountInCents,
+                    stripeCurrency: paymentIntent.currency,
+                    public: {
+                         paymentMethod: 'Stripe',
+                         transactionId: paymentIntentId,
+                     }
+                },
+            };
+
+        } catch (error) {
+            Logger.error(`[STRIPE_HANDLER] Error processing payment: ${error}`, 'StripePreOrderPlugin');
+            return {
+                amount,
+                state: 'Declined' as any,
+                errorMessage: 'Payment processing failed. Please try again.',
+            };
+        }
+    },
+
+    /** Called when a payment needs to be settled (usually automatic for Stripe) */
+    settlePayment: async (ctx, order, payment): Promise<SettlePaymentResult> => {
+        // For Stripe, payments are already settled when created
+        return { success: true };
+    },
+
+    /** Called when a refund is requested */
+    createRefund: async (ctx, input, amount, order, payment): Promise<CreateRefundResult> => {
+        try {
+            const paymentIntentId = payment.transactionId;
+            if (!paymentIntentId) {
+                return {
+                    state: 'Failed' as any,
+                };
+            }
+
+            const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+            if (!stripeSecretKey) {
+                return {
+                    state: 'Failed' as any,
+                };
+            }
+
+            const stripe = new Stripe(stripeSecretKey, { apiVersion: '2023-08-16' });
+
+            // Create refund in Stripe
+            const refund = await stripe.refunds.create({
+                payment_intent: paymentIntentId,
+                amount: amount,
+                reason: 'requested_by_customer',
+            });
+
+            return {
+                state: 'Settled' as any,
+                transactionId: refund.id,
+            };
+
+        } catch (error) {
+            Logger.error(`[STRIPE_HANDLER] Error creating refund: ${error}`, 'StripePreOrderPlugin');
+            return {
+                state: 'Failed' as any,
+            };
+        }
+    },
 });
 
-@ObjectType()
-export class PaymentStatusResult {
-    @Field(() => PaymentStatus)
-    status: PaymentStatus;
-
-    @Field()
-    paymentIntentId: string;
-
-    @Field({ nullable: true })
-    orderCode?: string;
-
-    @Field({ nullable: true })
-    amount?: number;
-
-    @Field({ nullable: true })
-    createdAt?: Date;
-
-    @Field({ nullable: true })
-    settledAt?: Date;
-}
-
 /**
- * Enhanced GraphQL resolver with proper types and webhook security
+ * GraphQL resolver for Stripe pre-order operations
  */
 @Resolver()
 export class StripePreOrderResolver {
@@ -165,25 +277,26 @@ export class StripePreOrderResolver {
     }
 
     /**
-     * Create a PaymentIntent before order creation - returns detailed result
+     * Create a PaymentIntent before order creation
      */
     @Mutation(() => PaymentIntentResult)
     async createPreOrderStripePaymentIntent(
         @Args('estimatedTotal') estimatedTotal: number,
         @Args('currency', { defaultValue: 'usd' }) currency: string
     ): Promise<PaymentIntentResult> {
+        Logger.info(`[STRIPE_RESOLVER] createPreOrderStripePaymentIntent called with estimatedTotal: ${estimatedTotal}, currency: ${currency}`, 'StripePreOrderPlugin');
+
         if (!this.stripe) {
-            throw new Error('Stripe is not initialized');
+            Logger.error('[STRIPE_RESOLVER] Stripe is not initialized - check STRIPE_SECRET_KEY environment variable', 'StripePreOrderPlugin');
+            throw new Error('Stripe is not initialized - check STRIPE_SECRET_KEY environment variable');
         }
 
         try {
-            Logger.info(`Creating pre-order PaymentIntent for estimated total: ${estimatedTotal}`, 'StripePreOrderPlugin');
+            Logger.info(`[STRIPE_RESOLVER] Creating pre-order PaymentIntent for estimated total: ${estimatedTotal}`, 'StripePreOrderPlugin');
 
             const paymentIntent = await this.stripe.paymentIntents.create({
                 amount: estimatedTotal,
                 currency: currency,
-                // BEST PRACTICE: Add idempotency key based on session/cart
-                // idempotency_key: `pre_order_${sessionId}_${Date.now()}`,
                 metadata: {
                     source: 'pre_order_validation',
                     created_at: new Date().toISOString(),
@@ -192,7 +305,7 @@ export class StripePreOrderResolver {
             });
 
             Logger.info(`Pre-order PaymentIntent created: ${paymentIntent.id}`, 'StripePreOrderPlugin');
-            
+
             return {
                 clientSecret: paymentIntent.client_secret as string,
                 paymentIntentId: paymentIntent.id,
@@ -201,8 +314,9 @@ export class StripePreOrderResolver {
             };
 
         } catch (error) {
-            Logger.error(`Failed to create pre-order PaymentIntent: ${error}`, 'StripePreOrderPlugin');
-            throw new Error('Failed to initialize payment. Please try again.');
+            Logger.error(`[STRIPE_RESOLVER] Failed to create pre-order PaymentIntent: ${error}`, 'StripePreOrderPlugin');
+            Logger.error(`[STRIPE_RESOLVER] Error details: ${JSON.stringify(error)}`, 'StripePreOrderPlugin');
+            throw new Error(`Failed to initialize payment: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
@@ -224,7 +338,7 @@ export class StripePreOrderResolver {
         try {
             Logger.info(`Linking PaymentIntent ${paymentIntentId} to order ${orderCode}`, 'StripePreOrderPlugin');
 
-            // 1. Update PaymentIntent with final order details
+            // Update PaymentIntent with final order details
             await this.stripe.paymentIntents.update(paymentIntentId, {
                 amount: finalTotal,
                 metadata: {
@@ -237,7 +351,7 @@ export class StripePreOrderResolver {
                 }
             });
 
-            // 2. Store pending payment (NO Vendure Payment record yet)
+            // Store pending payment (NO Vendure Payment record yet)
             await this.connection.getRepository(PendingStripePayment).save({
                 paymentIntentId,
                 orderId,
@@ -258,222 +372,28 @@ export class StripePreOrderResolver {
     }
 
     /**
-     * Settle payment after Stripe confirmation - returns detailed result
-     */
-    @Mutation(() => SettlementResult)
-    async settleStripePayment(
-        @Args('paymentIntentId') paymentIntentId: string,
-        @Context() ctx: RequestContext
-    ): Promise<SettlementResult> {
-        if (!this.stripe) {
-            throw new Error('Stripe is not initialized');
-        }
-
-        try {
-            Logger.info(`Starting settlement for PaymentIntent ${paymentIntentId}`, 'StripePreOrderPlugin');
-
-            // 1. BEST PRACTICE: Verify with Stripe API first
-            const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
-            
-            if (paymentIntent.status !== 'succeeded') {
-                return {
-                    success: false,
-                    orderId: '',
-                    orderCode: '',
-                    error: `Payment not completed. Status: ${paymentIntent.status}`
-                };
-            }
-
-            // 2. Get pending payment record
-            const pendingPayment = await this.connection.getRepository(PendingStripePayment).findOne({
-                where: { paymentIntentId, status: 'pending' }
-            });
-
-            if (!pendingPayment) {
-                return {
-                    success: false,
-                    orderId: '',
-                    orderCode: '',
-                    error: 'No pending payment found for this PaymentIntent'
-                };
-            }
-
-            // 3. Verify amounts match (security best practice)
-            if (paymentIntent.amount_received !== pendingPayment.amount) {
-                Logger.error(`Amount mismatch: PaymentIntent(${paymentIntent.amount_received}) vs Pending(${pendingPayment.amount})`);
-                throw new Error('Payment amount verification failed');
-            }
-
-            // 4. Create Vendure Payment record (triggers settlement)
-            const payment = await this.createPaymentRecord(
-                paymentIntentId,
-                pendingPayment.orderId,
-                pendingPayment.orderCode,
-                paymentIntent.amount_received || paymentIntent.amount
-            );
-
-            // 5. Mark as settled
-            await this.connection.getRepository(PendingStripePayment).update(
-                { id: pendingPayment.id },
-                { 
-                    status: 'settled',
-                    settledAt: new Date()
-                }
-            );
-
-            Logger.info(`Payment ${paymentIntentId} settled successfully`, 'StripePreOrderPlugin');
-            
-            return {
-                success: true,
-                orderId: pendingPayment.orderId,
-                orderCode: pendingPayment.orderCode,
-                paymentId: payment?.id ? String(payment.id) : undefined
-            };
-
-        } catch (error) {
-            Logger.error(`Settlement failed: ${error}`, 'StripePreOrderPlugin');
-            
-            // Mark as failed
-            try {
-                await this.connection.getRepository(PendingStripePayment).update(
-                    { paymentIntentId, status: 'pending' },
-                    { status: 'failed' }
-                );
-            } catch (updateError) {
-                Logger.error(`Failed to update payment status: ${updateError}`, 'StripePreOrderPlugin');
-            }
-            
-            return {
-                success: false,
-                orderId: '',
-                orderCode: '',
-                error: 'Payment settlement failed. Please contact support if payment was deducted.'
-            };
-        }
-    }
-
-    /**
-     * Enhanced payment status query with full details
-     */
-    @Query(() => PaymentStatusResult)
-    async getPaymentStatus(
-        @Args('paymentIntentId') paymentIntentId: string
-    ): Promise<PaymentStatusResult> {
-        const pendingPayment = await this.connection.getRepository(PendingStripePayment).findOne({
-            where: { paymentIntentId }
-        });
-
-        if (!pendingPayment) {
-            return {
-                status: PaymentStatus.NOT_FOUND,
-                paymentIntentId
-            };
-        }
-
-        return {
-            status: pendingPayment.status as PaymentStatus,
-            paymentIntentId,
-            orderCode: pendingPayment.orderCode,
-            amount: pendingPayment.amount,
-            createdAt: pendingPayment.createdAt,
-            settledAt: pendingPayment.settledAt
-        };
-    }
-
-    /**
-     * Calculate estimated total with proper typing
+     * Calculate estimated total for cart items
      */
     @Query(() => Number)
     async calculateEstimatedTotal(
         @Args('cartItems', { type: () => [PreOrderCartItemInput] }) cartItems: PreOrderCartItemInput[]
     ): Promise<number> {
-        try {
-            const subtotal = cartItems.reduce((total, item) => {
-                return total + (item.unitPrice * item.quantity);
-            }, 0);
+        const subtotal = cartItems.reduce((total, item) => {
+            return total + (item.unitPrice * item.quantity);
+        }, 0);
 
-            const estimatedTotal = Math.round(subtotal * 1.1);
-            Logger.info(`Calculated estimated total: ${estimatedTotal} from ${cartItems.length} items`, 'StripePreOrderPlugin');
-            return estimatedTotal;
-
-        } catch (error) {
-            Logger.error(`Failed to calculate estimated total: ${error}`, 'StripePreOrderPlugin');
-            throw new Error('Failed to calculate order total');
-        }
-    }
-
-    // Private helper methods remain the same...
-    private async createPaymentRecord(
-        paymentIntentId: string,
-        orderId: string,
-        orderCode: string,
-        amount: number
-    ): Promise<Payment | null> {
-        const outerCtx = await this.createContext('default-channel', 'en');
-        
-        return await this.connection.withTransaction(outerCtx, async (ctx) => {
-            const order = await this.orderService.findOneByCode(ctx, orderCode);
-            if (!order) {
-                throw new Error(`Unable to find order ${orderCode}`);
-            }
-
-            if (order.state !== 'ArrangingPayment') {
-                const transitionResult = await this.orderService.transitionToState(ctx, parseInt(orderId, 10), 'ArrangingPayment');
-                if (transitionResult && 'errorCode' in transitionResult) {
-                    throw new Error(`Failed to prepare order: ${transitionResult.message}`);
-                }
-            }
-
-            const paymentMethod = await this.getPaymentMethod(ctx);
-            const result = await this.orderService.addPaymentToOrder(ctx, parseInt(orderId, 10), {
-                method: paymentMethod.code,
-                metadata: {
-                    paymentIntentAmountReceived: amount,
-                    paymentIntentId: paymentIntentId,
-                },
-            });
-
-            if (!(result instanceof Order)) {
-                throw new Error(`Failed to add payment: ${(result as any).message}`);
-            }
-
-            Logger.info(`Payment record created for ${paymentIntentId}`, 'StripePreOrderPlugin');
-            return result.payments?.[result.payments.length - 1] || null;
-        });
-    }
-
-    private async createContext(channelToken: string, languageCode: string): Promise<RequestContext> {
-        return this.requestContextService.create({
-            apiType: 'admin',
-            channelOrToken: channelToken,
-            languageCode: languageCode as LanguageCode,
-        });
-    }
-
-    private async getPaymentMethod(ctx: RequestContext) {
-        const method = (await this.paymentMethodService.findAll(ctx)).items.find(m => m.handler.code === 'stripe');
-        if (!method) {
-            throw new Error('Could not find Stripe PaymentMethod');
-        }
-        return method;
+        // Add estimated tax/shipping (10% estimation)
+        const estimatedTotal = Math.round(subtotal * 1.1);
+        return Math.max(estimatedTotal, 100); // Minimum $1.00
     }
 }
 
 /**
- * Enhanced webhook controller with proper security
+ * Webhook controller for Stripe events
  */
 @Controller('stripe-preorder-webhook')
 export class StripePreOrderWebhookController {
-    private stripe: Stripe | null = null;
-
-    constructor(private connection: TransactionalConnection) {
-        const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-        if (stripeSecretKey) {
-            this.stripe = new Stripe(stripeSecretKey, {
-                apiVersion: '2023-08-16',
-            });
-        }
-    }
+    constructor(private connection: TransactionalConnection) { }
 
     @Post()
     async handleWebhook(
@@ -481,48 +401,13 @@ export class StripePreOrderWebhookController {
         @Headers('stripe-signature') signature: string,
         @Res() res: Response
     ) {
-        if (!this.stripe) {
-            res.status(HttpStatus.SERVICE_UNAVAILABLE).send('Stripe not initialized');
-            return;
-        }
-
-        const webhookSecret = process.env.STRIPE_PREORDER_WEBHOOK_SECRET;
-        if (!webhookSecret) {
-            Logger.error('STRIPE_PREORDER_WEBHOOK_SECRET not configured', 'StripePreOrderWebhook');
-            res.status(HttpStatus.INTERNAL_SERVER_ERROR).send('Webhook not configured');
-            return;
-        }
-
-        try {
-            // BEST PRACTICE: Verify webhook signature
-            const event = this.stripe.webhooks.constructEvent(body, signature, webhookSecret);
-            
-            Logger.info(`Processing webhook event: ${event.type}`, 'StripePreOrderWebhook');
-
-            // Handle relevant events for monitoring/logging
-            switch (event.type) {
-                case 'payment_intent.succeeded':
-                    const paymentIntent = event.data.object as Stripe.PaymentIntent;
-                    Logger.info(`PaymentIntent succeeded: ${paymentIntent.id}`, 'StripePreOrderWebhook');
-                    break;
-                case 'payment_intent.payment_failed':
-                    const failedPayment = event.data.object as Stripe.PaymentIntent;
-                    Logger.warn(`PaymentIntent failed: ${failedPayment.id}`, 'StripePreOrderWebhook');
-                    break;
-                default:
-                    Logger.debug(`Unhandled webhook event: ${event.type}`, 'StripePreOrderWebhook');
-            }
-
-            res.status(HttpStatus.OK).send('OK');
-        } catch (error) {
-            Logger.error(`Webhook verification failed: ${error}`, 'StripePreOrderWebhook');
-            res.status(HttpStatus.BAD_REQUEST).send('Invalid signature');
-        }
+        // Webhook handling logic can be added here if needed
+        res.status(HttpStatus.OK).send('OK');
     }
 }
 
 /**
- * Complete plugin with all types and best practices
+ * Complete plugin with PaymentMethodHandler
  */
 @VendurePlugin({
     imports: [PluginCommonModule],
@@ -535,12 +420,10 @@ export class StripePreOrderWebhookController {
             extend type Mutation {
                 createPreOrderStripePaymentIntent(estimatedTotal: Int!, currency: String = "usd"): PaymentIntentResult!
                 linkPaymentIntentToOrder(paymentIntentId: String!, orderId: String!, orderCode: String!, finalTotal: Int!, customerEmail: String): Boolean!
-                settleStripePayment(paymentIntentId: String!): SettlementResult!
             }
 
             extend type Query {
                 calculateEstimatedTotal(cartItems: [PreOrderCartItemInput!]!): Int!
-                getPaymentStatus(paymentIntentId: String!): PaymentStatusResult!
             }
 
             type PaymentIntentResult {
@@ -548,30 +431,6 @@ export class StripePreOrderWebhookController {
                 paymentIntentId: String!
                 amount: Int!
                 currency: String!
-            }
-
-            type SettlementResult {
-                success: Boolean!
-                orderId: String!
-                orderCode: String!
-                paymentId: String
-                error: String
-            }
-
-            type PaymentStatusResult {
-                status: PaymentStatus!
-                paymentIntentId: String!
-                orderCode: String
-                amount: Int
-                createdAt: DateTime
-                settledAt: DateTime
-            }
-
-            enum PaymentStatus {
-                PENDING
-                SETTLED
-                FAILED
-                NOT_FOUND
             }
 
             input PreOrderCartItemInput {
@@ -582,6 +441,12 @@ export class StripePreOrderWebhookController {
         `
     },
     compatibility: '^3.0.0',
+    configuration: config => {
+        // Add the Stripe Pre-Order payment handler
+        Logger.info('Registering stripe-pre-order payment method handler.', 'StripePreOrderPlugin');
+        config.paymentOptions.paymentMethodHandlers.push(stripePreOrderPaymentHandler);
+        return config;
+    },
 })
 export class StripePreOrderPlugin {
     static instance: StripePreOrderPlugin;
@@ -593,9 +458,9 @@ export class StripePreOrderPlugin {
     async onApplicationBootstrap() {
         const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
         if (stripeSecretKey) {
-            Logger.info('Stripe Pre-Order Plugin with enhanced security initialized', 'StripePreOrderPlugin');
+            Logger.info('Stripe Pre-Order Plugin with PaymentMethodHandler initialized', 'StripePreOrderPlugin');
         } else {
-            Logger.warn('STRIPE_SECRET_KEY not found, plugin disabled', 'StripePreOrderPlugin');
+            Logger.warn('STRIPE_SECRET_KEY not found, Stripe Pre-Order Plugin disabled', 'StripePreOrderPlugin');
         }
     }
 }

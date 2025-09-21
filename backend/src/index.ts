@@ -1,4 +1,4 @@
-import { bootstrap, runMigrations } from '@vendure/core';
+import { bootstrap, runMigrations, Logger } from '@vendure/core';
 import { config } from './vendure-config';
 
 const IS_DEV = process.env.APP_ENV !== 'prod';

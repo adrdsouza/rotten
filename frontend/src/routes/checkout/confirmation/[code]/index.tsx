@@ -25,6 +25,73 @@ export default component$(() => {
 	});
 
 	useVisibleTask$(async () => {
+		const url = new URL(window.location.href);
+		const paymentIntentId = url.searchParams.get('payment_intent');
+		const paymentIntentClientSecret = url.searchParams.get('payment_intent_client_secret');
+
+		// Handle Stripe redirect case (Part B from spec)
+		if (paymentIntentId && paymentIntentClientSecret) {
+			console.log('[Confirmation] Handling Stripe redirect with PaymentIntent:', paymentIntentId);
+			
+			try {
+				// Step 1: Verify payment intent with Stripe
+				const { loadStripe } = await import('@stripe/stripe-js');
+				const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+				const stripe = await loadStripe(stripeKey);
+				
+				if (!stripe) {
+					throw new Error('Failed to load Stripe');
+				}
+
+				console.log('[Confirmation] Retrieving PaymentIntent from Stripe...');
+				const { paymentIntent, error } = await stripe.retrievePaymentIntent(paymentIntentClientSecret);
+				
+				if (error) {
+					console.error('[Confirmation] Failed to retrieve PaymentIntent:', error);
+					throw new Error(error.message || 'Failed to verify payment');
+				}
+
+				console.log('[Confirmation] PaymentIntent status:', paymentIntent?.status);
+
+				// Step 2: Check if payment succeeded
+				if (paymentIntent && paymentIntent.status === 'succeeded') {
+					console.log('[Confirmation] Payment succeeded, adding to order...');
+					
+					// Step 3: Add payment to order (only now, after Stripe confirmation)
+					const { addPaymentToOrderMutation } = await import('~/providers/shop/orders/order');
+					
+					const paymentResult = await addPaymentToOrderMutation({
+						method: 'stripe',
+						metadata: {
+							paymentIntentId: paymentIntentId,
+							amount: paymentIntent.amount,
+							currency: paymentIntent.currency,
+							status: paymentIntent.status,
+						}
+					});
+
+					console.log('[Confirmation] Payment added to order successfully:', paymentResult);
+
+					// Clear the local cart after successful payment
+					localCart.localCart = LocalCartService.clearCart();
+					localCart.isLocalMode = true;
+
+					// Continue to load order normally
+				} else {
+					console.error('[Confirmation] Payment not successful, status:', paymentIntent?.status);
+					store.error = `Payment not successful. Status: ${paymentIntent?.status || 'unknown'}`;
+					store.loading = false;
+					return;
+				}
+			} catch (error) {
+				console.error('[Confirmation] Error handling Stripe redirect:', error);
+				store.error = `Payment verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+				store.loading = false;
+				return;
+			}
+		}
+
+		// Normal order loading flow
 		try {
 			store.order = await getOrderByCodeQuery(code);
 

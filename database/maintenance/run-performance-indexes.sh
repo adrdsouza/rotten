@@ -1,17 +1,45 @@
 #!/bin/bash
 
-# 🚀 PERFORMANCE INDEXES INSTALLATION SCRIPT
-# Safely installs database indexes to improve performance by 5-50x
+# ❌ DEPRECATED: PERFORMANCE INDEXES INSTALLATION SCRIPT
+#
+# ⚠️  THIS SCRIPT IS NO LONGER USED ⚠️
+#
+# Performance indexes are now automatically managed through Vendure's migration system.
+# See: backend/src/migrations/1753803450421-performance-indexes.ts
+#
+# To apply performance indexes, use:
+#   cd backend && npx vendure migrate -r
+#
+# For more information, see: docs/DATABASE_PERFORMANCE_INDEXES.md
+#
+# This file is kept for reference only and will be removed in a future update.
+
+echo "❌ DEPRECATED SCRIPT"
+echo "==================="
+echo ""
+echo "This script is no longer used. Performance indexes are now managed"
+echo "through Vendure's migration system for better version control."
+echo ""
+echo "To apply performance indexes, run:"
+echo "  cd backend && npx vendure migrate -r"
+echo ""
+echo "For more information, see: docs/DATABASE_PERFORMANCE_INDEXES.md"
+echo ""
+exit 1
+
+# =============================================================================
+# LEGACY CODE BELOW - NO LONGER EXECUTED
+# =============================================================================
 
 set -e  # Exit on any error
 
 # Database connection details
 DB_HOST="localhost"
 DB_PORT="5432"
-DB_NAME="rotten_db"
+DB_NAME="vendure_db"
 DB_USER="vendureuser"
 
-echo "🚀 Installing Performance Indexes for Rotten Hand"
+echo "🚀 Installing Performance Indexes for Damned Designs"
 echo "=================================================="
 echo ""
 echo "This will install database indexes to improve performance:"
@@ -31,7 +59,7 @@ if ! PGPASSWORD=adrdsouza psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -
     echo "❌ Cannot connect to database. Please check:"
     echo "   - PostgreSQL is running"
     echo "   - Database credentials are correct"
-    echo "   - Database 'rotten_db' exists"
+    echo "   - Database 'vendure_db' exists"
     exit 1
 fi
 echo "✅ Database connection successful"

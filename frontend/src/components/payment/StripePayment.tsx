@@ -175,20 +175,24 @@ export default component$(() => {
 					logAndStore('[StripePayment] Stripe payment confirmed successfully - settling with backend...');
 
 					try {
-						// Import the settleStripePaymentMutation function directly
-						const { settleStripePaymentMutation } = await import('~/providers/shop/checkout/checkout');
+						// Import the addPaymentToOrder mutation function directly
+						const { addPaymentToOrderMutation } = await import('~/providers/shop/orders/order');
 
-						// Settle payment with backend using PaymentIntent ID
-						logAndStore('[StripePayment] Calling settleStripePaymentMutation...');
-						const settleResult = await settleStripePaymentMutation(store.paymentIntentId);
-						logAndStore('[StripePayment] settleStripePaymentMutation response:', settleResult);
+						// Add payment to order using PaymentIntent ID
+						logAndStore('[StripePayment] Calling addPaymentToOrderMutation...');
+						const paymentResult = await addPaymentToOrderMutation({
+							method: 'stripe',
+							metadata: {
+								paymentIntentId: store.paymentIntentId,
+								stripePaymentIntentId: store.paymentIntentId,
+								amount: paymentIntent ? ((paymentIntent as any).amount_received || paymentIntent.amount) : 0,
+								currency: paymentIntent ? paymentIntent.currency : 'usd',
+								status: paymentIntent ? paymentIntent.status : 'succeeded'
+							}
+						});
+						logAndStore('[StripePayment] addPaymentToOrderMutation response:', paymentResult);
 
-						if (!settleResult.success) {
-							logAndStore('[StripePayment] Settlement failed:', settleResult);
-							throw new Error(settleResult.error || 'Failed to settle payment');
-						}
-
-						logAndStore('[StripePayment] Payment successfully settled with backend:', settleResult);
+						logAndStore('[StripePayment] Payment successfully added to order:', paymentResult);
 						logAndStore('[StripePayment] Order should now be in PaymentSettled state');
 
 						// Clear the local cart after successful payment
@@ -216,8 +220,8 @@ export default component$(() => {
 
 						return { success: true };
 
-					} catch (settleError) {
-						logAndStore('[StripePayment] Failed to settle payment with backend:', settleError);
+					} catch (addPaymentError) {
+						logAndStore('[StripePayment] Failed to add payment to order:', addPaymentError);
 						throw new Error('Payment processed but failed to complete order. Please contact support.');
 					}
 

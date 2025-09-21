@@ -25,7 +25,7 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 
 		// Set a mock payment method to trigger Stripe rendering
 		paymentMethods.value = [{
-			code: 'stripe',
+			code: 'stripe-pre-order',
 			name: 'Credit Card & Digital Wallets',
 			isEligible: true
 		}];

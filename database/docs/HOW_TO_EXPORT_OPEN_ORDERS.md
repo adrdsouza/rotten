@@ -5,7 +5,7 @@
 To export all open orders (not shipped, delivered, or cancelled) to CSV:
 
 ```bash
-cd /home/vendure/rottenhand
+cd /home/vendure/damneddesigns
 sudo -u postgres psql -d vendure_db -f database/export_open_orders.sql
 ```
 
@@ -20,7 +20,7 @@ This will:
 You can also run the shell script:
 
 ```bash
-cd /home/vendure/rottenhand
+cd /home/vendure/damneddesigns
 ./database/export_open_orders.sh
 ```
 

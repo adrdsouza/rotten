@@ -59,10 +59,12 @@ if [[ "$1" == "--help" || "$#" -eq 0 ]]; then
     exit 0
 fi
 
-# Get the directory where this script is located (database directory)
+# Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DATABASE_DIR="$SCRIPT_DIR"
-BACKEND_DIR="$(dirname "$SCRIPT_DIR")/backend"
+# database directory is parent of maintenance
+DATABASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# backend directory is at repo root /backend (two levels up from maintenance)
+BACKEND_DIR="$(cd "$SCRIPT_DIR/../../backend" && pwd)"
 
 # Stay in database directory but reference backend for dependencies
 cd "$DATABASE_DIR"
