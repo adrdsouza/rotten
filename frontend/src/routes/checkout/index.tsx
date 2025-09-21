@@ -405,7 +405,21 @@ const CheckoutContent = component$(() => {
                 try {
                   await (window as any).confirmStripePreOrderPayment(appState.activeOrder);
                 } catch (paymentError) {
-                  state.error = `Payment failed: ${paymentError instanceof Error ? paymentError.message : 'Unknown error'}`;
+                  console.error('[Checkout] Payment error:', paymentError);
+                  
+                  // Extract enhanced error information
+                  const errorMessage = paymentError instanceof Error ? paymentError.message : 'Unknown error';
+                  
+                  // Check for specific error types that need special handling
+                  if (errorMessage.includes('refresh')) {
+                    state.error = `${errorMessage} The page will refresh automatically.`;
+                    setTimeout(() => window.location.reload(), 3000);
+                  } else if (errorMessage.includes('verification') || errorMessage.includes('action required')) {
+                    state.error = `${errorMessage} Please complete any required steps and try again.`;
+                  } else {
+                    state.error = `Payment failed: ${errorMessage}`;
+                  }
+                  
                   showProcessingModal.value = false;
                   isOrderProcessing.value = false;
                 }

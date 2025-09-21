@@ -1,0 +1,20 @@
+module.exports = {
+  displayName: 'Stripe Payment Flow Tests',
+  testMatch: ['**/stripe-payment-flow.test.ts'],
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  roots: ['<rootDir>'],
+  testTimeout: 30000,
+  setupFilesAfterEnv: ['<rootDir>/test-setup.ts'],
+  collectCoverageFrom: [
+    'src/plugins/stripe-pre-order/**/*.ts',
+    '!src/plugins/stripe-pre-order/**/*.d.ts',
+  ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
+  verbose: true,
+  forceExit: true,
+  clearMocks: true,
+  resetMocks: true,
+  restoreMocks: true,
+};

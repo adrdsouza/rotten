@@ -48,6 +48,7 @@ import { LocalCartCouponPlugin } from './plugins/custom-coupon-validation/local-
 // import { FulfillmentIntegrationPlugin } from './plugins/fulfillment-integration';
 import { HealthMonitorService } from './services/health-monitor.service';
 import { SeoPlugin } from './plugins/seo';
+import { ActiveOrderSessionFixPlugin } from './plugins/active-order-session-fix.plugin';
 
 function validateEnvironment() {
     const required: Record<string, 'string' | 'number' | 'boolean'> = {
@@ -304,6 +305,7 @@ export const config: VendureConfig = {
                 hours: 'Mon-Fri 9AM-6PM EST',
             },
         }), // 🔍 SEO plugin for JSON-LD schemas and sitemaps
+        ActiveOrderSessionFixPlugin, // 🔧 Fix session activeOrderId clearing for completed orders
         LocalCartCouponPlugin, // 🎫 Local cart coupon validation
         // UnifiedOrderSecurityPlugin.init(), // 🚀 UNIFIED - comprehensive logging + security - DISABLED
         // OrderDeduplicationPlugin.init(), // 🔒 Prevent duplicate orders during high traffic - DISABLED
