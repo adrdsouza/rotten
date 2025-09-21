@@ -75,7 +75,16 @@ export const CartProvider = component$(() => {
     const unsubscribe = LocalCartService.onCartUpdate(() => {
       // Reload cart from localStorage when updated in another tab
       if (cartState.hasLoadedOnce) {
-        cartState.localCart = LocalCartService.getCart();
+        const updatedCart = LocalCartService.getCart();
+        // Defensive check to ensure cart has all required properties
+        if (updatedCart && typeof updatedCart === 'object') {
+          cartState.localCart = {
+            items: updatedCart.items || [],
+            totalQuantity: updatedCart.totalQuantity || 0,
+            subTotal: updatedCart.subTotal || 0,
+            currencyCode: updatedCart.currencyCode || 'USD'
+          };
+        }
         cartState.lastError = null;
         
         // Trigger header badge update
@@ -259,7 +268,8 @@ export const convertLocalCartToVendureOrder = $(async (cartState: CartContextSta
     if (order) {
       // Switch to Vendure mode after successful conversion
       cartState.isLocalMode = false;
-      cartState.localCart = LocalCartService.clearCart();
+      // Do NOT clear the local cart here; keep it until payment completes.
+      // This ensures payment cancellations do not wipe the cart.
       cartState.lastStockValidation = {};
       // Clear applied coupon after successful conversion
       cartState.appliedCoupon = null;
@@ -273,5 +283,23 @@ export const convertLocalCartToVendureOrder = $(async (cartState: CartContextSta
     return null;
   } finally {
     cartState.isLoading = false;
+  }
+});
+
+export const clearLocalCart = $((cartState: CartContextState) => {
+  try {
+    cartState.localCart = LocalCartService.clearCart();
+    cartState.lastStockValidation = {};
+    cartState.appliedCoupon = null;
+    cartState.lastError = null;
+
+    // 🚀 OPTIMIZED: Trigger header badge update
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('cart-updated', {
+        detail: { totalQuantity: 0 }
+      }));
+    }
+  } catch (error) {
+    cartState.lastError = error instanceof Error ? error.message : 'Failed to clear cart';
   }
 });

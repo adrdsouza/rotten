@@ -3,6 +3,7 @@ import {
 	DEFAULT_METADATA_IMAGE,
 	DEFAULT_METADATA_TITLE,
 	DEFAULT_METADATA_URL,
+	DEFAULT_CURRENCY,
 } from '~/constants';
 import { ENV_VARIABLES } from '~/env';
 import { ActiveCustomer, ShippingAddress } from '~/types';
@@ -10,14 +11,39 @@ import { validatePostalCode, validateName, validateEmail, validateAddress, valid
 
 export const getRandomInt = (max: number) => Math.floor(Math.random() * max);
 
-export function formatPrice(value = 0, currency: any) {
+export function formatPrice(value = 0, currencyCode?: string) {
 	return new Intl.NumberFormat('en-US', {
 		style: 'currency',
-		currency,
+		currency: currencyCode || DEFAULT_CURRENCY,
 	}).format(value / 100);
 }
 
+export function formatCustomPrice(value = 0, currencyCode?: string) {
+	return new Intl.NumberFormat('en-US', {
+		style: 'currency',
+		currency: currencyCode || DEFAULT_CURRENCY,
+		minimumFractionDigits: 0,
+		maximumFractionDigits: 0,
+	}).format(value);
+}
 
+export const changeUrlParamsWithoutRefresh = (collectionSlug: string, facetValueIds: string[], term: string) => {
+  const params = new URLSearchParams();
+  if (term) {
+    params.set('q', term);
+  }
+  if (facetValueIds && facetValueIds.length > 0) {
+    params.set('f', facetValueIds.join('-'));
+  }
+  if (collectionSlug) {
+    params.set('c', collectionSlug);
+  }
+
+  const queryString = params.toString();
+  const newUrl = `${window.location.origin}${window.location.pathname}${queryString ? `?${queryString}` : ''}`;
+
+  return window.history.pushState('', '', newUrl);
+};
 
 export const setCookie = (name: string, value: string, days: number) => {
 	let expires = '';
@@ -144,7 +170,7 @@ export const formatDateTime = (dateToConvert: Date) => {
 	return `${orderedDate} ${hour}:${minutes}`;
 };
 
-export const isCheckoutPage = (url: string) => url.indexOf('/checkout/') >= 0;
+export const isCheckoutPage = (url: string) => url.includes('/checkout');
 
 export const generateDocumentHead = (
 	url = DEFAULT_METADATA_URL,

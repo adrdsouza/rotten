@@ -6,8 +6,6 @@ import BillingAddressForm from '~/components/billing-address-form/BillingAddress
 import {
   getActiveOrderQuery,
   setCustomerForOrderMutation,
-  setOrderBillingAddressMutation,
-  setOrderShippingAddressMutation,
 } from '~/providers/shop/orders/order';
 import {
   getActiveCustomerCached,
@@ -26,6 +24,7 @@ import { LocalAddressService } from '~/services/LocalAddressService';
 // Import shared addressState instead of defining it here
 import { addressState } from '~/utils/checkout-state';
 import { useCheckoutAddressState } from '~/contexts/CheckoutAddressContext';
+import { CheckoutOptimizationService } from '~/services/CheckoutOptimizationService';
 
 
 // Interfaces for the component
@@ -442,15 +441,17 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
         appState.activeOrder = latestOrderBeforeMutations; // Update appState with the latest order data
         // console.log('✅ Active order confirmed before address mutations:', latestOrderBeforeMutations.code);
 
-        // Set shipping address first to ensure compatibility with Vendure session
-        // console.log('📍 Setting shipping address before billing address to ensure sequence compatibility...');
+        // 🚀 OPTIMIZATION: Use parallel processing for address and shipping setup
+        // This reduces checkout time by running independent operations concurrently
+        console.log('🚀 Using optimized parallel processing for address and shipping setup...');
         
         // Ensure country code is defined before proceeding
         if (!appState.shippingAddress.countryCode) {
           throw new Error('Country code is required for shipping address');
         }
-        
-        const shippingResult = await setOrderShippingAddressMutation({
+
+        // Prepare address inputs for parallel processing
+        const shippingAddressInput = {
           fullName: `${appState.customer.firstName || ''} ${appState.customer.lastName || ''}`.trim(),
           streetLine1: appState.shippingAddress.streetLine1 || '',
           streetLine2: appState.shippingAddress.streetLine2 || '',
@@ -460,27 +461,16 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
           countryCode: appState.shippingAddress.countryCode,
           phoneNumber: appState.customer.phoneNumber || '',
           company: appState.shippingAddress.company || ''
-        });
+        };
 
-        if (shippingResult.__typename !== 'Order') {
-          // console.error('❌ Failed to set shipping address. Detailed error:', JSON.stringify(shippingResult, null, 2));
-          throw new Error('Failed to set shipping address');
-        } else {
-          appState.activeOrder = shippingResult as Order;
-          // console.log('✅ Shipping address set successfully');
-        }
-
-        // Set billing address after shipping address if using different billing address
-        let billingResult = null;
+        let billingAddressInput = undefined;
         if (useDifferentBilling.value) {
-          // console.log('📍 Setting billing address after shipping address to ensure sequence compatibility...');
-          
           // Ensure country code is defined for billing address
           if (!appState.billingAddress.countryCode) {
             throw new Error('Country code is required for billing address');
           }
           
-          billingResult = await setOrderBillingAddressMutation({
+          billingAddressInput = {
             fullName: `${appState.billingAddress.firstName || ''} ${appState.billingAddress.lastName || ''}`.trim(),
             streetLine1: appState.billingAddress.streetLine1 || '',
             streetLine2: appState.billingAddress.streetLine2 || '',
@@ -488,14 +478,28 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
             province: appState.billingAddress.province || '',
             postalCode: appState.billingAddress.postalCode || '',
             countryCode: appState.billingAddress.countryCode || '',
-          });
-          if (billingResult.__typename !== 'Order') {
-            // console.error('❌ Failed to set billing address. Detailed error:', JSON.stringify(billingResult, null, 2));
-            error.value = 'There was an issue with the billing address. Please verify your information.';
-          } else {
-            appState.activeOrder = billingResult as Order;
-            // console.log('✅ Billing address set successfully');
-          }
+          };
+        }
+
+        // Execute optimized parallel processing
+        const checkoutResult = await CheckoutOptimizationService.optimizedCheckoutProcessing(
+          shippingAddressInput,
+          billingAddressInput,
+          appState.activeOrder?.subTotalWithTax || 0
+        );
+
+        // Update order with the result
+        appState.activeOrder = checkoutResult.order;
+
+        // Log any non-critical errors
+        if (checkoutResult.errors.length > 0) {
+          console.warn('⚠️ Some non-critical errors occurred during checkout:', checkoutResult.errors);
+        }
+
+        // Log success
+        console.log('✅ Parallel address and shipping setup completed successfully');
+        if (checkoutResult.shippingMethodsApplied) {
+          console.log('📦 Shipping method automatically applied');
         }
         if (activeCustomer) {
           try {

@@ -45,26 +45,32 @@ export const addPaymentToOrderMutation = async (
 };
 
 export const transitionOrderToStateMutation = async (state = 'ArrangingPayment') => {
-	const result = await shopSdk.transitionOrderToState({ state });
-	
-	// Handle the response properly - extract the actual order data
-	if (result?.transitionOrderToState) {
-		const transitionResult = result.transitionOrderToState;
-		
-		// Check if it's an error result
-		if ('errorCode' in transitionResult) {
-			console.error('[transitionOrderToState] Error:', transitionResult.errorCode, transitionResult.message);
-			throw new Error(`Order state transition failed: ${transitionResult.message || transitionResult.errorCode}`);
+	console.log(`🔄 Attempting to transition order to state: ${state}`);
+
+	try {
+		const result = await shopSdk.transitionOrderToState({ state });
+		console.log('🔄 Raw GraphQL result:', JSON.stringify(result, null, 2));
+
+		// Check if the result contains an error
+		if (result.transitionOrderToState && 'errorCode' in result.transitionOrderToState) {
+			const error = result.transitionOrderToState;
+			console.error('❌ Order state transition failed:', error);
+			throw new Error(`Order state transition failed: ${error.message} (${error.errorCode})`);
 		}
-		
-		// Return the order if successful
-		if ('__typename' in transitionResult && transitionResult.__typename === 'Order') {
-			console.log('[transitionOrderToState] Success - Order transitioned to:', transitionResult.state);
-			return transitionResult;
+
+		// Check if we got a successful order back
+		if (result.transitionOrderToState && 'state' in result.transitionOrderToState) {
+			console.log(`✅ Order state transition successful. New state: ${result.transitionOrderToState.state}`);
+			return result;
 		}
+
+		// If we get here, something unexpected happened
+		console.error('❌ Unexpected transition response:', result);
+		throw new Error('Unexpected response from order state transition');
+	} catch (error) {
+		console.error('❌ Error during order state transition:', error);
+		throw error;
 	}
-	
-	throw new Error('Failed to transition order state - unexpected response format');
 };
 
 export const getEligibleShippingMethodsQuery = async (countryCode: string, subtotal: number) => {
@@ -105,12 +111,17 @@ export const createPreOrderStripePaymentIntentMutation = async (
 	try {
 		const { requester } = await import('~/utils/api');
 		const result = await requester<
-			{ createPreOrderStripePaymentIntent: string },
+			{ createPreOrderStripePaymentIntent: { clientSecret: string; paymentIntentId: string; amount: number; currency: string } },
 			{ estimatedTotal: number; currency: string }
 		>(
 			gql`
 				mutation createPreOrderStripePaymentIntent($estimatedTotal: Int!, $currency: String!) {
-					createPreOrderStripePaymentIntent(estimatedTotal: $estimatedTotal, currency: $currency)
+					createPreOrderStripePaymentIntent(estimatedTotal: $estimatedTotal, currency: $currency) {
+						clientSecret
+						paymentIntentId
+						amount
+						currency
+					}
 				}
 			`,
 			{ estimatedTotal, currency }
@@ -157,6 +168,35 @@ export const linkPaymentIntentToOrderMutation = async (
 		return result.linkPaymentIntentToOrder;
 	} catch (error) {
 		console.error('Failed to link payment intent to order:', error);
+		throw error;
+	}
+};
+
+export const settleStripePaymentMutation = async (
+	paymentIntentId: string
+) => {
+	try {
+		const { requester } = await import('~/utils/api');
+		const result = await requester<
+			{ settleStripePayment: { success: boolean; orderId: string; orderCode: string; paymentId?: string; error?: string } },
+			{ paymentIntentId: string }
+		>(
+			gql`
+				mutation settleStripePayment($paymentIntentId: String!) {
+					settleStripePayment(paymentIntentId: $paymentIntentId) {
+						success
+						orderId
+						orderCode
+						paymentId
+						error
+					}
+				}
+			`,
+			{ paymentIntentId }
+		);
+		return result.settleStripePayment;
+	} catch (error) {
+		console.error('Failed to settle Stripe payment:', error);
 		throw error;
 	}
 };

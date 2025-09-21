@@ -382,15 +382,13 @@ export default component$(() => {
 												orderTotalAfterDiscount={localCart.isLocalMode 
 													? localCart.localCart.subTotal - (localCart.appliedCoupon?.discountAmount || 0)
 													: appState.activeOrder?.subTotalWithTax || 0}
-												currencyCode={localCart.isLocalMode 
-													? localCart.localCart.currencyCode 
-													: appState.activeOrder?.currencyCode || 'USD'}
+												currencyCode={'USD'}
 											/>
 											<div class="flex justify-between text-lg font-semibold text-slate-900 mb-2">
 												<p>Subtotal</p>
 												<p>
 													{localCart.isLocalMode ? (
-														formatPrice(localCart.localCart.subTotal, localCart.localCart.currencyCode)
+														formatPrice(localCart.localCart.subTotal, 'USD')
 													) : (
 														<CartPrice field={'subTotalWithTax'} order={appState.activeOrder} />
 													)}
@@ -477,11 +475,9 @@ export default component$(() => {
 														<p class="text-slate-700">{`Shipping`}: {shippingState.selectedMethod.name}</p>
 														<p class="text-slate-900">
 															{formatPrice(
-																shippingState.selectedMethod.priceWithTax, 
-																localCart.isLocalMode 
-																	? localCart.localCart.currencyCode 
-																	: appState.activeOrder?.currencyCode || 'USD'
-															)}
+															shippingState.selectedMethod.priceWithTax, 
+															'USD'
+														)}
 														</p>
 													</div>
 												) : appState.shippingAddress.countryCode ? (
@@ -503,7 +499,7 @@ export default component$(() => {
 														{localCart.isLocalMode ? (
 															formatPrice(
 																localCart.localCart.subTotal + shippingState.selectedMethod.priceWithTax, 
-																localCart.localCart.currencyCode
+																'USD'
 															)
 														) : (
 															<CartPrice field={'totalWithTax'} order={appState.activeOrder} />
@@ -561,8 +557,7 @@ export default component$(() => {
 														})}
 													disabled={isNavigatingToCheckout.value || !shippingState.selectedMethod || 
 										!appState.shippingAddress.countryCode || 
-										(!localCart.isLocalMode && !appState.activeOrder?.id) ||
-										(localCart.isLocalMode && localCart.localCart.items.length === 0) || isOutOfStock.value}
+										(localCart.localCart.items.length === 0) || isOutOfStock.value}
 													class="w-full bg-[#8a6d4a] hover:bg-[#4F3B26] text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg hover:shadow-xl flex items-center justify-center uppercase font-heading text-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
 												>
 													{isNavigatingToCheckout.value ? (

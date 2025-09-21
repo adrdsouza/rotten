@@ -2058,7 +2058,7 @@ type Mutation {
 
   """Create a new Customer Address"""
   createCustomerAddress(input: CreateAddressInput!): Address!
-  createPreOrderStripePaymentIntent(currency: String = "usd", estimatedTotal: Int!): String!
+  createPreOrderStripePaymentIntent(currency: String = "usd", estimatedTotal: Int!): PaymentIntentResult!
   createStripePaymentIntent: String!
 
   """Delete an existing Address"""
@@ -2143,6 +2143,7 @@ type Mutation {
   shipping method will apply to.
   """
   setOrderShippingMethod(shippingMethodId: [ID!]!): SetOrderShippingMethodResult!
+  settleStripePayment(paymentIntentId: String!): SettlementResult!
   subscribeToNewsletter(input: NewsletterSubscriptionInput!): NewsletterSubscriptionResult!
 
   """
@@ -2662,6 +2663,13 @@ input PaymentInput {
   method: String!
 }
 
+type PaymentIntentResult {
+  amount: Int!
+  clientSecret: String!
+  currency: String!
+  paymentIntentId: String!
+}
+
 type PaymentMethod implements Node {
   checker: ConfigurableOperation
   code: String!
@@ -2693,6 +2701,22 @@ type PaymentMethodTranslation {
   languageCode: LanguageCode!
   name: String!
   updatedAt: DateTime!
+}
+
+enum PaymentStatus {
+  FAILED
+  NOT_FOUND
+  PENDING
+  SETTLED
+}
+
+type PaymentStatusResult {
+  amount: Int
+  createdAt: DateTime
+  orderCode: String
+  paymentIntentId: String!
+  settledAt: DateTime
+  status: PaymentStatus!
 }
 
 """
@@ -3349,6 +3373,7 @@ type Query {
 
   """A list of Facets available to the shop"""
   facets(options: FacetListOptions): FacetList!
+  getPaymentStatus(paymentIntentId: String!): PaymentStatusResult!
 
   """Returns information about the current authenticated User"""
   me: CurrentUser
@@ -3561,6 +3586,14 @@ type Seller implements Node {
 union SetCustomerForOrderResult = AlreadyLoggedInError | EmailAddressConflictError | GuestCheckoutError | NoActiveOrderError | Order
 
 union SetOrderShippingMethodResult = IneligibleShippingMethodError | NoActiveOrderError | Order | OrderModificationError
+
+type SettlementResult {
+  error: String
+  orderCode: String!
+  orderId: String!
+  paymentId: String
+  success: Boolean!
+}
 
 type ShippingLine {
   customFields: JSON

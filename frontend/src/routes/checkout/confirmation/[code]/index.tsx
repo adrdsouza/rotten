@@ -1,82 +1,98 @@
-import { component$, useStore, useVisibleTask$ } from '@qwik.dev/core';
+import { component$, useContext, useStore, useVisibleTask$ } from '@qwik.dev/core';
 import { Link, useLocation } from '@qwik.dev/router';
 import CartContents from '~/components/cart-contents/CartContents';
 import CartTotals from '~/components/cart-totals/CartTotals';
 import CheckCircleIcon from '~/components/icons/CheckCircleIcon';
+import { APP_STATE } from '~/constants';
+import { CartContextId } from '~/contexts/CartContext';
 import { Order } from '~/generated/graphql';
 import { getOrderByCodeQuery } from '~/providers/shop/orders/order';
+import { LocalCartService } from '~/services/LocalCartService';
 import { createSEOHead } from '~/utils/seo';
 
 export default component$(() => {
-	const location = useLocation();
 	const {
-		params: { code }
-	} = location;
-
-	// Store for fresh order data from database
+		params: { code },
+	} = useLocation();
+	const appState = useContext(APP_STATE);
+	const localCart = useContext(CartContextId);
 	const store = useStore<{
-		orderData: Order | null;
+		order?: Order;
 		loading: boolean;
-		error: string | null;
+		error?: string;
 	}>({
-		orderData: null,
 		loading: true,
-		error: null
 	});
 
-	// Query fresh order data from database
 	useVisibleTask$(async () => {
 		try {
-			console.log('[Confirmation] Querying order data for code:', code);
-			const orderData = await getOrderByCodeQuery(code);
+			store.order = await getOrderByCodeQuery(code);
 
-			if (orderData) {
-				store.orderData = orderData;
+			if (store.order?.id) {
+				appState.activeOrder = {
+					...appState.activeOrder,
+					id: '',
+					code: '',
+					lines: [],
+					state: 'Completed',
+					totalWithTax: 0,
+					subTotal: 0,
+					shippingLines: [],
+					payments: []
+				} as Order;
+
+				localCart.localCart = LocalCartService.clearCart();
+				localCart.isLocalMode = true;
+
 				store.loading = false;
-				console.log('[Confirmation] Order data loaded successfully');
 			} else {
-				store.error = 'Order not found';
+				// Order not found - check if we have payment success info in localStorage
+				const paymentInfo = localStorage.getItem('stripe_payment_success');
+				if (paymentInfo) {
+					const payment = JSON.parse(paymentInfo);
+					if (payment.orderCode === code && payment.status === 'succeeded') {
+						// Show success message even if order query failed
+						console.log('[Confirmation] Order query failed but payment succeeded, showing success message');
+						store.loading = false;
+						// Don't set error - we'll show a success message instead
+						return;
+					}
+				}
+				
+				store.error = `Order ${code} not found`;
 				store.loading = false;
 			}
 		} catch (error) {
-			console.error('[Confirmation] Failed to load order:', error);
-			store.error = 'Failed to load order details';
+			// Check localStorage fallback on error too
+			const paymentInfo = localStorage.getItem('stripe_payment_success');
+			if (paymentInfo) {
+				const payment = JSON.parse(paymentInfo);
+				if (payment.orderCode === code && payment.status === 'succeeded') {
+					console.log('[Confirmation] Order query error but payment succeeded, showing success message');
+					store.loading = false;
+					return;
+				}
+			}
+			
+			store.error = `Failed to load order: ${error}`;
 			store.loading = false;
 		}
 	});
 
-	// Show loading state while querying fresh data
-	if (store.loading) {
-		return (
-			<div class="min-h-screen bg-gray-50 flex items-center justify-center">
-				<div class="text-center">
-					<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#B09983] mx-auto mb-4"></div>
-					<p class="text-gray-600">Loading order details...</p>
-				</div>
-			</div>
-		);
-	}
 
-	// Show error state if query failed
-	if (store.error || !store.orderData) {
-		return (
-			<div class="min-h-screen bg-gray-50 flex items-center justify-center">
-				<div class="text-center">
-					<p class="text-red-600 mb-4">{store.error || 'Order not found'}</p>
-					<Link href="/" class="text-[#B09983] hover:text-[#4F3B26] underline">
-						Return to Home
-					</Link>
-				</div>
-			</div>
-		);
-	}
-
-	// Use fresh order data
-	const orderData = store.orderData;
 
 	return (
 		<div>
-			{/* No loading state needed - pure data passing architecture */}
+			{store.loading && (
+				<div class="bg-gray-50 pb-48">
+					<div class="max-w-7xl mx-auto pt-4 px-4 sm:px-6 lg:px-8">
+						<div class="text-center py-12">
+							<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-red mx-auto mb-4"></div>
+							<p class="text-gray-600">Loading your order confirmation...</p>
+						</div>
+					</div>
+				</div>
+			)}
 
 			{store.error && (
 				<div class="bg-gray-50 pb-48">
@@ -97,30 +113,52 @@ export default component$(() => {
 				</div>
 			)}
 
-			{/* REMOVED: Sezzle verification error UI - not available for this clothing brand */}
-
-			{orderData?.id && (
+			{!store.loading && !store.error && !store.order?.id && (() => {
+				const paymentInfo = localStorage.getItem('stripe_payment_success');
+				const payment = paymentInfo ? JSON.parse(paymentInfo) : null;
+				return payment?.orderCode === code && payment?.status === 'succeeded';
+			})() && (
 				<div class="bg-gray-50 pb-48">
-						<div class="max-w-7xl mx-auto pt-4 px-4 sm:px-6 lg:px-8">
-							<h2 class="sr-only">{`Order Confirmation`}</h2>
-							
-							{/* Header Section - Compact */}
-							<div class="mb-6 text-center">
-								<h1 class="text-2xl flex items-center justify-center space-x-2 sm:text-3xl font-semibold text-gray-900 mb-2">
-									<CheckCircleIcon forcedClass="w-6 h-6 sm:w-7 sm:h-7 text-brand-red" />
-									<span>{`Ritual complete`}</span>
-								</h1>
-								<p class="text-base text-gray-600 mb-1">
-									{`Thank you for your order #`}<span class="font-semibold text-gray-900">{orderData?.code}</span>
-								</p>
-								<p class="text-sm text-gray-500">
-									{`It will be processed and shipped within 2 working days`}
-								</p>
-							</div>
+					<div class="max-w-7xl mx-auto pt-4 px-4 sm:px-6 lg:px-8">
+						<div class="mb-6 text-center">
+							<h1 class="text-2xl flex items-center justify-center space-x-2 sm:text-3xl font-semibold text-gray-900 mb-2">
+								<CheckCircleIcon forcedClass="w-6 h-6 sm:w-7 sm:h-7 text-brand-red" />
+								<span>Payment Successful!</span>
+							</h1>
+							<p class="text-base text-gray-600 mb-1">
+								Thank you for your order #{code}
+							</p>
+							<p class="text-sm text-gray-500">
+								Your payment has been processed successfully. Order details will be available shortly.
+							</p>
+							<p class="text-sm text-gray-400 mt-4">
+								You will receive an email confirmation once your order is fully processed.
+							</p>
+						</div>
+					</div>
+				</div>
+			)}
 
-						{/* Main Content Grid - 3 Box Layout */}
-						<div class="lg:grid lg:grid-cols-3 lg:gap-6">
-							{/* Box 1 - Complete Order (Items + Summary) */}
+			{store.order?.id && (
+				<div class="bg-gray-50 pb-48">
+					<div class="max-w-7xl mx-auto pt-4 px-4 sm:px-6 lg:px-8">
+						<h2 class="sr-only">{`Order Confirmation`}</h2>
+
+						<div class="mb-6 text-center">
+							<h1 class="text-2xl flex items-center justify-center space-x-2 sm:text-3xl font-semibold text-gray-900 mb-2">
+								<CheckCircleIcon forcedClass="w-6 h-6 sm:w-7 sm:h-7 text-brand-red" />
+								<span>{`Ritual complete`}</span>
+							</h1>
+							<p class="text-base text-gray-600 mb-1">
+								{`Thank you for your order #`}<span class="font-semibold text-gray-900">{store.order?.code}</span>
+							</p>
+							<p class="text-sm text-gray-500">
+								{`It will be processed and shipped within 2 working days`}
+							</p>
+						</div>
+
+						<div class="lg:grid lg:grid-cols-2 lg:gap-6">
+							{/* Column 1 - Complete Order (Items + Summary) */}
 							<div class="mb-8 lg:mb-0">
 								<div class="bg-[#f5f5f5] rounded-2xl shadow-xs border border-gray-200/50 p-6">
 									<h2 class="text-xl font-semibold text-gray-900 mb-6 flex items-center">
@@ -129,21 +167,19 @@ export default component$(() => {
 										</svg>
 										{`Your Order`}
 									</h2>
-									
-									{/* Order Items */}
+
 									<div class="mb-6">
-										<CartContents order={orderData} />
+										<CartContents order={store.order} />
 									</div>
 
-									{/* Order Totals */}
 									<div class="border-t border-gray-100 pt-4">
-										<CartTotals order={orderData} readonly />
+										<CartTotals order={store.order} readonly />
 									</div>
 								</div>
 							</div>
 
-							{/* Box 2 - Customer & Address Details */}
-							<div class="mb-8 lg:mb-0">
+							{/* Column 2 - Customer, Address, Shipping & Payment Details */}
+							<div>
 								<div class="bg-[#f5f5f5] rounded-2xl shadow-xs border border-gray-200/50 p-6">
 									<h2 class="text-xl font-semibold text-gray-900 mb-6 flex items-center">
 										<svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -152,14 +188,14 @@ export default component$(() => {
 										</svg>
 										{`Order Details`}
 									</h2>
-									
+
 									<div class="space-y-6">
 										{/* Customer Information */}
 										<div>
 											<h3 class="text-sm font-medium text-gray-700 mb-2">{`Customer`}</h3>
 											<div class="bg-gray-50 rounded-lg p-3">
-												<p class="text-gray-900 font-medium text-sm">{orderData?.customer?.firstName} {orderData?.customer?.lastName}</p>
-												<p class="text-gray-600 text-xs mt-1">{orderData?.customer?.emailAddress}</p>
+												<p class="text-gray-900 font-medium text-sm">{store.order?.customer?.firstName} {store.order?.customer?.lastName}</p>
+												<p class="text-gray-600 text-xs mt-1">{store.order?.customer?.emailAddress}</p>
 											</div>
 										</div>
 
@@ -167,14 +203,14 @@ export default component$(() => {
 										<div>
 											<h3 class="text-sm font-medium text-gray-700 mb-2">{`Shipping Address`}</h3>
 											<div class="bg-gray-50 rounded-lg p-3">
-												{orderData?.shippingAddress ? (
+												{store.order?.shippingAddress ? (
 													<address class="not-italic text-gray-700 leading-relaxed text-xs">
-														{orderData.shippingAddress.fullName && <div class="font-medium text-gray-900">{orderData.shippingAddress.fullName}</div>}
-														<div>{orderData.shippingAddress.streetLine1}</div>
-														{orderData.shippingAddress.streetLine2 && <div>{orderData.shippingAddress.streetLine2}</div>}
-														<div>{orderData.shippingAddress.city}, {orderData.shippingAddress.province} {orderData.shippingAddress.postalCode}</div>
-														<div>{orderData.shippingAddress.countryCode}</div>
-														{orderData.shippingAddress.phoneNumber && <div class="mt-1 text-gray-600">{orderData.shippingAddress.phoneNumber}</div>}
+														{store.order.shippingAddress.fullName && <div class="font-medium text-gray-900">{store.order.shippingAddress.fullName}</div>}
+														<div>{store.order.shippingAddress.streetLine1}</div>
+														{store.order.shippingAddress.streetLine2 && <div>{store.order.shippingAddress.streetLine2}</div>}
+														<div>{store.order.shippingAddress.city}, {store.order.shippingAddress.province} {store.order.shippingAddress.postalCode}</div>
+														<div>{store.order.shippingAddress.countryCode}</div>
+														{store.order.shippingAddress.phoneNumber && <div class="mt-1 text-gray-600">{store.order.shippingAddress.phoneNumber}</div>}
 													</address>
 												) : (
 													<p class="text-gray-400 text-xs">No shipping address found.</p>
@@ -182,48 +218,30 @@ export default component$(() => {
 											</div>
 										</div>
 
-										{/* Billing Address */}
-										<div>
-											<h3 class="text-sm font-medium text-gray-700 mb-2">{`Billing Address`}</h3>
-											<div class="bg-gray-50 rounded-lg p-3">
-												{orderData?.billingAddress ? (
+										{/* Billing Address (Conditional) - UPDATED */}
+										{store.order?.billingAddress?.streetLine1 && (
+											<div>
+												<h3 class="text-sm font-medium text-gray-700 mb-2">{`Billing Address`}</h3>
+												<div class="bg-gray-50 rounded-lg p-3">
 													<address class="not-italic text-gray-700 leading-relaxed text-xs">
-														{orderData.billingAddress.fullName && <div class="font-medium text-gray-900">{orderData.billingAddress.fullName}</div>}
-														<div>{orderData.billingAddress.streetLine1}</div>
-														{orderData.billingAddress.streetLine2 && <div>{orderData.billingAddress.streetLine2}</div>}
-														<div>{orderData.billingAddress.city}, {orderData.billingAddress.province} {orderData.billingAddress.postalCode}</div>
-														<div>{orderData.billingAddress.countryCode}</div>
-														{orderData.billingAddress.phoneNumber && <div class="mt-1 text-gray-600">{orderData.billingAddress.phoneNumber}</div>}
+														{store.order.billingAddress.fullName && <div class="font-medium text-gray-900">{store.order.billingAddress.fullName}</div>}
+														<div>{store.order.billingAddress.streetLine1}</div>
+														{store.order.billingAddress.streetLine2 && <div>{store.order.billingAddress.streetLine2}</div>}
+														<div>{store.order.billingAddress.city}, {store.order.billingAddress.province} {store.order.billingAddress.postalCode}</div>
+														<div>{store.order.billingAddress.countryCode}</div>
+														{store.order.billingAddress.phoneNumber && <div class="mt-1 text-gray-600">{store.order.billingAddress.phoneNumber}</div>}
 													</address>
-												) : (
-													<div class="text-gray-600 italic text-xs">
-														{`Same as shipping address`}
-													</div>
-												)}
+												</div>
 											</div>
-										</div>
-									</div>
-								</div>
-							</div>
+										)}
 
-							{/* Box 3 - Shipping & Payment Methods */}
-							<div>
-								<div class="bg-[#f5f5f5] rounded-2xl shadow-xs border border-gray-200/50 p-6">
-									<h2 class="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-										<svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-										</svg>
-										{`Shipping & Payment`}
-									</h2>
-									
-									<div class="space-y-6">
 										{/* Shipping Method */}
 										<div>
 											<h3 class="text-sm font-medium text-gray-700 mb-2">{`Shipping Method`}</h3>
 											<div class="bg-gray-50 rounded-lg p-3">
-												{orderData?.shippingLines?.length ? (
+												{store.order?.shippingLines?.length ? (
 													<div class="space-y-2">
-														{orderData.shippingLines.map((line, idx) => (
+														{store.order.shippingLines.map((line, idx) => (
 															<div key={idx} class="flex justify-between items-center">
 																<span class="text-gray-700 text-xs">{line.shippingMethod.name}</span>
 																<span class="font-medium text-gray-900 text-xs">${(line.priceWithTax / 100).toFixed(2)}</span>
@@ -240,27 +258,19 @@ export default component$(() => {
 										<div>
 											<h3 class="text-sm font-medium text-gray-700 mb-2">{`Payment Method`}</h3>
 											<div class="bg-gray-50 rounded-lg p-3">
-												{orderData?.payments?.length ? (
+												{store.order?.payments?.length ? (
 													<div class="space-y-2">
-														{orderData.payments.map((payment, idx) => (
-															<div key={idx} class="text-gray-700 space-y-1">
-																{/* Payment Method Display - Clean & Simple */}
-																<div class="text-sm font-medium text-gray-900">
-																	{payment.method === 'stripe' ? 'Card Payment' :
-																	 payment.method.charAt(0).toUpperCase() + payment.method.slice(1)}
+														{store.order.payments.map((payment, idx) => (
+															<div key={idx} class="text-gray-700">
+																<div class="flex justify-between items-center">
+																	<span class="text-xs">{payment.method}</span>
+																	<span class="text-xs text-gray-500">({payment.state})</span>
 																</div>
-
-																{/* Transaction ID */}
-																{payment.transactionId && (
-																	<div class="text-xs text-gray-600">
-																		Transaction ID: {payment.transactionId}
+																{payment.metadata?.cardType && payment.metadata?.last4 && (
+																	<div class="text-xs text-gray-600 mt-1">
+																		{payment.metadata.cardType} ending in {payment.metadata.last4}
 																	</div>
 																)}
-
-																{/* Amount */}
-																<div class="text-xs text-gray-600">
-																	Amount: ${(payment.amount / 100).toFixed(2)}
-																</div>
 															</div>
 														))}
 													</div>
