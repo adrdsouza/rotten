@@ -114,7 +114,13 @@ export default component$(() => {
 						console.log('[StripePayment] PaymentIntent successfully linked to order');
 					} catch (linkError) {
 						console.error('[StripePayment] Failed to link PaymentIntent to order:', linkError);
-						throw new Error('Failed to link payment to order');
+						const errorMsg = 'Failed to link payment to order';
+						store.error = errorMsg;
+						store.isProcessing = false;
+						return {
+							success: false,
+							error: errorMsg
+						};
 					}
 
 					// Persistent logging function
@@ -161,14 +167,25 @@ export default component$(() => {
 					// Check for payment confirmation errors
 					if (error) {
 						logAndStore('[StripePayment] Payment confirmation failed:', error);
-						throw new Error(error?.message || 'Payment confirmation failed');
+						store.error = error?.message || 'Payment confirmation failed';
+						store.isProcessing = false;
+						return {
+							success: false,
+							error: error?.message || 'Payment confirmation failed'
+						};
 					}
 
 					// Verify Stripe payment actually succeeded before telling backend
 					const { paymentIntent } = await store.resolvedStripe?.retrievePaymentIntent(store.clientSecret) || {};
 					if (paymentIntent && paymentIntent.status !== 'succeeded') {
 						logAndStore('[StripePayment] Payment not successful. Status:', paymentIntent?.status);
-						throw new Error(`Payment not successful. Status: ${paymentIntent?.status}`);
+						const errorMsg = `Payment not successful. Status: ${paymentIntent?.status}`;
+						store.error = errorMsg;
+						store.isProcessing = false;
+						return {
+							success: false,
+							error: errorMsg
+						};
 					}
 
 					// Payment successful - now settle with backend to transition order to PaymentSettled
@@ -222,14 +239,26 @@ export default component$(() => {
 
 					} catch (addPaymentError) {
 						logAndStore('[StripePayment] Failed to add payment to order:', addPaymentError);
-						throw new Error('Payment processed but failed to complete order. Please contact support.');
+						const errorMsg = 'Payment processed but failed to complete order. Please contact support.';
+						store.error = errorMsg;
+						store.isProcessing = false;
+						return {
+							success: false,
+							error: errorMsg
+						};
 					}
 
 				} catch (error) {
 					console.error('[StripePayment] Payment confirmation error:', error);
 					store.error = error instanceof Error ? error.message : 'Payment failed';
 					store.isProcessing = false;
-					throw error;
+
+					// 🚨 CRITICAL FIX: Don't throw error - let UI recover for retry
+					// Instead, return error result so parent can handle it
+					return {
+						success: false,
+						error: error instanceof Error ? error.message : 'Payment failed'
+					};
 				}
 			};
 

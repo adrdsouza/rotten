@@ -49,7 +49,24 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 
 					if (activeOrder) {
 						console.log('[Payment] Triggering Stripe payment for order:', activeOrder.code);
-						(window as any).confirmStripePreOrderPayment(activeOrder);
+
+						// 🚨 CRITICAL FIX: Handle payment result properly
+						try {
+							const paymentResult = await (window as any).confirmStripePreOrderPayment(activeOrder);
+
+							if (paymentResult && !paymentResult.success) {
+								// Payment failed - communicate error back to checkout page
+								console.error('[Payment] Stripe payment failed:', paymentResult.error);
+								_onError$(paymentResult.error || 'Payment failed. Please check your payment details and try again.');
+								return;
+							}
+
+							// If we get here, payment was successful (handled by StripePayment component)
+
+						} catch (paymentError) {
+							console.error('[Payment] Stripe payment error:', paymentError);
+							_onError$(paymentError instanceof Error ? paymentError.message : 'Payment failed. Please try again.');
+						}
 					} else {
 						console.error('[Payment] No active order found for Stripe payment');
 						_onError$('No active order found for payment');
