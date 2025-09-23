@@ -297,6 +297,9 @@ export class StripePreOrderResolver {
             const paymentIntent = await this.stripe.paymentIntents.create({
                 amount: estimatedTotal,
                 currency: currency,
+                automatic_payment_methods: {
+                    enabled: true, // 🎯 This enables Apple Pay, Google Pay, and other payment methods!
+                },
                 metadata: {
                     source: 'pre_order_validation',
                     created_at: new Date().toISOString(),

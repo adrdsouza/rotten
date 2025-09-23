@@ -26,9 +26,8 @@ import { AuditPlugin } from './plugins/audit-plugin';
 
 
 import { CustomShippingPlugin } from './plugins/custom-shipping';
-import { StripePlugin } from '@vendure/payments-plugin/package/stripe';
 import { StripeExtensionPlugin } from './plugins/stripe-extension';
-import { StripePreOrderPlugin, stripePreOrderPaymentHandler } from './plugins/stripe-pre-order';
+import { StripePreOrderPlugin } from './plugins/stripe-pre-order';
 // REMOVED: SezzlePaymentPlugin - not available for this clothing brand
 import { orderFulfillmentHandler } from './email-handlers/order-fulfillment-handler';
 import { orderConfirmationHandler } from './email-handlers/order-confirmation-handler';
@@ -272,8 +271,7 @@ export const config: VendureConfig = {
     paymentOptions: {
         paymentMethodHandlers: [
             dummyPaymentHandler,
-            stripePreOrderPaymentHandler,
-            // Stripe handler is automatically added by StripePlugin
+            // stripePreOrderPaymentHandler is automatically registered by StripePreOrderPlugin
         ],
     },
     orderOptions: {

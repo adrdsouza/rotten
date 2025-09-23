@@ -301,7 +301,7 @@ export default component$(() => {
 				return;
 			}
 
-			store.debugInfo = 'Creating Stripe Elements...';
+			store.debugInfo = 'Creating Payment Element with tabbed interface...';
 			store.resolvedStripe = noSerialize(stripe);
 
 			const elements = stripe.elements({
@@ -334,21 +334,25 @@ export default component$(() => {
 				return;
 			}
 
-			// Create and mount payment element
+			// 🎯 Create Payment Element with TABBED INTERFACE!
 			const paymentElement = elements.create('payment', {
-				layout: {
-					type: 'tabs',
-					defaultCollapsed: false
+				layout: 'tabs', // Simplified syntax for tabbed layout
+				paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'], // Order of payment method tabs
+				defaultValues: {
+					billingDetails: {
+						name: '',
+						email: '',
+					}
 				}
 			});
 
 			try {
 				await paymentElement.mount('#payment-form');
-				store.debugInfo = 'Payment form mounted successfully!';
+				store.debugInfo = 'Payment Element with tabs mounted successfully!';
 
 				// Add event listeners for better debugging
 				paymentElement.on('ready', () => {
-					store.debugInfo = 'Payment element is ready and interactive!';
+					store.debugInfo = 'Payment Element with tabs is ready and interactive!';
 				});
 
 				paymentElement.on('change', (event: any) => {
