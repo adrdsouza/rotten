@@ -62,8 +62,8 @@ export default component$(() => {
 	const isOnCheckoutPage = isCheckoutPage(location.url.toString());
 	const isOnConfirmationPage = location.url.pathname.includes('/checkout/confirmation/');
 	
-	// Check if we're on the homepage - this updates reactively
-	const isHomePage = location.url.pathname === '/';
+	// Check if we're on pages with transparent header - this updates reactively
+	const isTransparentHeaderPage = location.url.pathname === '/';
 	
 
 	// Customer data now loaded via SSR in layout - no need for client-side loading
@@ -114,7 +114,7 @@ export default component$(() => {
 	});	return (
 			<header
 				class={`fixed top-0 left-0 right-0 z-50 border-0 transition-all duration-500 ease-in-out ${
-					isHomePage
+					isTransparentHeaderPage
 						? isScrolled.value
 							? 'bg-black/95 backdrop-blur-sm shadow-sm' // Black with blur
 							: 'bg-transparent' // Fully transparent
@@ -122,7 +122,7 @@ export default component$(() => {
 				}`}
 		>{/* Main Header */}
 				<div class="max-w-content-wide mx-auto px-4 sm:px-6 lg:px-8 w-full">
-					<div class="flex items-center justify-between h-20">
+					<div class="flex items-center justify-between h-16">
 						{/* Logo - Always on left */}
 						<div class="flex items-center">
 							<Link href="/" class="flex items-center space-x-3 -ml-1">
@@ -135,16 +135,8 @@ export default component$(() => {
 								/>
 							</Link>
 						</div>						{/* Centered Navigation - Hidden on mobile, shown on desktop */}
-						<nav class="hidden md:flex flex-1 justify-center items-center space-x-8">							<Link
-								href="/shop"
-								class={`hover:scale-105 transition-all duration-500 ease-in-out uppercase text-lg xl:text-xl 2xl:text-2xl font-bold font-heading border-b-2 text-white hover:text-gray-200 ${
-									location.url.pathname.startsWith('/shop')
-										? 'border-white'
-										: 'border-transparent hover:border-gray-300'
-								}`}
-							>
-								Shop
-							</Link>							<Link
+						<nav class="hidden md:flex flex-1 justify-center items-center space-x-8">
+							<Link
 								href="/contact"
 								class={`hover:scale-105 transition-all duration-500 ease-in-out uppercase text-lg xl:text-xl 2xl:text-2xl font-bold font-heading border-b-2 text-white hover:text-gray-200 ${
 									location.url.pathname.startsWith('/contact')
@@ -153,7 +145,8 @@ export default component$(() => {
 								}`}
 							>
 								Contact
-							</Link></nav>{/* Icons */}
+							</Link>
+						</nav>{/* Icons */}
 						<div class="flex items-center space-x-3 pr-1">
 							{/* Cart */}
 							{!(isOnCheckoutPage || isOnConfirmationPage) && (
@@ -266,24 +259,13 @@ export default component$(() => {
 									d="M6 18L18 6M6 6l12 12"
 								/>
 							</svg>
-						</button>						<nav class="flex flex-col space-y-8 w-full max-w-md">							<Link
-								href="/shop"
-								// Use Qwik's built-in prefetch
-								class={`text-white text-4xl py-6 px-6 rounded-lg hover:bg-white/10 hover:scale-105 hover:shadow-lg transition-all duration-200 text-center tracking-wide uppercase font-bold font-heading border-2 border-transparent ${
-									location.url.pathname.startsWith('/shop') 
-										? 'bg-white/20 border-white/30' 
-										: 'hover:border-white hover:border-opacity-20'
-								}`}
-								onClick$={() => (appState.showMenu = false)}
-							>
-								Shop
-							</Link>
+						</button>						<nav class="flex flex-col space-y-8 w-full max-w-md">
 							<Link
 								href="/contact"
 								// Use Qwik's built-in prefetch
 								class={`text-white text-4xl py-6 px-6 rounded-lg hover:bg-white/10 hover:scale-105 hover:shadow-lg transition-all duration-200 text-center tracking-wide uppercase font-bold font-heading border-2 border-transparent ${
-									location.url.pathname.startsWith('/contact') 
-										? 'bg-white/20 border-white/30' 
+									location.url.pathname.startsWith('/contact')
+										? 'bg-white/20 border-white/30'
 										: 'hover:border-white hover:border-opacity-20'
 								}`}
 								onClick$={() => (appState.showMenu = false)}

@@ -1,12 +1,10 @@
-// 🚀 MODERN REDESIGN 2025: Clean, performance-focused homepage with integrated shop
+// 🚀 BACKUP: Original homepage implementation before single landing page migration
+// 🚀 MODERN REDESIGN 2025: Clean, performance-focused homepage
 // 🚀 BACKUP: Original homepage saved as index-backup.tsx
 import { component$, useStylesScoped$ } from '@qwik.dev/core';
-import { routeLoader$ } from '@qwik.dev/router';
+import { Link } from '@qwik.dev/router';
 import { createSEOHead } from '~/utils/seo';
 import { OptimizedImage } from '~/components/ui';
-import { ShopComponent } from '~/components/shop/ShopComponent';
-import { getShirtStylesForSelection } from '~/providers/shop/products/products';
-
 import ShopImageUrl from '~/media/shop.jpg?url';
 
 // 🚀 OPTIMIZED: Only hero image imports (67% bundle size reduction)
@@ -132,29 +130,11 @@ const MODERN_STYLES = `
 
 ` as const;
 
-// 🚀 ROUTE LOADER: Load basic shirt styles data for immediate rendering
-export const useShirtStylesData = routeLoader$(async () => {
-  try {
-    console.log('🔄 Loading shirt styles data for homepage...');
-    const stylesData = await getShirtStylesForSelection();
-    console.log('✅ Shirt styles data loaded for homepage');
-    return stylesData;
-  } catch (error) {
-    console.error('❌ Failed to load shirt styles data for homepage:', error);
-    return {
-      shortSleeve: null,
-      longSleeve: null
-    };
-  }
-});
-
 export default component$(() => {
   useStylesScoped$(MODERN_STYLES);
 
-  // Load shirt styles data
-  const stylesData = useShirtStylesData();
-
-
+  // 🚀 SIMPLIFIED: Removed complex intersection observer for video loading
+  // Browser handles autoplay optimization automatically
 
   return (
     <div>
@@ -202,33 +182,20 @@ export default component$(() => {
             <p class="font-body text-base sm:text-lg lg:text-xl text-white/90 font-light leading-relaxed mb-8 max-w-xl mx-auto animate-fade-up" style="animation-delay: 0.2s;">
               If it's not the softest shirt you've ever felt, we'll pay you back
             </p>
-            <button
-              onClick$={() => {
-                // Smooth scroll to shop section
-                const shopSection = document.getElementById('shop-section');
-                if (shopSection) {
-                  const headerHeight = 64; // Account for header
-                  const offset = 20;
-                  const rect = shopSection.getBoundingClientRect();
-
-                  window.scrollTo({
-                    top: window.scrollY + rect.top - headerHeight - offset,
-                    behavior: 'smooth'
-                  });
-                }
-              }}
-              class="inline-block bg-[#8a6d4a] text-white px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:scale-105 hover:shadow-xl rounded-lg shadow-lg border border-[#8a6d4a] animate-scale cursor-pointer"
+            <Link
+              href="/shop"
+              class="inline-block bg-[#8a6d4a] text-white px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:scale-105 hover:shadow-xl rounded-lg shadow-lg border border-[#8a6d4a] animate-scale"
               style="animation-delay: 0.4s;"
             >
               <div class="text-4xl font-bold uppercase tracking-widest">SHOP</div>
               <div class="text-xs uppercase tracking-wide mt-1">Our Money Back Guarantee</div>
-            </button>
+            </Link>
           </div>
         </div>
       </section>
 
       {/* The Perfect Shirt Story - Half and Half Layout */}
-      <section class="py-12 lg:py-20 bg-white">
+      <section class="py-20 lg:py-32 bg-white">
         <div class="max-w-7xl mx-auto px-8 lg:px-16">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             {/* Left Side - Image */}
@@ -265,133 +232,24 @@ export default component$(() => {
               </div>
 
               <div class="pt-4">
-                <button
-                  onClick$={() => {
-                    // Smooth scroll to shop section
-                    const shopSection = document.getElementById('shop-section');
-                    if (shopSection) {
-                      const headerHeight = 64;
-                      const offset = 20;
-                      const rect = shopSection.getBoundingClientRect();
-
-                      window.scrollTo({
-                        top: window.scrollY + rect.top - headerHeight - offset,
-                        behavior: 'smooth'
-                      });
-                    }
-                  }}
-                  class="inline-flex items-center px-8 py-4 bg-[#8a6d4a] text-white font-medium rounded-xl hover:bg-[#4F3B26] transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl cursor-pointer"
+                <Link
+                  href="/shop"
+                  class="inline-flex items-center px-8 py-4 bg-[#8a6d4a] text-white font-medium rounded-xl hover:bg-[#4F3B26] transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
                 >
                   Experience the Perfect Shirt
                   <svg class="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                   </svg>
-                </button>
+                </Link>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Style Selector Section - Always Visible */}
-      <section id="shop-section" class="bg-gray-50">
-        <ShopComponent
-          context="homepage"
-          scrollTarget="shop-section"
-          preloadData={true}
-          lazyLoadAssets={true}
-          analyticsSource="scroll-proximity"
-          stylesData={stylesData.value}
-        />
-      </section>
-
-      {/* Product Features Section */}
-      <section class="py-20 lg:py-32 bg-white">
-        <div class="max-w-7xl mx-auto px-8 lg:px-16">
-          <div class="text-center mb-16">
-            <h2 class="text-4xl lg:text-6xl font-light text-black mb-6 tracking-wider">
-              Why This Shirt is Different
-            </h2>
-            <p class="text-xl lg:text-2xl font-light text-gray-600 max-w-3xl mx-auto">
-              Every detail matters when you're building something to last decades
-            </p>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-            {/* Feature 1: Peach Skin Finish */}
-            <div class="text-center">
-              <div class="w-20 h-20 bg-[#8a6d4a] rounded-full flex items-center justify-center mx-auto mb-6">
-                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                </svg>
-              </div>
-              <h3 class="text-2xl font-semibold text-gray-900 mb-4">Peach Skin Finish</h3>
-              <p class="text-gray-600 leading-relaxed">
-                The softest fabric you'll ever feel. Our proprietary peach skin finish creates an unmatched tactile experience that gets better with every wash.
-              </p>
-            </div>
-
-            {/* Feature 2: Tagua Nut Buttons */}
-            <div class="text-center">
-              <div class="w-20 h-20 bg-[#8a6d4a] rounded-full flex items-center justify-center mx-auto mb-6">
-                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
-                </svg>
-              </div>
-              <h3 class="text-2xl font-semibold text-gray-900 mb-4">Tagua Nut Buttons</h3>
-              <p class="text-gray-600 leading-relaxed">
-                Sustainable buttons carved from tagua nuts - nature's ivory. Each button is unique, adding character while supporting rainforest conservation.
-              </p>
-            </div>
-
-            {/* Feature 3: Ethical Manufacturing */}
-            <div class="text-center">
-              <div class="w-20 h-20 bg-[#8a6d4a] rounded-full flex items-center justify-center mx-auto mb-6">
-                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <h3 class="text-2xl font-semibold text-gray-900 mb-4">Fair Wages</h3>
-              <p class="text-gray-600 leading-relaxed">
-                Made in India with fair wages and ethical working conditions. We believe great products come from treating people right.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-      {/* Guarantee Section */}
-      <section class="py-20 lg:py-32 bg-[#8a6d4a]">
-        <div class="max-w-4xl mx-auto px-8 lg:px-16 text-center">
-          <h2 class="text-4xl lg:text-6xl font-light text-white mb-8 tracking-wider">
-            Our Promise to You
-          </h2>
-          <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-8 lg:p-12 border border-white/20">
-            <div class="text-6xl mb-6">💯</div>
-            <h3 class="text-3xl font-semibold text-white mb-6">100% Satisfaction Guarantee</h3>
-            <p class="text-xl text-white/90 leading-relaxed mb-8">
-              If this isn't the softest, most comfortable shirt you've ever owned, we'll refund your money. No questions asked. No return shipping required.
-            </p>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-white/80">
-              <div>
-                <div class="text-2xl font-bold mb-2">30 Days</div>
-                <div class="text-sm">To try it risk-free</div>
-              </div>
-              <div>
-                <div class="text-2xl font-bold mb-2">Free Returns</div>
-                <div class="text-sm">We pay return shipping</div>
-              </div>
-              <div>
-                <div class="text-2xl font-bold mb-2">Full Refund</div>
-                <div class="text-sm">Every penny back</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Conscious Consumption Video Section - Moved to End */}
-      <section class="relative min-h-screen bg-black overflow-hidden">
-        {/* Background Video */}
+      {/* Conscious Consumption Section - Brand Story with Background Video/Image */}
+      <section class="relative min-h-[70vh] overflow-hidden">
+        {/* Background Video - Simplified browser-native autoplay optimization */}
         <div class="absolute inset-0">
           <video
             autoplay
@@ -424,39 +282,18 @@ export default component$(() => {
                 </p>
               </div>
               <div>
-                <button
-                  onClick$={() => {
-                    // Scroll back to shop section
-                    const shopSection = document.getElementById('shop-section');
-                    if (shopSection) {
-                      const headerHeight = 64;
-                      const offset = 20;
-                      const rect = shopSection.getBoundingClientRect();
-
-                      window.scrollTo({
-                        top: window.scrollY + rect.top - headerHeight - offset,
-                        behavior: 'smooth'
-                      });
-                    }
-                  }}
-                  class="inline-block bg-[#8a6d4a] text-black px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:text-white hover:scale-105 rounded-lg shadow-lg border border-[#8a6d4a] cursor-pointer"
+                <Link
+                  href="/shop"
+                  class="inline-block bg-[#8a6d4a] text-black px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:text-white hover:scale-105 rounded-lg shadow-lg border border-[#8a6d4a]"
                 >
                   <div class="text-4xl font-bold uppercase tracking-widest">SHOP</div>
                   <div class="text-xs uppercase tracking-wide mt-1">consciously</div>
-                </button>
+                </Link>
               </div>
             </div>
           </div>
         </div>
       </section>
-
-
-
-
-
-
-
-
     </div>
   );
 });
