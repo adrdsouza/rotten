@@ -323,172 +323,172 @@ export default component$(() => {
 
 // In your StripePayment component, modify the reset handler:
 
-useVisibleTask$(() => {
-	if (typeof window !== 'undefined') {
-		const handleStripeReset = async () => {
-			console.log('[StripePayment] 🔄 Starting complete Stripe reset process...');
-			const stripe = await stripePromise;
+// useVisibleTask$(() => {
+// 	if (typeof window !== 'undefined') {
+// 		const handleStripeReset = async () => {
+// 			console.log('[StripePayment] 🔄 Starting complete Stripe reset process...');
+// 			const stripe = await stripePromise;
 
-			if (!stripe) {
-				store.error = 'Failed to load Stripe';
-				store.debugInfo = 'Error: Stripe failed to load';
-				return;
-			}
+// 			if (!stripe) {
+// 				store.error = 'Failed to load Stripe';
+// 				store.debugInfo = 'Error: Stripe failed to load';
+// 				return;
+// 			}
 
-			// 🚨 CRITICAL FIX: Properly destroy existing Elements FIRST
-			try {
-				// Destroy existing payment element completely
-				const existingPaymentElement = store.stripeElements?.getElement('payment');
-				if (existingPaymentElement) {
-					console.log('[StripePayment] 🗑️ Destroying existing payment element');
-					existingPaymentElement.destroy();
-				}
+// 			// 🚨 CRITICAL FIX: Properly destroy existing Elements FIRST
+// 			try {
+// 				// Destroy existing payment element completely
+// 				const existingPaymentElement = store.stripeElements?.getElement('payment');
+// 				if (existingPaymentElement) {
+// 					console.log('[StripePayment] 🗑️ Destroying existing payment element');
+// 					existingPaymentElement.destroy();
+// 				}
 				
-				// Clear the mount target completely
-				const mountTarget = document.getElementById('payment-form');
-				if (mountTarget) {
-					// Force unmount by clearing innerHTML
-					mountTarget.innerHTML = '';
-					// Force DOM reflow
-					void mountTarget.offsetHeight;
-					console.log('[StripePayment] 🧹 Payment form DOM completely cleared');
-				}
-				      store.stripeElements=noSerialize({} as StripeElements);
-						store.resolvedStripe=noSerialize({} as Stripe);
+// 				// Clear the mount target completely
+// 				const mountTarget = document.getElementById('payment-form');
+// 				if (mountTarget) {
+// 					// Force unmount by clearing innerHTML
+// 					mountTarget.innerHTML = '';
+// 					// Force DOM reflow
+// 					void mountTarget.offsetHeight;
+// 					console.log('[StripePayment] 🧹 Payment form DOM completely cleared');
+// 				}
+// 				      store.stripeElements=noSerialize({} as StripeElements);
+// 						store.resolvedStripe=noSerialize({} as Stripe);
 
 						
 
-			    store.debugInfo = 'Creating Payment Element with tabbed interface...';
-		         	store.resolvedStripe = noSerialize(stripe);
+// 			    store.debugInfo = 'Creating Payment Element with tabbed interface...';
+// 		         	store.resolvedStripe = noSerialize(stripe);
 
 			
-				// Wait longer for Stripe's internal cleanup
-				await new Promise(resolve => setTimeout(resolve, 500));
+// 				// Wait longer for Stripe's internal cleanup
+// 				await new Promise(resolve => setTimeout(resolve, 500));
 				
-			} catch (destroyError) {
-				console.log('[StripePayment] ⚠️ Error during Elements cleanup (continuing):', destroyError);
-			}
+// 			} catch (destroyError) {
+// 				console.log('[StripePayment] ⚠️ Error during Elements cleanup (continuing):', destroyError);
+// 			}
 
-			// Clear all validation states
-			clearAllValidationStates();
-			store.error = '';
-			store.isProcessing = false;
-			store.debugInfo = 'Creating fresh payment session...';
+// 			// Clear all validation states
+// 			clearAllValidationStates();
+// 			store.error = '';
+// 			store.isProcessing = false;
+// 			store.debugInfo = 'Creating fresh payment session...';
 
-			try {
-				// Create new PaymentIntent with fresh state
-				const estimatedTotal = calculateCartTotal(localCart);
-				console.log('[StripePayment] 💰 Creating new PaymentIntent with total:', estimatedTotal);
+// 			try {
+// 				// Create new PaymentIntent with fresh state
+// 				const estimatedTotal = calculateCartTotal(localCart);
+// 				console.log('[StripePayment] 💰 Creating new PaymentIntent with total:', estimatedTotal);
 				
-				const paymentIntentResult = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');
+// 				const paymentIntentResult = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');
 				
-				// Update store with completely new data
-				store.clientSecret = paymentIntentResult.clientSecret;
-				store.paymentIntentId = extractPaymentIntentId(store.clientSecret);
+// 				// Update store with completely new data
+// 				store.clientSecret = paymentIntentResult.clientSecret;
+// 				store.paymentIntentId = extractPaymentIntentId(store.clientSecret);
 				
-				console.log('[StripePayment] 🆔 New PaymentIntent created:', store.paymentIntentId);
+// 				console.log('[StripePayment] 🆔 New PaymentIntent created:', store.paymentIntentId);
 				
-				if (!store.clientSecret) {
-					store.error = 'Failed to create new payment session. Please refresh the page.';
-					return;
-				}
+// 				if (!store.clientSecret) {
+// 					store.error = 'Failed to create new payment session. Please refresh the page.';
+// 					return;
+// 				}
 
-				// 🚨 CRITICAL: Create completely new Elements instance (not just new payment element)
-				console.log('[StripePayment] 🎨 Creating entirely new Stripe Elements instance');
+// 				// 🚨 CRITICAL: Create completely new Elements instance (not just new payment element)
+// 				console.log('[StripePayment] 🎨 Creating entirely new Stripe Elements instance');
 				
-				const elements = stripe.elements({
-					clientSecret: store.clientSecret,
-					locale: 'en',
-					appearance: {
-						theme: 'stripe',
-						variables: {
-							colorPrimary: '#8a6d4a',
-							colorBackground: '#ffffff',
-							colorText: '#374151',
-							colorDanger: '#ef4444',
-							colorSuccess: '#10b981',
-							fontFamily: 'system-ui, -apple-system, sans-serif',
-							spacingUnit: '4px',
-							borderRadius: '6px',
-							fontSizeBase: '16px',
-						}
-					}
-				});
+// 				const elements = stripe.elements({
+// 					clientSecret: store.clientSecret,
+// 					locale: 'en',
+// 					appearance: {
+// 						theme: 'stripe',
+// 						variables: {
+// 							colorPrimary: '#8a6d4a',
+// 							colorBackground: '#ffffff',
+// 							colorText: '#374151',
+// 							colorDanger: '#ef4444',
+// 							colorSuccess: '#10b981',
+// 							fontFamily: 'system-ui, -apple-system, sans-serif',
+// 							spacingUnit: '4px',
+// 							borderRadius: '6px',
+// 							fontSizeBase: '16px',
+// 						}
+// 					}
+// 				});
 
-				if (!elements) {
-					throw new Error('Failed to create new Stripe Elements');
-				}
+// 				if (!elements) {
+// 					throw new Error('Failed to create new Stripe Elements');
+// 				}
 
-				// Replace old Elements instance with new one
-				store.stripeElements = noSerialize(elements);
-				console.log('[StripePayment] ✅ Brand new Elements instance created');
+// 				// Replace old Elements instance with new one
+// 				store.stripeElements = noSerialize(elements);
+// 				console.log('[StripePayment] ✅ Brand new Elements instance created');
 
-				// Check if mount target exists
-				const mountTarget = document.getElementById('payment-form');
-				if (!mountTarget) {
-					store.error = 'Payment form mount target not found';
-					store.debugInfo = 'Error: #payment-form element missing';
-					return;
-				}
+// 				// Check if mount target exists
+// 				const mountTarget = document.getElementById('payment-form');
+// 				if (!mountTarget) {
+// 					store.error = 'Payment form mount target not found';
+// 					store.debugInfo = 'Error: #payment-form element missing';
+// 					return;
+// 				}
 	
-				// 🎯 Create Payment Element with TABBED INTERFACE!
-				const paymentElement = elements.create('payment', {
-					layout: 'tabs', // Simplified syntax for tabbed layout
-					paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'], // Order of payment method tabs
-					defaultValues: {
-						billingDetails: {
-							name: '',
-							email: '',
-						}
-					}
-				});
+// 				// 🎯 Create Payment Element with TABBED INTERFACE!
+// 				const paymentElement = elements.create('payment', {
+// 					layout: 'tabs', // Simplified syntax for tabbed layout
+// 					paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'], // Order of payment method tabs
+// 					defaultValues: {
+// 						billingDetails: {
+// 							name: '',
+// 							email: '',
+// 						}
+// 					}
+// 				});
 	
 
-				// Mount to the cleared target
-				console.log('[StripePayment] 📌 Mounting fresh payment element...');
-				await paymentElement?.mount('#payment-form');
-				console.log('[StripePayment] ✅ Fresh payment element mounted successfully');
+// 				// Mount to the cleared target
+// 				console.log('[StripePayment] 📌 Mounting fresh payment element...');
+// 				await paymentElement?.mount('#payment-form');
+// 				console.log('[StripePayment] ✅ Fresh payment element mounted successfully');
 				
-				// Set up clean event listeners
-				paymentElement?.on('ready', () => {
-					console.log('[StripePayment] 🟢 Fresh payment form ready - no cached validation state');
-					store.debugInfo = 'Fresh payment form ready!';
-					store.error = '';
-				});
+// 				// Set up clean event listeners
+// 				paymentElement?.on('ready', () => {
+// 					console.log('[StripePayment] 🟢 Fresh payment form ready - no cached validation state');
+// 					store.debugInfo = 'Fresh payment form ready!';
+// 					store.error = '';
+// 				});
 
-				paymentElement?.on('change', (event: any) => {
-					if (event.error) {
-						console.log('[StripePayment] ❌ New validation error:', event.error.message);
-						store.error = event.error.message || 'Payment validation error';
-					} else {
-						console.log('[StripePayment] ✅ Form validation passed');
-						store.error = '';
-						store.debugInfo = 'Payment form is valid and ready!';
-					}
-				});
+// 				paymentElement?.on('change', (event: any) => {
+// 					if (event.error) {
+// 						console.log('[StripePayment] ❌ New validation error:', event.error.message);
+// 						store.error = event.error.message || 'Payment validation error';
+// 					} else {
+// 						console.log('[StripePayment] ✅ Form validation passed');
+// 						store.error = '';
+// 						store.debugInfo = 'Payment form is valid and ready!';
+// 					}
+// 				});
 
-				paymentElement?.on('focus', () => {
-					store.error = '';
-					store.debugInfo = 'Ready for payment details...';
-				});
+// 				paymentElement?.on('focus', () => {
+// 					store.error = '';
+// 					store.debugInfo = 'Ready for payment details...';
+// 				});
 				
-				console.log('[StripePayment] 🎉 Complete reset successful - fresh Elements with no cached state!');
-				store.debugInfo = 'Payment form completely reset - try again!';
+// 				console.log('[StripePayment] 🎉 Complete reset successful - fresh Elements with no cached state!');
+// 				store.debugInfo = 'Payment form completely reset - try again!';
 
-			} catch (resetError) {
-				console.log('[StripePayment] ❌ Complete reset failed:', resetError);
-				store.error = 'Failed to reset payment form. Please refresh the page and try again.';
-				store.debugInfo = 'Reset failed - page refresh recommended';
-			}
-		};
+// 			} catch (resetError) {
+// 				console.log('[StripePayment] ❌ Complete reset failed:', resetError);
+// 				store.error = 'Failed to reset payment form. Please refresh the page and try again.';
+// 				store.debugInfo = 'Reset failed - page refresh recommended';
+// 			}
+// 		};
 		
-		window.addEventListener('stripe-reset-required', handleStripeReset);
+// 		window.addEventListener('stripe-reset-required', handleStripeReset);
 		
-		return () => {
-			window.removeEventListener('stripe-reset-required', handleStripeReset);
-		};
-	}
-});
+// 		return () => {
+// 			window.removeEventListener('stripe-reset-required', handleStripeReset);
+// 		};
+// 	}
+// });
 
 	useVisibleTask$(async () => {
 		store.debugInfo = 'Initializing payment form...';
