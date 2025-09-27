@@ -1,4 +1,4 @@
-import { component$, noSerialize, useStore, useVisibleTask$ ,$} from '@qwik.dev/core';
+import { component$, noSerialize, useStore, useVisibleTask$ } from '@qwik.dev/core';
 import { useLocation } from '@qwik.dev/router';
 import { Stripe, StripeElements, loadStripe } from '@stripe/stripe-js';
 import {
