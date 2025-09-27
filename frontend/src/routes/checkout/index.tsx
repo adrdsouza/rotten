@@ -168,6 +168,8 @@ const CheckoutContent = component$(() => {
 		// First trigger the Stripe reset to clear validation state
 		if (typeof window !== 'undefined') {
 			window.dispatchEvent(new CustomEvent('stripe-reset-required'));
+      const el = document.querySelector('.payment-tabs-container');
+      if (el) el.remove();
 			console.log('[Checkout] Stripe reset triggered from handleReset');
 		}
 
