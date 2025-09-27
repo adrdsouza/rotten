@@ -33,36 +33,53 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 		console.log('[Payment] Set payment methods:', paymentMethods.value);
 	});
 
-	// Listen for trigger signal to initiate Stripe payment
+	
+	useVisibleTask$(() => {
+		if (typeof window !== 'undefined') {
+			const handleStripeReset = () => {
+				console.log('[Payment] Received stripe reset signal, triggering Stripe component reset');
+				
+				// Forward the reset signal to the StripePayment component
+				window.dispatchEvent(new CustomEvent('stripe-reset-required'));
+			};
+			
+			// Listen for reset requests from the checkout page
+			window.addEventListener('payment-reset-required', handleStripeReset);
+			
+			return () => {
+				window.removeEventListener('payment-reset-required', handleStripeReset);
+			};
+		}
+	});
+		// Listen for trigger signal to initiate Stripe payment
+
 	useVisibleTask$(async ({ track }) => {
 		const triggerValue = track(() => _triggerStripeSignal.value);
-
+		
+		// Only proceed if signal is greater than 0 (0 means reset state)
 		if (triggerValue > 0) {
 			console.log('[Payment] Stripe trigger signal received:', triggerValue);
-
+			
 			// Call the Stripe payment confirmation function
 			if (typeof window !== 'undefined' && (window as any).confirmStripePreOrderPayment) {
-				// Get the active order from the global app state
 				try {
 					const { getActiveOrderQuery } = await import('~/providers/shop/orders/order');
 					const activeOrder = await getActiveOrderQuery();
-
+					
 					if (activeOrder) {
 						console.log('[Payment] Triggering Stripe payment for order:', activeOrder.code);
-
-						// 🚨 CRITICAL FIX: Handle payment result properly
+						
 						try {
 							const paymentResult = await (window as any).confirmStripePreOrderPayment(activeOrder);
-
+							
 							if (paymentResult && !paymentResult.success) {
-								// Payment failed - communicate error back to checkout page
 								console.error('[Payment] Stripe payment failed:', paymentResult.error);
 								_onError$(paymentResult.error || 'Payment failed. Please check your payment details and try again.');
 								return;
 							}
-
-							// If we get here, payment was successful (handled by StripePayment component)
-
+							
+							// Payment successful - handled by StripePayment component
+							
 						} catch (paymentError) {
 							console.error('[Payment] Stripe payment error:', paymentError);
 							_onError$(paymentError instanceof Error ? paymentError.message : 'Payment failed. Please try again.');
@@ -79,9 +96,11 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 				console.error('[Payment] confirmStripePreOrderPayment function not found');
 				_onError$('Payment system not properly initialized');
 			}
+		} else if (triggerValue === 0) {
+			// Signal value of 0 indicates a reset - don't process payment
+			console.log('[Payment] Trigger signal reset to 0 - ready for new payment attempt');
 		}
 	});
-
 	const handleDummyPayment$ = $(async () => { await _onForward$('dummy-order-code'); });
 
 	return (

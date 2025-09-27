@@ -209,7 +209,7 @@ export default component$(() => {
 						logAndStore('[StripePayment] Payment confirmation failed:', error);
 						store.error = error?.message || 'Payment confirmation failed';
 						store.isProcessing = false;
-						await resetStripeElements();  
+						// await resetStripeElements();  
 						return {
 							success: false,
 							error: error?.message || 'Payment confirmation failed'
@@ -316,6 +316,99 @@ export default component$(() => {
 			console.log('[StripePayment] confirmStripePreOrderPayment available:', typeof (window as any).confirmStripePreOrderPayment);
 		}
 	});
+
+	// Add this useVisibleTask$ to your StripePayment component (after the existing ones)
+
+useVisibleTask$(() => {
+	if (typeof window !== 'undefined') {
+		const handleStripeReset = async () => {
+			console.log('[StripePayment] Handling Stripe reset...');
+			
+			// Clear error states
+			store.error = '';
+			store.isProcessing = false;
+			store.debugInfo = 'Resetting payment form...';
+			
+			// Reset Stripe Elements if they exist
+			if (store.stripeElements && store.resolvedStripe && store.clientSecret) {
+				try {
+					// Clear the existing mount target
+					const mountTarget = document.getElementById('payment-form');
+					if (mountTarget) {
+						mountTarget.innerHTML = '';
+					}
+					
+					// Recreate elements with the same client secret
+					const elements = store.resolvedStripe.elements({
+						clientSecret: store.clientSecret,
+						locale: 'en',
+						appearance: {
+							theme: 'stripe',
+							variables: {
+								colorPrimary: '#8a6d4a',
+								colorBackground: '#ffffff',
+								colorText: '#374151',
+								colorDanger: '#ef4444',
+								colorSuccess: '#10b981',
+								fontFamily: 'system-ui, -apple-system, sans-serif',
+								spacingUnit: '4px',
+								borderRadius: '6px',
+								fontSizeBase: '16px',
+							}
+						}
+					});
+					
+					store.stripeElements = noSerialize(elements);
+					
+					// Create and mount a fresh payment element
+					const paymentElement = elements.create('payment', {
+						layout: 'tabs',
+						paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'],
+						defaultValues: {
+							billingDetails: {
+								name: '',
+								email: '',
+							}
+						}
+					});
+					
+					await paymentElement.mount('#payment-form');
+					
+					// Re-add event listeners
+					paymentElement.on('ready', () => {
+						store.debugInfo = 'Payment Element reset and ready for retry!';
+					});
+					
+					paymentElement.on('change', (event: any) => {
+						if (event.error) {
+							store.error = event.error.message || 'Payment validation error';
+							store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
+						} else {
+							store.error = '';
+							store.debugInfo = 'Payment form is valid and ready!';
+						}
+					});
+					
+					console.log('[StripePayment] Stripe Elements reset successfully');
+					store.debugInfo = 'Payment form reset - ready for new attempt!';
+					
+				} catch (resetError) {
+					console.error('[StripePayment] Failed to reset Stripe Elements:', resetError);
+					store.error = 'Failed to reset payment form. Please refresh the page.';
+				}
+			}
+		};
+		
+		// Listen for reset events from the checkout page
+		window.addEventListener('stripe-reset-required', handleStripeReset);
+		
+		// Cleanup
+		return () => {
+			window.removeEventListener('stripe-reset-required', handleStripeReset);
+		};
+	}
+});
+
 
 	useVisibleTask$(async () => {
 		store.debugInfo = 'Initializing payment form...';
