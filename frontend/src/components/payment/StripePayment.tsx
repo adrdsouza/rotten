@@ -55,27 +55,38 @@ const calculateCartTotal = (localCart: any): number => {
 
 // Helper function to completely clear all validation states
 const clearAllValidationStates = () => {
-	console.log('[StripePayment] Clearing all validation states...');
+	console.log('[StripePayment] 🧹 Clearing ALL validation states...');
 
-	// Clear any cached validation errors in localStorage
+	// Clear localStorage
 	try {
-		localStorage.removeItem('stripe_validation_errors');
-		localStorage.removeItem('stripe_form_state');
-		localStorage.removeItem('stripe_last_error');
-		console.log('[StripePayment] localStorage validation states cleared');
+		const keysToRemove = [
+			'stripe_validation_errors',
+			'stripe_form_state', 
+			'stripe_last_error',
+			'stripe_elements_state',
+			'stripe_payment_cache'
+		];
+		keysToRemove.forEach(key => localStorage.removeItem(key));
+		console.log('[StripePayment] ✅ localStorage validation states cleared');
 	} catch (_e) {
-		// Ignore localStorage errors in environments where it's not available
-		console.log('[StripePayment] localStorage not available, skipping cleanup');
+		console.log('[StripePayment] localStorage not available, skipping');
 	}
 
-	// Clear any global validation state
+	// Clear window globals
 	if (typeof window !== 'undefined') {
-		delete (window as any).stripeValidationState;
-		delete (window as any).stripeFormErrors;
-		delete (window as any).lastStripeError;
+		const propsToDelete = [
+			'stripeValidationState',
+			'stripeFormErrors', 
+			'lastStripeError',
+			'stripeElementsCache',
+			'stripeLastSubmission'
+		];
+		propsToDelete.forEach(prop => {
+			delete (window as any)[prop];
+		});
 	}
 
-	console.log('[StripePayment] All validation states cleared');
+	console.log('[StripePayment] ✅ All validation states cleared');
 };
 
 export default component$(() => {
@@ -330,75 +341,63 @@ export default component$(() => {
 useVisibleTask$(() => {
 	if (typeof window !== 'undefined') {
 		const handleStripeReset = async () => {
-			console.log('[StripePayment] 🔄 Starting Stripe reset process...');
-			console.log('[StripePayment] Current store state before reset:', {
-				error: store.error,
-				isProcessing: store.isProcessing,
-				hasClientSecret: !!store.clientSecret,
-				hasPaymentIntentId: !!store.paymentIntentId
-			});
+			console.log('[StripePayment] 🔄 Starting complete Stripe reset process...');
 
-			// Clear all validation states first
+			// 🚨 CRITICAL FIX: Properly destroy existing Elements FIRST
+			try {
+				// Destroy existing payment element completely
+				const existingPaymentElement = store.stripeElements?.getElement('payment');
+				if (existingPaymentElement) {
+					console.log('[StripePayment] 🗑️ Destroying existing payment element');
+					existingPaymentElement.destroy();
+				}
+				
+				// Clear the mount target completely
+				const mountTarget = document.getElementById('payment-form');
+				if (mountTarget) {
+					// Force unmount by clearing innerHTML
+					mountTarget.innerHTML = '';
+					// Force DOM reflow
+					void mountTarget.offsetHeight;
+					console.log('[StripePayment] 🧹 Payment form DOM completely cleared');
+				}
+				
+				// Wait longer for Stripe's internal cleanup
+				await new Promise(resolve => setTimeout(resolve, 500));
+				
+			} catch (destroyError) {
+				console.log('[StripePayment] ⚠️ Error during Elements cleanup (continuing):', destroyError);
+			}
+
+			// Clear all validation states
 			clearAllValidationStates();
-
-			// Clear error states
 			store.error = '';
 			store.isProcessing = false;
-			store.debugInfo = 'Creating new PaymentIntent for retry...';
-			console.log('[StripePayment] ✅ Store error states cleared');
+			store.debugInfo = 'Creating fresh payment session...';
 
 			try {
-				// 🚨 CRITICAL FIX: Create a new PaymentIntent for retry
-				// Don't reuse the old one as Stripe remembers its failed state
+				// Create new PaymentIntent with fresh state
 				const estimatedTotal = calculateCartTotal(localCart);
-				console.log('[StripePayment] 💰 Creating new PaymentIntent for retry with total:', estimatedTotal);
-				console.log('[StripePayment] 🛒 Local cart state:', {
-					isLocalMode: localCart?.isLocalMode,
-					itemCount: localCart?.localCart?.items?.length || 0
-				});
-
+				console.log('[StripePayment] 💰 Creating new PaymentIntent with total:', estimatedTotal);
+				
 				const paymentIntentResult = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');
-				console.log('[StripePayment] ✅ New PaymentIntent created successfully:', {
-					hasClientSecret: !!paymentIntentResult.clientSecret,
-					hasPaymentIntentId: !!paymentIntentResult.paymentIntentId,
-					amount: paymentIntentResult.amount
-				});
-
-				// Update store with new PaymentIntent data
+				
+				// Update store with completely new data
 				store.clientSecret = paymentIntentResult.clientSecret;
 				store.paymentIntentId = extractPaymentIntentId(store.clientSecret);
-
-				console.log('[StripePayment] 🆔 New PaymentIntent ID for retry:', store.paymentIntentId);
+				
+				console.log('[StripePayment] 🆔 New PaymentIntent created:', store.paymentIntentId);
 				
 				if (!store.clientSecret) {
 					store.error = 'Failed to create new payment session. Please refresh the page.';
 					return;
 				}
+
+				// 🚨 CRITICAL: Create completely new Elements instance (not just new payment element)
+				console.log('[StripePayment] 🎨 Creating entirely new Stripe Elements instance');
 				
-				// Generate unique key to force complete recreation and avoid cached validation state
-				const uniqueKey = `reset-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-				console.log('[StripePayment] 🔑 Using unique key for fresh Elements:', uniqueKey);
-
-				// Clear the existing mount target completely and add unique identifier
-				const mountTarget = document.getElementById('payment-form');
-				if (mountTarget) {
-					mountTarget.innerHTML = '';
-					// Add unique data attribute to force Stripe to treat as new element
-					mountTarget.setAttribute('data-stripe-reset', uniqueKey);
-					// Force a reflow to ensure DOM is completely cleared
-					void mountTarget.offsetHeight;
-					console.log('[StripePayment] Payment form DOM cleared with unique identifier:', uniqueKey);
-				}
-
-				// Longer delay to ensure complete Stripe Elements cleanup
-				await new Promise(resolve => setTimeout(resolve, 300));
-				console.log('[StripePayment] 🕐 Extended cleanup delay completed');
-
-				// Create new elements with the NEW client secret
-				console.log('[StripePayment] 🎨 Creating new Stripe Elements with fresh client secret');
-
 				const elements = store.resolvedStripe?.elements({
-					clientSecret: store.clientSecret, // This is the NEW client secret
+					clientSecret: store.clientSecret, // New client secret
 					locale: 'en',
 					appearance: {
 						theme: 'stripe',
@@ -417,14 +416,14 @@ useVisibleTask$(() => {
 				});
 
 				if (!elements) {
-					throw new Error('Failed to create Stripe Elements');
+					throw new Error('Failed to create new Stripe Elements');
 				}
 
+				// Replace old Elements instance with new one
 				store.stripeElements = noSerialize(elements);
-				console.log('[StripePayment] ✅ New Stripe Elements created successfully');
+				console.log('[StripePayment] ✅ Brand new Elements instance created');
 
-				// Create and mount a fresh payment element
-				console.log('[StripePayment] 🔧 Creating fresh payment element with clean state');
+				// Create fresh payment element from new Elements instance
 				const paymentElement = elements.create('payment', {
 					layout: 'tabs',
 					paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'],
@@ -436,65 +435,83 @@ useVisibleTask$(() => {
 					}
 				});
 
-				console.log('[StripePayment] 📌 Mounting payment element to DOM...');
+				// Mount to the cleared target
+				console.log('[StripePayment] 📌 Mounting fresh payment element...');
 				await paymentElement?.mount('#payment-form');
-				console.log('[StripePayment] ✅ Payment element mounted successfully');
+				console.log('[StripePayment] ✅ Fresh payment element mounted successfully');
 				
-				// Re-add event listeners with improved error clearing
-				console.log('[StripePayment] 🎧 Setting up event listeners for new payment element');
+				// Set up clean event listeners
 				paymentElement?.on('ready', () => {
-					console.log('[StripePayment] 🟢 Payment form is ready for input - clearing any residual errors');
-					store.debugInfo = 'Payment form ready for new attempt!';
-					store.error = ''; // Clear any residual errors when form is ready
+					console.log('[StripePayment] 🟢 Fresh payment form ready - no cached validation state');
+					store.debugInfo = 'Fresh payment form ready!';
+					store.error = '';
 				});
 
 				paymentElement?.on('change', (event: any) => {
 					if (event.error) {
-						console.log('[StripePayment] ❌ Validation error detected:', event.error.message);
+						console.log('[StripePayment] ❌ New validation error:', event.error.message);
 						store.error = event.error.message || 'Payment validation error';
-						store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
 					} else {
-						// Clear errors when form becomes valid
-						console.log('[StripePayment] ✅ Form validation passed - clearing errors');
+						console.log('[StripePayment] ✅ Form validation passed');
 						store.error = '';
 						store.debugInfo = 'Payment form is valid and ready!';
 					}
 				});
 
-				// Additional event listener to clear errors on focus
 				paymentElement?.on('focus', () => {
-					// Clear any previous validation errors when user starts typing
-					console.log('[StripePayment] 👆 User focused on payment form - clearing previous errors');
 					store.error = '';
 					store.debugInfo = 'Ready for payment details...';
 				});
 				
-				console.log('[StripePayment] 🎉 Payment form reset completed successfully!');
-				console.log('[StripePayment] ✅ New PaymentIntent and Elements created successfully for retry');
-				store.debugInfo = 'Payment form reset with new session - ready for retry!';
+				console.log('[StripePayment] 🎉 Complete reset successful - fresh Elements with no cached state!');
+				store.debugInfo = 'Payment form completely reset - try again!';
 
 			} catch (resetError) {
-				console.log('[StripePayment] ❌ Failed to reset payment form:', resetError);
-				console.log('[StripePayment] Error details:', {
-					message: resetError instanceof Error ? resetError.message : 'Unknown error',
-					stack: resetError instanceof Error ? resetError.stack : undefined
-				});
+				console.log('[StripePayment] ❌ Complete reset failed:', resetError);
 				store.error = 'Failed to reset payment form. Please refresh the page and try again.';
-				store.debugInfo = 'Error creating new payment session';
+				store.debugInfo = 'Reset failed - page refresh recommended';
 			}
 		};
 		
-		// Listen for reset events from the checkout page
 		window.addEventListener('stripe-reset-required', handleStripeReset);
 		
-		// Cleanup
 		return () => {
 			window.removeEventListener('stripe-reset-required', handleStripeReset);
 		};
 	}
 });
+(window as any).submitStripeElements = async () => {
+	console.log('[StripePayment] Submitting elements for validation...');
 
+	// 🚨 CRITICAL: Check if Elements instance is fresh and valid
+	if (!store.stripeElements || !store.clientSecret || !store.resolvedStripe) {
+		console.log('[StripePayment] ❌ Elements not properly initialized');
+		throw new Error('Payment form not properly initialized. Please refresh the page.');
+	}
 
+	// Clear any previous errors before submission
+	store.error = '';
+	
+	try {
+		const { error: submitError } = await store.stripeElements.submit();
+		
+		if (submitError) {
+			console.log('[StripePayment] ❌ Elements submit failed:', submitError);
+			// Don't just throw - also trigger a reset for next attempt
+			setTimeout(() => {
+				window.dispatchEvent(new CustomEvent('stripe-reset-required'));
+			}, 100);
+			throw new Error(submitError.message || 'Form validation failed');
+		}
+
+		console.log('[StripePayment] ✅ Elements submitted successfully');
+		return { success: true };
+		
+	} catch (submitError) {
+		console.log('[StripePayment] ❌ Submit error caught:', submitError);
+		throw submitError;
+	}
+};
 	useVisibleTask$(async () => {
 		store.debugInfo = 'Initializing payment form...';
 
