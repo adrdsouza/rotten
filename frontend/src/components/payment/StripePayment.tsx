@@ -10,15 +10,21 @@ import { useLocalCart } from '~/contexts/CartContext';
 import XCircleIcon from '../icons/XCircleIcon';
 
 let _stripe: Promise<Stripe | null>;
-function getStripe(publishableKey: string) {
-	if (!_stripe && publishableKey) {
-		_stripe = loadStripe(publishableKey);
+function getStripe(publishableKey: string, forceReload = false) {
+	if (!_stripe || forceReload) {
+		if (publishableKey) {
+			_stripe = loadStripe(publishableKey);
+		}
 	}
 	return _stripe;
 }
+
+// Function to clear cached Stripe instance (for complete resets)
+function clearStripeCache() {
+	_stripe = null as any;
+}
 const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 console.log('[StripePayment] Using Stripe key:', stripeKey);
-const stripePromise = getStripe(stripeKey);
 
 // Utility function to extract PaymentIntent ID from client secret
 const extractPaymentIntentId = (clientSecret: string): string => {
@@ -75,24 +81,45 @@ export default component$(() => {
 	const completeReset = $(async () => {
 		console.log('[StripePayment] 🔄 COMPLETE RESET: Starting fresh payment initialization...');
 
-		// 1. Unmount existing payment element
+		// 1. Unmount existing payment element and remove all event listeners
 		if (store.paymentElement) {
 			try {
+				// Remove all event listeners before unmounting
+				store.paymentElement.off('ready');
+				store.paymentElement.off('change');
+				store.paymentElement.off('focus');
+				store.paymentElement.off('blur');
+				store.paymentElement.off('escape');
+
 				store.paymentElement.unmount();
-				console.log('[StripePayment] ✅ Payment element unmounted');
+				console.log('[StripePayment] ✅ Payment element unmounted and event listeners removed');
 			} catch (unmountError) {
 				console.warn('[StripePayment] ⚠️ Error unmounting payment element:', unmountError);
 			}
 		}
 
-		// 2. Clear the DOM mount target
+		// 2. Clear the DOM mount target completely
 		const mountTarget = document.getElementById('payment-form');
 		if (mountTarget) {
 			mountTarget.innerHTML = '';
-			console.log('[StripePayment] ✅ DOM mount target cleared');
+			// Remove any residual classes or attributes that might interfere
+			mountTarget.className = 'mb-8 w-full max-w-full';
+			console.log('[StripePayment] ✅ DOM mount target cleared and reset');
 		}
 
-		// 3. Reset ALL store state to initial values
+		// 3. Clear all localStorage data related to Stripe payments
+		try {
+			localStorage.removeItem('stripe_payment_logs');
+			localStorage.removeItem('stripe_payment_success');
+			localStorage.removeItem('stripe_payment_error');
+			localStorage.removeItem('stripe_client_secret');
+			localStorage.removeItem('stripe_payment_intent_id');
+			console.log('[StripePayment] ✅ All Stripe localStorage data cleared');
+		} catch (storageError) {
+			console.warn('[StripePayment] ⚠️ Error clearing localStorage:', storageError);
+		}
+
+		// 4. Reset ALL store state to initial values (complete clean slate)
 		store.clientSecret = '';
 		store.paymentIntentId = '';
 		store.resolvedStripe = noSerialize({} as Stripe);
@@ -102,8 +129,26 @@ export default component$(() => {
 		store.isProcessing = false;
 		store.debugInfo = 'Resetting payment form...';
 		store.needsReset = false;
+		store.isPreOrder = true; // Reset to initial state
 
-		// 4. Ensure cart is in proper state for retry (don't interfere with cart data)
+		// 5. Clear any global Stripe state that might interfere
+		try {
+			// Clear the cached Stripe instance to force fresh initialization
+			clearStripeCache();
+
+			// Force re-initialization of Stripe instance on next use
+			if (typeof window !== 'undefined') {
+				// Clear any cached Stripe instances or payment data
+				delete (window as any).__stripe;
+				delete (window as any).__stripeElements;
+				delete (window as any).__stripePaymentElement;
+			}
+			console.log('[StripePayment] ✅ Global Stripe state and cache cleared');
+		} catch (globalError) {
+			console.warn('[StripePayment] ⚠️ Error clearing global state:', globalError);
+		}
+
+		// 6. Ensure cart is in proper state for retry (don't interfere with cart data)
 		// Just make sure we're in local mode if cart has items
 		try {
 			const { LocalCartService } = await import('~/services/LocalCartService');
@@ -118,7 +163,10 @@ export default component$(() => {
 			console.warn('[StripePayment] ⚠️ Could not verify cart state during reset:', error);
 		}
 
-		// 5. Increment initialization key to force complete re-initialization
+		// 7. Add a small delay to ensure all cleanup is complete before re-initialization
+		await new Promise(resolve => setTimeout(resolve, 100));
+
+		// 8. Increment initialization key to force complete re-initialization
 		store.initializationKey++;
 
 		console.log('[StripePayment] ✅ COMPLETE RESET: All state cleared, re-initialization will begin');
@@ -161,6 +209,9 @@ export default component$(() => {
 				});
 
 				try {
+					// Clear any previous error state before starting fresh payment attempt
+					store.error = '';
+					store.debugInfo = 'Starting fresh payment confirmation...';
 					store.isProcessing = true;
 					console.log('[StripePayment] Confirming payment for order:', order.code);
 
@@ -463,9 +514,12 @@ export default component$(() => {
 			return;
 		}
 
-		// Initialize Stripe Elements
+		// Initialize Stripe Elements with fresh instances
 		try {
-			store.debugInfo = 'Loading Stripe...';
+			store.debugInfo = 'Loading fresh Stripe instance...';
+
+			// Get fresh Stripe instance to avoid any cached state
+			const stripePromise = getStripe(stripeKey, false); // Don't force reload unless needed
 			const stripe = await stripePromise;
 
 			if (!stripe) {
@@ -474,9 +528,10 @@ export default component$(() => {
 				return;
 			}
 
-			store.debugInfo = 'Creating Payment Element with tabbed interface...';
+			store.debugInfo = 'Creating fresh Payment Element with tabbed interface...';
 			store.resolvedStripe = noSerialize(stripe);
 
+			// Create completely fresh Elements instance with new client secret
 			const elements = stripe.elements({
 				clientSecret: store.clientSecret,
 				locale: 'en',
@@ -507,7 +562,7 @@ export default component$(() => {
 				return;
 			}
 
-			// 🎯 Create Payment Element with TABBED INTERFACE!
+			// 🎯 Create completely fresh Payment Element with TABBED INTERFACE!
 			const paymentElement = elements.create('payment', {
 				layout: 'tabs', // Simplified syntax for tabbed layout
 				paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'], // Order of payment method tabs
@@ -524,20 +579,38 @@ export default component$(() => {
 
 			try {
 				await paymentElement.mount('#payment-form');
-				store.debugInfo = 'Payment Element with tabs mounted successfully!';
+				store.debugInfo = 'Fresh Payment Element with tabs mounted successfully!';
 
-				// Add event listeners for better debugging
+				// Add fresh event listeners (these will be cleaned up on reset)
 				paymentElement.on('ready', () => {
-					store.debugInfo = 'Payment Element with tabs is ready and interactive!';
+					store.debugInfo = 'Fresh Payment Element with tabs is ready and interactive!';
+					// Clear any residual error state when element is ready
+					if (store.error.includes('Invalid card') || store.error.includes('card was declined')) {
+						store.error = '';
+					}
 				});
 
 				paymentElement.on('change', (event: any) => {
 					if (event.error) {
-						store.error = event.error.message || 'Payment validation error';
-						store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
+						// Only show validation errors, not previous payment errors
+						if (event.error.type === 'validation_error') {
+							store.error = event.error.message || 'Payment validation error';
+							store.debugInfo = `Payment validation error: ${event.error.message || 'Unknown error'}`;
+						}
 					} else {
-						store.error = '';
+						// Clear validation errors when form becomes valid
+						if (store.error.includes('validation') || store.error.includes('Invalid card') || store.error.includes('card was declined')) {
+							store.error = '';
+						}
 						store.debugInfo = 'Payment form is valid and ready!';
+					}
+				});
+
+				// Add focus event to clear old errors when user starts typing
+				paymentElement.on('focus', () => {
+					if (store.error.includes('Invalid card') || store.error.includes('card was declined') || store.error.includes('validation')) {
+						store.error = '';
+						store.debugInfo = 'Payment form focused - ready for input';
 					}
 				});
 
