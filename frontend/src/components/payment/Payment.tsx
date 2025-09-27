@@ -58,13 +58,13 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 								// Payment failed - communicate error back to checkout page
 								console.error('[Payment] Stripe payment failed:', paymentResult.error);
 
-								// 🚨 NEW FIX: Reset Stripe payment state after error to allow retry
-								if (typeof window !== 'undefined' && (window as any).resetStripePaymentState) {
-									console.log('[Payment] Resetting Stripe payment state after error...');
+								// 🚨 NEW FIX: Trigger complete reset after payment failure
+								if (typeof window !== 'undefined' && (window as any).resetStripePaymentCompletely) {
+									console.log('[Payment] 🔄 Triggering complete Stripe payment reset after error...');
 									try {
-										await (window as any).resetStripePaymentState();
+										await (window as any).resetStripePaymentCompletely();
 									} catch (resetError) {
-										console.warn('[Payment] Failed to reset Stripe payment state:', resetError);
+										console.warn('[Payment] Failed to reset Stripe payment:', resetError);
 									}
 								}
 
@@ -77,13 +77,13 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 						} catch (paymentError) {
 							console.error('[Payment] Stripe payment error:', paymentError);
 
-							// 🚨 NEW FIX: Reset Stripe payment state after error to allow retry
-							if (typeof window !== 'undefined' && (window as any).resetStripePaymentState) {
-								console.log('[Payment] Resetting Stripe payment state after exception...');
+							// 🚨 NEW FIX: Trigger complete reset after payment exception
+							if (typeof window !== 'undefined' && (window as any).resetStripePaymentCompletely) {
+								console.log('[Payment] 🔄 Triggering complete Stripe payment reset after exception...');
 								try {
-									await (window as any).resetStripePaymentState();
+									await (window as any).resetStripePaymentCompletely();
 								} catch (resetError) {
-									console.warn('[Payment] Failed to reset Stripe payment state:', resetError);
+									console.warn('[Payment] Failed to reset Stripe payment:', resetError);
 								}
 							}
 
