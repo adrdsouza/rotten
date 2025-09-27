@@ -82,36 +82,29 @@ export default component$(() => {
 	const completeReset = $(async () => {
 		console.log('[StripePayment] 🔄 COMPLETE RESET: Starting fresh payment initialization...');
 
-		// 1. Destroy the entire Elements instance (not just unmount payment element)
+		// 1. Completely unmount and clear payment element with all event listeners
 		// This is crucial for clearing all internal Stripe validation state
-		if (store.stripeElements) {
+		if (store.paymentElement) {
 			try {
-				// First unmount the payment element if it exists
-				if (store.paymentElement) {
-					try {
-						// Remove all event listeners before unmounting
-						store.paymentElement.off('ready');
-						store.paymentElement.off('change');
-						store.paymentElement.off('focus');
-						store.paymentElement.off('blur');
-						store.paymentElement.off('escape');
+				// Remove all event listeners before unmounting
+				store.paymentElement.off('ready');
+				store.paymentElement.off('change');
+				store.paymentElement.off('focus');
+				store.paymentElement.off('blur');
+				store.paymentElement.off('escape');
 
-						store.paymentElement.unmount();
-						console.log('[StripePayment] ✅ Payment element unmounted');
-					} catch (unmountError) {
-						console.warn('[StripePayment] ⚠️ Error unmounting payment element:', unmountError);
-					}
-				}
-
-				// 🚨 CRITICAL: Destroy the entire Elements instance to clear all validation state
-				// This is the key to clearing Stripe's internal validation state
-				if (store.stripeElements && typeof store.stripeElements.destroy === 'function') {
-					store.stripeElements.destroy();
-					console.log('[StripePayment] ✅ Entire Elements instance destroyed');
-				}
-			} catch (destroyError) {
-				console.warn('[StripePayment] ⚠️ Error destroying Elements instance:', destroyError);
+				store.paymentElement.unmount();
+				console.log('[StripePayment] ✅ Payment element unmounted and all event listeners removed');
+			} catch (unmountError) {
+				console.warn('[StripePayment] ⚠️ Error unmounting payment element:', unmountError);
 			}
+		}
+
+		// 🚨 CRITICAL: Clear Elements instance reference to force fresh creation
+		// Since StripeElements doesn't have a destroy() method, we clear the reference
+		// and will create a completely new Elements instance with fresh PaymentIntent
+		if (store.stripeElements) {
+			console.log('[StripePayment] ✅ Clearing Elements instance reference for fresh creation');
 		}
 
 		// 2. Completely clear and recreate the DOM mount target with a new ID
@@ -120,7 +113,7 @@ export default component$(() => {
 		if (oldMountTarget) {
 			// Create a completely new DOM element with a unique ID
 			const newMountTarget = document.createElement('div');
-			newMountTarget.id = `payment-form-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+			newMountTarget.id = `payment-form-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 			newMountTarget.className = 'mb-8 w-full max-w-full';
 
 			// Replace the old element with the new one
