@@ -101,6 +101,11 @@ export default component$(() => {
 			// Function to submit elements immediately when user clicks pay
 			(window as any).submitStripeElements = async () => {
 				console.log('[StripePayment] Submitting elements for form validation...');
+
+				// Clear any cached validation errors before submission
+				console.log('[StripePayment] 🧹 Clearing validation state before elements submission');
+				store.error = '';
+
 				const { error: submitError } = await store.stripeElements?.submit() || { error: new Error('Elements not initialized') };
 
 				if (submitError) {
@@ -159,10 +164,20 @@ export default component$(() => {
 
 					// Submit elements first (required by newer Stripe API)
 					logAndStore('[StripePayment] Submitting Stripe Elements...');
+
+					// Clear any cached validation state before submission
+					console.log('[StripePayment] 🧹 Clearing validation state before submission');
+					store.error = '';
+
 					const { error: submitError } = await store.stripeElements?.submit() || { error: new Error('Elements not initialized') };
 
 					if (submitError) {
 						console.log('[StripePayment] ❌ Elements submit failed:', submitError);
+						console.log('[StripePayment] 🔍 Submit error details:', {
+							code: (submitError as any).code,
+							type: (submitError as any).type,
+							message: submitError.message
+						});
 						logAndStore('[StripePayment] Elements submit failed:', submitError);
 						throw new Error(submitError?.message || 'Form validation failed');
 					}
@@ -287,13 +302,12 @@ export default component$(() => {
 
 				} catch (error) {
 					console.log('[StripePayment] ❌ Payment confirmation error:', error);
-					console.log('[StripePayment] 🔄 Triggering reset due to payment error');
 					store.error = error instanceof Error ? error.message : 'Payment failed';
 					store.isProcessing = false;
 
-					// 🚨 CRITICAL FIX: Trigger reset when payment fails
-					// This ensures the form is ready for retry
-					window.dispatchEvent(new CustomEvent('stripe-reset-required'));
+					// Don't trigger reset here - let the parent component handle it
+					// This prevents duplicate resets and race conditions
+					console.log('[StripePayment] 🔄 Payment error will be handled by parent component');
 
 					// Don't throw error - let UI recover for retry
 					// Instead, return error result so parent can handle it
@@ -361,20 +375,28 @@ useVisibleTask$(() => {
 					return;
 				}
 				
-				// Clear the existing mount target completely
+				// Generate unique key to force complete recreation and avoid cached validation state
+				const uniqueKey = `reset-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+				console.log('[StripePayment] 🔑 Using unique key for fresh Elements:', uniqueKey);
+
+				// Clear the existing mount target completely and add unique identifier
 				const mountTarget = document.getElementById('payment-form');
 				if (mountTarget) {
 					mountTarget.innerHTML = '';
+					// Add unique data attribute to force Stripe to treat as new element
+					mountTarget.setAttribute('data-stripe-reset', uniqueKey);
 					// Force a reflow to ensure DOM is completely cleared
 					void mountTarget.offsetHeight;
-					console.log('[StripePayment] Payment form DOM cleared and reflow forced');
+					console.log('[StripePayment] Payment form DOM cleared with unique identifier:', uniqueKey);
 				}
 
-				// Small delay to ensure complete cleanup
-				await new Promise(resolve => setTimeout(resolve, 100));
-				
+				// Longer delay to ensure complete Stripe Elements cleanup
+				await new Promise(resolve => setTimeout(resolve, 300));
+				console.log('[StripePayment] 🕐 Extended cleanup delay completed');
+
 				// Create new elements with the NEW client secret
 				console.log('[StripePayment] 🎨 Creating new Stripe Elements with fresh client secret');
+
 				const elements = store.resolvedStripe?.elements({
 					clientSecret: store.clientSecret, // This is the NEW client secret
 					locale: 'en',
