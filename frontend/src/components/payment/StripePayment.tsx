@@ -356,7 +356,7 @@ export default component$<ChildProps>(({handleReset}) => {
 						});
 						console.log('[StripePayment] ✅ Browser storage validation states cleared');
 					} catch (storageError) {
-						console.log('[StripePayment] ⚠️ Storage not available, skipping storage cleanup');
+						console.log('[StripePayment] ⚠️ Storage not available, skipping storage cleanup',storageError);
 					}
 
 					// Clear window object validation state
