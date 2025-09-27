@@ -67,46 +67,7 @@ export default component$(() => {
 		isProcessing: false,
 		debugInfo: 'Initializing...',
 	});
-	const resetStripeElements = $(async () => {
-		if (store.stripeElements) {
-		  try {
-			const mountTarget = document.getElementById('payment-form');
-			if (mountTarget) {
-			  mountTarget.innerHTML = ''; // clear old mount
-			}
-	  
-			const elements = store.resolvedStripe?.elements({
-			  clientSecret: store.clientSecret,
-			  locale: 'en',
-			  appearance: {
-				theme: 'stripe',
-				variables: {
-				  colorPrimary: '#8a6d4a',
-				  colorBackground: '#ffffff',
-				  colorText: '#374151',
-				  colorDanger: '#ef4444',
-				  colorSuccess: '#10b981',
-				  fontFamily: 'system-ui, -apple-system, sans-serif',
-				  spacingUnit: '4px',
-				  borderRadius: '6px',
-				  fontSizeBase: '16px',
-				}
-			  }
-			});
-	  
-			store.stripeElements = noSerialize(elements);
-	  
-			const paymentElement = elements?.create('payment', {
-			  layout: 'tabs',
-			});
-	  
-			await paymentElement?.mount('#payment-form');
-			console.log('[StripePayment] Elements reset and remounted');
-		  } catch (e) {
-			console.error('[StripePayment] Failed to reset Elements:', e);
-		  }
-		}
-	  });
+
 	  
 	// Expose both submit and payment confirmation functions to window for checkout flow
 	useVisibleTask$(() => {
