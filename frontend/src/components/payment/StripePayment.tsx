@@ -103,7 +103,7 @@ export default component$<ChildProps>(({handleReset}) => {
 		paymentIntentId: '',
 		isPreOrder: true, // Flag to track pre-order state
 		resolvedStripe: noSerialize({} as Stripe),
-		stripeElements: noSerialize({} as StripeElements),
+		stripeElements: noSerialize(undefined as StripeElements | undefined),
 		error: '',
 		isProcessing: false,
 		debugInfo: 'Initializing...',
@@ -169,7 +169,11 @@ export default component$<ChildProps>(({handleReset}) => {
 					console.log('[StripePayment] 🧹 Clearing validation state before submission');
 					store.error = '';
 
-					const { error: submitError } = await store.stripeElements?.submit() || { error: new Error('Elements not initialized') };
+					if (!store.stripeElements) {
+						throw new Error('Elements not initialized');
+					}
+
+					const { error: submitError } = await store.stripeElements.submit();
 
 					if (submitError) {
 						console.log('[StripePayment] ❌ Elements submit failed:', submitError);
@@ -191,11 +195,15 @@ export default component$<ChildProps>(({handleReset}) => {
 					console.log('[StripePayment] Stripe instance:', store.resolvedStripe);
 					console.log('[StripePayment] Elements instance:', store.stripeElements);
 
-					const confirmResult = await store.resolvedStripe?.confirmPayment({
+					if (!store.resolvedStripe || !store.stripeElements) {
+						throw new Error('Stripe or Elements not initialized');
+					}
+
+					const confirmResult = await store.resolvedStripe.confirmPayment({
 						elements: store.stripeElements,
 						clientSecret: store.clientSecret,
 						redirect: 'if_required', // Prevent automatic redirect so we can settle first
-					}) || { error: new Error('Stripe not initialized') };
+					});
 
 					logAndStore('[StripePayment] Confirm payment result:', confirmResult);
 					const { error } = confirmResult;
@@ -377,7 +385,7 @@ export default component$<ChildProps>(({handleReset}) => {
 					}
 
 					// Properly unmount existing Elements instance if it exists
-					if (store.stripeElements) {
+					if (store.stripeElements && typeof store.stripeElements.getElement === 'function') {
 						console.log('[StripePayment] 🗑️ Unmounting existing Elements instance');
 						try {
 							// Unmount the payment element (this is the correct way per Stripe docs)
@@ -389,10 +397,10 @@ export default component$<ChildProps>(({handleReset}) => {
 						} catch (unmountError) {
 							console.log('[StripePayment] ⚠️ Error unmounting elements:', unmountError);
 						}
-
-						// Clear the Elements reference
-						store.stripeElements = noSerialize({} as StripeElements);
 					}
+
+					// Clear the Elements reference
+					store.stripeElements = noSerialize(undefined);
 
 					// Clear the payment form container completely
 					const container = document.getElementById('payment-form');
