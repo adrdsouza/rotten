@@ -5,7 +5,7 @@ import {
 	createPreOrderStripePaymentIntentMutation,
 	linkPaymentIntentToOrderMutation
 } from '~/providers/shop/checkout/checkout';
-import { useLocalCart } from '~/contexts/CartContext';
+import { useLocalCart, loadCartIfNeeded, restoreCartAfterPaymentFailure } from '~/contexts/CartContext';
 
 import XCircleIcon from '../icons/XCircleIcon';
 
@@ -72,7 +72,7 @@ export default component$(() => {
 	});
 
 	// Cleanup function to reset payment state after errors
-	const resetPaymentState = $(() => {
+	const resetPaymentState = $(async () => {
 		console.log('[StripePayment] Resetting payment state after error...');
 
 		// Unmount existing payment element if it exists
@@ -84,6 +84,15 @@ export default component$(() => {
 				console.warn('[StripePayment] Error unmounting payment element:', unmountError);
 			}
 			store.paymentElement = noSerialize(undefined as any);
+		}
+
+		// 🚨 CRITICAL FIX: Restore cart state after payment failure
+		// This ensures the cart context is properly synchronized with localStorage
+		try {
+			await restoreCartAfterPaymentFailure(localCart);
+			console.log('[StripePayment] Cart state restored after payment failure');
+		} catch (cartError) {
+			console.warn('[StripePayment] Failed to restore cart state:', cartError);
 		}
 
 		// Reset store state
@@ -346,7 +355,25 @@ export default component$(() => {
 
 		store.debugInfo = store.needsReset ? 'Reinitializing payment form after error...' : 'Initializing payment form...';
 
+		// 🚨 CRITICAL FIX: Ensure cart is loaded from localStorage before validation
+		// This is especially important after payment resets when cart context might be out of sync
+		try {
+			await loadCartIfNeeded(localCart);
+			console.log('[StripePayment] Cart loaded, items count:', localCart.localCart.items.length);
+		} catch (loadError) {
+			console.error('[StripePayment] Failed to load cart:', loadError);
+			store.error = 'Failed to load cart. Please refresh the page.';
+			return;
+		}
+
+		// Now validate cart after ensuring it's loaded
 		if (!localCart || !localCart.isLocalMode || !localCart.localCart || !localCart.localCart.items || localCart.localCart.items.length === 0) {
+			console.log('[StripePayment] Cart validation failed:', {
+				hasLocalCart: !!localCart,
+				isLocalMode: localCart?.isLocalMode,
+				hasCartData: !!localCart?.localCart,
+				itemsCount: localCart?.localCart?.items?.length || 0
+			});
 			store.debugInfo = 'Waiting for cart items...';
 			store.error = 'Cart is empty. Please add items to continue.';
 			return;
