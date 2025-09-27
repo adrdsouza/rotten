@@ -8,6 +8,7 @@ import {
 import { useLocalCart } from '~/contexts/CartContext';
 
 import XCircleIcon from '../icons/XCircleIcon';
+import { PropFunction } from '@qwik.dev/core/dist/core-internal';
 
 let _stripe: Promise<Stripe | null>;
 function getStripe(publishableKey: string) {
@@ -88,8 +89,11 @@ const calculateCartTotal = (localCart: any): number => {
 
 // 	console.log('[StripePayment] ✅ All validation states cleared');
 // };
-
-export default component$(() => {
+type ChildProps = {
+	handleReset: PropFunction<() => void>;
+  };
+  
+export default component$<ChildProps>(({handleReset}) => {
 	const baseUrl = useLocation().url.origin;
 	const localCart = useLocalCart();
 
@@ -300,6 +304,7 @@ export default component$(() => {
 					console.log('[StripePayment] ❌ Payment confirmation error:', error);
 					store.error = error instanceof Error ? error.message : 'Payment failed';
 					store.isProcessing = false;
+					handleReset()
 
 					// Don't trigger reset here - let the parent component handle it
 					// This prevents duplicate resets and race conditions

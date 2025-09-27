@@ -15,7 +15,7 @@ interface PaymentProps {
 
 export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _onError$, onProcessingChange$: _onProcessingChange$, triggerStripeSignal: _triggerStripeSignal, selectedPaymentMethod: _externalSelectedPaymentMethod, isDisabled, hideButton: _hideButton = false }) => {
 	const paymentMethods = useSignal<EligiblePaymentMethods[]>();
-
+	const isOpen = useSignal(true); 
 	// Use external signal if provided, otherwise use internal signal
 
 	useVisibleTask$(() => {
@@ -32,7 +32,13 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 
 		console.log('[Payment] Set payment methods:', paymentMethods.value);
 	});
-
+	const handleReset = $(() => {
+		
+		isOpen.value = false;
+		setTimeout(() => {
+			isOpen.value = true;
+		  }, 2000);
+	  });
 	
 	useVisibleTask$(() => {
 		if (typeof window !== 'undefined') {
@@ -146,7 +152,7 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 							)}
 							{method.code.includes('stripe') && (
 								<div class="!w-full">
-									<StripePayment />
+									{isOpen && <StripePayment handleReset={handleReset} />}
 								</div>
 							)}
 						</div>
