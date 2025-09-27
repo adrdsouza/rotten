@@ -37,17 +37,21 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 	useVisibleTask$(() => {
 		if (typeof window !== 'undefined') {
 			const handleStripeReset = () => {
-				console.log('[Payment] Received stripe reset signal, triggering Stripe component reset');
+				console.log('[Payment] 🔄 Received stripe reset signal, triggering Stripe component reset');
+				console.log('[Payment] 🧹 Clearing cached error states before reset');
 
 				// Clear any existing error states before resetting
 				// This ensures that previous validation errors don't persist
 				if (typeof window !== 'undefined') {
 					// Clear any cached error states in the window object
+					const hadErrors = !!(window as any).lastPaymentError || !!(window as any).lastValidationError;
 					delete (window as any).lastPaymentError;
 					delete (window as any).lastValidationError;
+					console.log('[Payment] ✅ Window error states cleared, had errors:', hadErrors);
 				}
 
 				// Forward the reset signal to the StripePayment component
+				console.log('[Payment] 📡 Dispatching stripe-reset-required event to StripePayment component');
 				window.dispatchEvent(new CustomEvent('stripe-reset-required'));
 			};
 
@@ -106,12 +110,15 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 			}
 		} else if (triggerValue === 0) {
 			// Signal value of 0 indicates a reset - don't process payment
-			console.log('[Payment] Trigger signal reset to 0 - ready for new payment attempt');
+			console.log('[Payment] 🔄 Trigger signal reset to 0 - ready for new payment attempt');
+			console.log('[Payment] 🧹 Clearing cached error states on signal reset');
 
 			// Clear any cached error states when signal is reset
 			if (typeof window !== 'undefined') {
+				const hadErrors = !!(window as any).lastPaymentError || !!(window as any).lastValidationError;
 				delete (window as any).lastPaymentError;
 				delete (window as any).lastValidationError;
+				console.log('[Payment] ✅ Error states cleared on signal reset, had errors:', hadErrors);
 			}
 		}
 	});
