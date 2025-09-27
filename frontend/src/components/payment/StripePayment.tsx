@@ -1,4 +1,4 @@
-import { component$, noSerialize, useStore, useVisibleTask$ } from '@qwik.dev/core';
+import { component$, noSerialize, useStore, useVisibleTask$, $ } from '@qwik.dev/core';
 import { useLocation } from '@qwik.dev/router';
 import { Stripe, StripeElements, loadStripe } from '@stripe/stripe-js';
 import {
@@ -63,7 +63,7 @@ export default component$(() => {
 		isPreOrder: true, // Flag to track pre-order state
 		resolvedStripe: noSerialize({} as Stripe),
 		stripeElements: noSerialize({} as StripeElements),
-		paymentElement: noSerialize(null as any), // Reference to payment element for cleanup
+		paymentElement: noSerialize(undefined as any), // Reference to payment element for cleanup
 		error: '',
 		isProcessing: false,
 		debugInfo: 'Initializing...',
@@ -83,7 +83,7 @@ export default component$(() => {
 			} catch (unmountError) {
 				console.warn('[StripePayment] Error unmounting payment element:', unmountError);
 			}
-			store.paymentElement = noSerialize(null);
+			store.paymentElement = noSerialize(undefined as any);
 		}
 
 		// Reset store state
