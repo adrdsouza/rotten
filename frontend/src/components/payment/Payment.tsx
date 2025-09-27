@@ -38,14 +38,22 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 		if (typeof window !== 'undefined') {
 			const handleStripeReset = () => {
 				console.log('[Payment] Received stripe reset signal, triggering Stripe component reset');
-				
+
+				// Clear any existing error states before resetting
+				// This ensures that previous validation errors don't persist
+				if (typeof window !== 'undefined') {
+					// Clear any cached error states in the window object
+					delete (window as any).lastPaymentError;
+					delete (window as any).lastValidationError;
+				}
+
 				// Forward the reset signal to the StripePayment component
 				window.dispatchEvent(new CustomEvent('stripe-reset-required'));
 			};
-			
+
 			// Listen for reset requests from the checkout page
 			window.addEventListener('payment-reset-required', handleStripeReset);
-			
+
 			return () => {
 				window.removeEventListener('payment-reset-required', handleStripeReset);
 			};
@@ -99,6 +107,12 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 		} else if (triggerValue === 0) {
 			// Signal value of 0 indicates a reset - don't process payment
 			console.log('[Payment] Trigger signal reset to 0 - ready for new payment attempt');
+
+			// Clear any cached error states when signal is reset
+			if (typeof window !== 'undefined') {
+				delete (window as any).lastPaymentError;
+				delete (window as any).lastValidationError;
+			}
 		}
 	});
 	const handleDummyPayment$ = $(async () => { await _onForward$('dummy-order-code'); });

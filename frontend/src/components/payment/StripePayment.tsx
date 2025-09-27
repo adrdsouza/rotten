@@ -53,6 +53,29 @@ const calculateCartTotal = (localCart: any): number => {
 	return Math.max(estimatedTotal, 100); // Minimum $1.00
 };
 
+// Helper function to completely clear all validation states
+const clearAllValidationStates = () => {
+	console.log('[StripePayment] Clearing all validation states...');
+
+	// Clear any cached validation errors in localStorage
+	try {
+		localStorage.removeItem('stripe_validation_errors');
+		localStorage.removeItem('stripe_form_state');
+		localStorage.removeItem('stripe_last_error');
+	} catch (e) {
+		// Ignore localStorage errors
+	}
+
+	// Clear any global validation state
+	if (typeof window !== 'undefined') {
+		delete (window as any).stripeValidationState;
+		delete (window as any).stripeFormErrors;
+		delete (window as any).lastStripeError;
+	}
+
+	console.log('[StripePayment] All validation states cleared');
+};
+
 export default component$(() => {
 	const baseUrl = useLocation().url.origin;
 	const localCart = useLocalCart();
@@ -286,12 +309,15 @@ useVisibleTask$(() => {
 	if (typeof window !== 'undefined') {
 		const handleStripeReset = async () => {
 			console.log('[StripePayment] Handling Stripe reset...');
-			
+
+			// Clear all validation states first
+			clearAllValidationStates();
+
 			// Clear error states
 			store.error = '';
 			store.isProcessing = false;
 			store.debugInfo = 'Creating new PaymentIntent for retry...';
-			
+
 			try {
 				// 🚨 CRITICAL FIX: Create a new PaymentIntent for retry
 				// Don't reuse the old one as Stripe remembers its failed state
@@ -312,11 +338,16 @@ useVisibleTask$(() => {
 					return;
 				}
 				
-				// Clear the existing mount target
+				// Clear the existing mount target completely
 				const mountTarget = document.getElementById('payment-form');
 				if (mountTarget) {
 					mountTarget.innerHTML = '';
+					// Force a reflow to ensure DOM is completely cleared
+					mountTarget.offsetHeight;
 				}
+
+				// Small delay to ensure complete cleanup
+				await new Promise(resolve => setTimeout(resolve, 100));
 				
 				// Create new elements with the NEW client secret
 				const elements = store.resolvedStripe?.elements({
@@ -354,19 +385,29 @@ useVisibleTask$(() => {
 				
 				await paymentElement?.mount('#payment-form');
 				
-				// Re-add event listeners
+				// Re-add event listeners with improved error clearing
 				paymentElement?.on('ready', () => {
-					store.debugInfo = 'New payment form ready for retry!';
+					console.log('[StripePayment] New payment form is ready for input');
+					store.debugInfo = 'Payment form ready for new attempt!';
+					store.error = ''; // Clear any residual errors when form is ready
 				});
-				
+
 				paymentElement?.on('change', (event: any) => {
 					if (event.error) {
 						store.error = event.error.message || 'Payment validation error';
 						store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
 					} else {
+						// Clear errors when form becomes valid
 						store.error = '';
 						store.debugInfo = 'Payment form is valid and ready!';
 					}
+				});
+
+				// Additional event listener to clear errors on focus
+				paymentElement?.on('focus', () => {
+					// Clear any previous validation errors when user starts typing
+					store.error = '';
+					store.debugInfo = 'Ready for payment details...';
 				});
 				
 				console.log('[StripePayment] New PaymentIntent and Elements created successfully for retry');
@@ -502,9 +543,10 @@ useVisibleTask$(() => {
 				await paymentElement.mount('#payment-form');
 				store.debugInfo = 'Payment Element with tabs mounted successfully!';
 
-				// Add event listeners for better debugging
+				// Add event listeners for better debugging and error clearing
 				paymentElement.on('ready', () => {
 					store.debugInfo = 'Payment Element with tabs is ready and interactive!';
+					store.error = ''; // Clear any initial errors
 				});
 
 				paymentElement.on('change', (event: any) => {
@@ -515,6 +557,12 @@ useVisibleTask$(() => {
 						store.error = '';
 						store.debugInfo = 'Payment form is valid and ready!';
 					}
+				});
+
+				// Clear errors when user focuses on the form
+				paymentElement.on('focus', () => {
+					store.error = '';
+					store.debugInfo = 'Ready for payment details...';
 				});
 
 			} catch (mountError) {
