@@ -327,6 +327,13 @@ useVisibleTask$(() => {
 	if (typeof window !== 'undefined') {
 		const handleStripeReset = async () => {
 			console.log('[StripePayment] 🔄 Starting complete Stripe reset process...');
+			const stripe = await stripePromise;
+
+			if (!stripe) {
+				store.error = 'Failed to load Stripe';
+				store.debugInfo = 'Error: Stripe failed to load';
+				return;
+			}
 
 			// 🚨 CRITICAL FIX: Properly destroy existing Elements FIRST
 			try {
@@ -348,6 +355,13 @@ useVisibleTask$(() => {
 				}
 				      store.stripeElements=noSerialize({} as StripeElements);
 						store.resolvedStripe=noSerialize({} as Stripe);
+
+						
+
+			    store.debugInfo = 'Creating Payment Element with tabbed interface...';
+		         	store.resolvedStripe = noSerialize(stripe);
+
+			
 				// Wait longer for Stripe's internal cleanup
 				await new Promise(resolve => setTimeout(resolve, 500));
 				
@@ -382,8 +396,8 @@ useVisibleTask$(() => {
 				// 🚨 CRITICAL: Create completely new Elements instance (not just new payment element)
 				console.log('[StripePayment] 🎨 Creating entirely new Stripe Elements instance');
 				
-				const elements = store.resolvedStripe?.elements({
-					clientSecret: store.clientSecret, // New client secret
+				const elements = stripe.elements({
+					clientSecret: store.clientSecret,
 					locale: 'en',
 					appearance: {
 						theme: 'stripe',
@@ -409,10 +423,18 @@ useVisibleTask$(() => {
 				store.stripeElements = noSerialize(elements);
 				console.log('[StripePayment] ✅ Brand new Elements instance created');
 
-				// Create fresh payment element from new Elements instance
+				// Check if mount target exists
+				const mountTarget = document.getElementById('payment-form');
+				if (!mountTarget) {
+					store.error = 'Payment form mount target not found';
+					store.debugInfo = 'Error: #payment-form element missing';
+					return;
+				}
+	
+				// 🎯 Create Payment Element with TABBED INTERFACE!
 				const paymentElement = elements.create('payment', {
-					layout: 'tabs',
-					paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'],
+					layout: 'tabs', // Simplified syntax for tabbed layout
+					paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'], // Order of payment method tabs
 					defaultValues: {
 						billingDetails: {
 							name: '',
@@ -420,6 +442,7 @@ useVisibleTask$(() => {
 						}
 					}
 				});
+	
 
 				// Mount to the cleared target
 				console.log('[StripePayment] 📌 Mounting fresh payment element...');
