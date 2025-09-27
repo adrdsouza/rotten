@@ -110,23 +110,7 @@ export default component$(() => {
 		console.log('[StripePayment] Setting up window functions...');
 		if (typeof window !== 'undefined') {
 			// Function to submit elements immediately when user clicks pay
-			(window as any).submitStripeElements = async () => {
-				console.log('[StripePayment] Submitting elements for form validation...');
-
-				// Clear any cached validation errors before submission
-				console.log('[StripePayment] 🧹 Clearing validation state before elements submission');
-				store.error = '';
-
-				const { error: submitError } = await store.stripeElements?.submit() || { error: new Error('Elements not initialized') };
-
-				if (submitError) {
-					console.log('[StripePayment] ❌ Elements submit failed in submitStripeElements:', submitError);
-					throw new Error(submitError?.message || 'Form validation failed');
-				}
-
-				console.log('[StripePayment] Elements submitted successfully');
-				return { success: true };
-			};
+		
 
 			// Function to confirm payment after order is created and linked
 			(window as any).confirmStripePreOrderPayment = async (order: any) => {
@@ -220,6 +204,8 @@ export default component$(() => {
 					// Check for payment confirmation errors
 					if (error) {
 						logAndStore('[StripePayment] Payment confirmation failed:', error);
+						store.stripeElements=noSerialize({} as StripeElements);
+						store.resolvedStripe=noSerialize({} as Stripe);
 						store.error = error?.message || 'Payment confirmation failed';
 						store.isProcessing = false;
 						// await resetStripeElements();  
@@ -480,38 +466,7 @@ useVisibleTask$(() => {
 		};
 	}
 });
-(window as any).submitStripeElements = async () => {
-	console.log('[StripePayment] Submitting elements for validation...');
 
-	// 🚨 CRITICAL: Check if Elements instance is fresh and valid
-	if (!store.stripeElements || !store.clientSecret || !store.resolvedStripe) {
-		console.log('[StripePayment] ❌ Elements not properly initialized');
-		throw new Error('Payment form not properly initialized. Please refresh the page.');
-	}
-
-	// Clear any previous errors before submission
-	store.error = '';
-	
-	try {
-		const { error: submitError } = await store.stripeElements.submit();
-		
-		if (submitError) {
-			console.log('[StripePayment] ❌ Elements submit failed:', submitError);
-			// Don't just throw - also trigger a reset for next attempt
-			setTimeout(() => {
-				window.dispatchEvent(new CustomEvent('stripe-reset-required'));
-			}, 100);
-			throw new Error(submitError.message || 'Form validation failed');
-		}
-
-		console.log('[StripePayment] ✅ Elements submitted successfully');
-		return { success: true };
-		
-	} catch (submitError) {
-		console.log('[StripePayment] ❌ Submit error caught:', submitError);
-		throw submitError;
-	}
-};
 	useVisibleTask$(async () => {
 		store.debugInfo = 'Initializing payment form...';
 
