@@ -75,36 +75,60 @@ export default component$(() => {
 		debugInfo: 'Initializing...',
 		needsReset: false, // Flag to trigger complete reset after errors
 		initializationKey: 0, // Key to force re-initialization
+		currentMountId: 'payment-form', // Track current mount target ID
 	});
 
 	// Complete reset function - simulates fresh page load
 	const completeReset = $(async () => {
 		console.log('[StripePayment] 🔄 COMPLETE RESET: Starting fresh payment initialization...');
 
-		// 1. Unmount existing payment element and remove all event listeners
-		if (store.paymentElement) {
+		// 1. Destroy the entire Elements instance (not just unmount payment element)
+		// This is crucial for clearing all internal Stripe validation state
+		if (store.stripeElements) {
 			try {
-				// Remove all event listeners before unmounting
-				store.paymentElement.off('ready');
-				store.paymentElement.off('change');
-				store.paymentElement.off('focus');
-				store.paymentElement.off('blur');
-				store.paymentElement.off('escape');
+				// First unmount the payment element if it exists
+				if (store.paymentElement) {
+					try {
+						// Remove all event listeners before unmounting
+						store.paymentElement.off('ready');
+						store.paymentElement.off('change');
+						store.paymentElement.off('focus');
+						store.paymentElement.off('blur');
+						store.paymentElement.off('escape');
 
-				store.paymentElement.unmount();
-				console.log('[StripePayment] ✅ Payment element unmounted and event listeners removed');
-			} catch (unmountError) {
-				console.warn('[StripePayment] ⚠️ Error unmounting payment element:', unmountError);
+						store.paymentElement.unmount();
+						console.log('[StripePayment] ✅ Payment element unmounted');
+					} catch (unmountError) {
+						console.warn('[StripePayment] ⚠️ Error unmounting payment element:', unmountError);
+					}
+				}
+
+				// 🚨 CRITICAL: Destroy the entire Elements instance to clear all validation state
+				// This is the key to clearing Stripe's internal validation state
+				if (store.stripeElements && typeof store.stripeElements.destroy === 'function') {
+					store.stripeElements.destroy();
+					console.log('[StripePayment] ✅ Entire Elements instance destroyed');
+				}
+			} catch (destroyError) {
+				console.warn('[StripePayment] ⚠️ Error destroying Elements instance:', destroyError);
 			}
 		}
 
-		// 2. Clear the DOM mount target completely
-		const mountTarget = document.getElementById('payment-form');
-		if (mountTarget) {
-			mountTarget.innerHTML = '';
-			// Remove any residual classes or attributes that might interfere
-			mountTarget.className = 'mb-8 w-full max-w-full';
-			console.log('[StripePayment] ✅ DOM mount target cleared and reset');
+		// 2. Completely clear and recreate the DOM mount target with a new ID
+		// This ensures no cached DOM references interfere
+		const oldMountTarget = document.getElementById('payment-form');
+		if (oldMountTarget) {
+			// Create a completely new DOM element with a unique ID
+			const newMountTarget = document.createElement('div');
+			newMountTarget.id = `payment-form-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+			newMountTarget.className = 'mb-8 w-full max-w-full';
+
+			// Replace the old element with the new one
+			oldMountTarget.parentNode?.replaceChild(newMountTarget, oldMountTarget);
+
+			// Update our reference to use the new ID
+			store.currentMountId = newMountTarget.id;
+			console.log('[StripePayment] ✅ DOM mount target completely recreated with new ID:', newMountTarget.id);
 		}
 
 		// 3. Clear all localStorage data related to Stripe payments
@@ -130,6 +154,7 @@ export default component$(() => {
 		store.debugInfo = 'Resetting payment form...';
 		store.needsReset = false;
 		store.isPreOrder = true; // Reset to initial state
+		// Note: currentMountId is updated above when we create the new DOM element
 
 		// 5. Clear any global Stripe state that might interfere
 		try {
@@ -142,6 +167,12 @@ export default component$(() => {
 				delete (window as any).__stripe;
 				delete (window as any).__stripeElements;
 				delete (window as any).__stripePaymentElement;
+
+				// Clear any Stripe-related data attributes from DOM
+				const stripeElements = document.querySelectorAll('[data-stripe]');
+				stripeElements.forEach(el => {
+					el.removeAttribute('data-stripe');
+				});
 			}
 			console.log('[StripePayment] ✅ Global Stripe state and cache cleared');
 		} catch (globalError) {
@@ -163,8 +194,10 @@ export default component$(() => {
 			console.warn('[StripePayment] ⚠️ Could not verify cart state during reset:', error);
 		}
 
-		// 7. Add a small delay to ensure all cleanup is complete before re-initialization
-		await new Promise(resolve => setTimeout(resolve, 100));
+		// 7. Add a longer delay to ensure all Stripe internal state is completely cleared
+		// This is crucial for allowing Stripe's internal validation state to reset
+		console.log('[StripePayment] ⏳ Waiting for Stripe internal state to clear...');
+		await new Promise(resolve => setTimeout(resolve, 300)); // Increased delay
 
 		// 8. Increment initialization key to force complete re-initialization
 		store.initializationKey++;
@@ -483,15 +516,18 @@ export default component$(() => {
 				return;
 			}
 
-			store.debugInfo = 'Calling GraphQL mutation...';
+			store.debugInfo = 'Creating fresh PaymentIntent...';
 
-			// Create pre-order PaymentIntent immediately - no order dependency
-			console.log('[StripePayment] Creating PaymentIntent with estimated total:', estimatedTotal);
+			// 🚨 CRITICAL: Always create a completely fresh PaymentIntent for each initialization
+			// This ensures no validation state from previous attempts can interfere
+			console.log('[StripePayment] Creating fresh PaymentIntent with estimated total:', estimatedTotal);
+			console.log('[StripePayment] Initialization key:', store.initializationKey, '(fresh PaymentIntent for each reset)');
+
 			const paymentIntentResult = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');
-			console.log('[StripePayment] PaymentIntent result:', paymentIntentResult);
+			console.log('[StripePayment] Fresh PaymentIntent result:', paymentIntentResult);
 
 			store.clientSecret = paymentIntentResult.clientSecret;
-			console.log('[StripePayment] Client secret extracted:', store.clientSecret);
+			console.log('[StripePayment] Fresh client secret extracted:', store.clientSecret);
 
 			if (!store.clientSecret) {
 				store.error = 'Failed to initialize payment. Please try again.';
@@ -501,8 +537,8 @@ export default component$(() => {
 			}
 
 			store.paymentIntentId = extractPaymentIntentId(store.clientSecret);
-			console.log('[StripePayment] PaymentIntent ID extracted:', store.paymentIntentId);
-			store.debugInfo = `PaymentIntent created: ${store.paymentIntentId}`;
+			console.log('[StripePayment] Fresh PaymentIntent ID extracted:', store.paymentIntentId);
+			store.debugInfo = `Fresh PaymentIntent created: ${store.paymentIntentId}`;
 
 			// Clear any previous errors
 			store.error = '';
@@ -528,12 +564,13 @@ export default component$(() => {
 				return;
 			}
 
-			store.debugInfo = 'Creating fresh Payment Element with tabbed interface...';
+			store.debugInfo = 'Creating completely fresh Elements instance with new client secret...';
 			store.resolvedStripe = noSerialize(stripe);
 
-			// Create completely fresh Elements instance with new client secret
+			// 🚨 CRITICAL: Create completely fresh Elements instance with the new client secret
+			// This ensures no validation state from previous Elements instances can interfere
 			const elements = stripe.elements({
-				clientSecret: store.clientSecret,
+				clientSecret: store.clientSecret, // Fresh client secret from new PaymentIntent
 				locale: 'en',
 				appearance: {
 					theme: 'stripe',
@@ -552,17 +589,21 @@ export default component$(() => {
 			});
 
 			store.stripeElements = noSerialize(elements);
-			store.debugInfo = 'Mounting payment element...';
+			store.debugInfo = 'Mounting fresh payment element to new DOM target...';
 
-			// Check if mount target exists
-			const mountTarget = document.getElementById('payment-form');
+			// Check if mount target exists (using dynamic ID)
+			const mountTarget = document.getElementById(store.currentMountId);
 			if (!mountTarget) {
 				store.error = 'Payment form mount target not found';
-				store.debugInfo = 'Error: #payment-form element missing';
+				store.debugInfo = `Error: #${store.currentMountId} element missing`;
+				console.error('[StripePayment] Mount target not found:', store.currentMountId);
 				return;
 			}
 
+			console.log('[StripePayment] Mounting to fresh DOM element:', store.currentMountId);
+
 			// 🎯 Create completely fresh Payment Element with TABBED INTERFACE!
+			// This is a brand new element with no validation state from previous attempts
 			const paymentElement = elements.create('payment', {
 				layout: 'tabs', // Simplified syntax for tabbed layout
 				paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'], // Order of payment method tabs
@@ -578,29 +619,35 @@ export default component$(() => {
 			store.paymentElement = noSerialize(paymentElement);
 
 			try {
-				await paymentElement.mount('#payment-form');
-				store.debugInfo = 'Fresh Payment Element with tabs mounted successfully!';
+				// Mount to the fresh DOM element with dynamic ID
+				await paymentElement.mount(`#${store.currentMountId}`);
+				store.debugInfo = `Fresh Payment Element mounted to ${store.currentMountId} successfully!`;
+				console.log('[StripePayment] Fresh Payment Element mounted to:', store.currentMountId);
 
-				// Add fresh event listeners (these will be cleaned up on reset)
+				// Add completely fresh event listeners (these will be cleaned up on reset)
 				paymentElement.on('ready', () => {
-					store.debugInfo = 'Fresh Payment Element with tabs is ready and interactive!';
+					store.debugInfo = 'Fresh Payment Element is ready and interactive!';
+					console.log('[StripePayment] Fresh Payment Element ready - all validation state cleared');
 					// Clear any residual error state when element is ready
-					if (store.error.includes('Invalid card') || store.error.includes('card was declined')) {
+					if (store.error.includes('Invalid card') || store.error.includes('card was declined') || store.error.includes('incomplete')) {
 						store.error = '';
+						console.log('[StripePayment] Cleared residual error state on ready');
 					}
 				});
 
 				paymentElement.on('change', (event: any) => {
 					if (event.error) {
-						// Only show validation errors, not previous payment errors
+						// Only show current validation errors, not previous payment errors
 						if (event.error.type === 'validation_error') {
 							store.error = event.error.message || 'Payment validation error';
-							store.debugInfo = `Payment validation error: ${event.error.message || 'Unknown error'}`;
+							store.debugInfo = `Current validation error: ${event.error.message || 'Unknown error'}`;
+							console.log('[StripePayment] Current validation error:', event.error);
 						}
 					} else {
 						// Clear validation errors when form becomes valid
-						if (store.error.includes('validation') || store.error.includes('Invalid card') || store.error.includes('card was declined')) {
+						if (store.error.includes('validation') || store.error.includes('Invalid card') || store.error.includes('card was declined') || store.error.includes('incomplete')) {
 							store.error = '';
+							console.log('[StripePayment] Cleared validation errors - form is now valid');
 						}
 						store.debugInfo = 'Payment form is valid and ready!';
 					}
@@ -608,9 +655,10 @@ export default component$(() => {
 
 				// Add focus event to clear old errors when user starts typing
 				paymentElement.on('focus', () => {
-					if (store.error.includes('Invalid card') || store.error.includes('card was declined') || store.error.includes('validation')) {
+					if (store.error.includes('Invalid card') || store.error.includes('card was declined') || store.error.includes('validation') || store.error.includes('incomplete')) {
 						store.error = '';
-						store.debugInfo = 'Payment form focused - ready for input';
+						store.debugInfo = 'Payment form focused - ready for fresh input';
+						console.log('[StripePayment] Cleared errors on focus - ready for fresh input');
 					}
 				});
 
@@ -630,7 +678,7 @@ export default component$(() => {
 	return (
 		<div class="w-full max-w-full">
 			<div class="payment-tabs-container relative">
-				<div id="payment-form" class="mb-8 w-full max-w-full"></div>
+				<div id={store.currentMountId} class="mb-8 w-full max-w-full"></div>
 			</div>
 			{store.error !== '' && !store.error.includes('Cart is empty') && !store.error.includes('Loading payment form') && (
 				<div class="rounded-md bg-red-50 p-4 mb-8">
