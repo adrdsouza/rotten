@@ -63,9 +63,39 @@ export default component$(() => {
 		isPreOrder: true, // Flag to track pre-order state
 		resolvedStripe: noSerialize({} as Stripe),
 		stripeElements: noSerialize({} as StripeElements),
+		paymentElement: noSerialize(null as any), // Reference to payment element for cleanup
 		error: '',
 		isProcessing: false,
 		debugInfo: 'Initializing...',
+		needsReset: false, // Flag to track when reset is needed
+		isInitialized: false, // Track initialization state
+	});
+
+	// Cleanup function to reset payment state after errors
+	const resetPaymentState = $(() => {
+		console.log('[StripePayment] Resetting payment state after error...');
+
+		// Unmount existing payment element if it exists
+		if (store.paymentElement) {
+			try {
+				store.paymentElement.unmount();
+				console.log('[StripePayment] Payment element unmounted');
+			} catch (unmountError) {
+				console.warn('[StripePayment] Error unmounting payment element:', unmountError);
+			}
+			store.paymentElement = noSerialize(null);
+		}
+
+		// Reset store state
+		store.clientSecret = '';
+		store.paymentIntentId = '';
+		store.error = '';
+		store.isProcessing = false;
+		store.needsReset = true;
+		store.isInitialized = false;
+		store.debugInfo = 'Resetting payment form...';
+
+		console.log('[StripePayment] Payment state reset complete');
 	});
 
 	// Expose both submit and payment confirmation functions to window for checkout flow
@@ -75,6 +105,13 @@ export default component$(() => {
 			// Function to submit elements immediately when user clicks pay
 			(window as any).submitStripeElements = async () => {
 				console.log('[StripePayment] Submitting elements for form validation...');
+
+				// Check if we need to reset first
+				if (store.needsReset || !store.isInitialized) {
+					console.log('[StripePayment] Payment form needs reset, reinitializing...');
+					return { error: new Error('Payment form needs to be reinitialized') };
+				}
+
 				const { error: submitError } = await store.stripeElements?.submit() || { error: new Error('Elements not initialized') };
 
 				if (submitError) {
@@ -83,6 +120,13 @@ export default component$(() => {
 				}
 
 				console.log('[StripePayment] Elements submitted successfully');
+				return { success: true };
+			};
+
+			// Function to reset payment state (exposed for error recovery)
+			(window as any).resetStripePaymentState = async () => {
+				console.log('[StripePayment] Reset function called from external source');
+				await resetPaymentState();
 				return { success: true };
 			};
 
@@ -169,6 +213,11 @@ export default component$(() => {
 						logAndStore('[StripePayment] Payment confirmation failed:', error);
 						store.error = error?.message || 'Payment confirmation failed';
 						store.isProcessing = false;
+
+						// 🚨 CRITICAL FIX: Reset payment state after error to allow retry
+						console.log('[StripePayment] Payment failed, triggering state reset...');
+						await resetPaymentState();
+
 						return {
 							success: false,
 							error: error?.message || 'Payment confirmation failed'
@@ -182,6 +231,11 @@ export default component$(() => {
 						const errorMsg = `Payment not successful. Status: ${paymentIntent?.status}`;
 						store.error = errorMsg;
 						store.isProcessing = false;
+
+						// 🚨 CRITICAL FIX: Reset payment state after failed status check
+						console.log('[StripePayment] Payment status check failed, triggering state reset...');
+						await resetPaymentState();
+
 						return {
 							success: false,
 							error: errorMsg
@@ -262,7 +316,11 @@ export default component$(() => {
 					store.error = error instanceof Error ? error.message : 'Payment failed';
 					store.isProcessing = false;
 
-					// 🚨 CRITICAL FIX: Don't throw error - let UI recover for retry
+					// 🚨 CRITICAL FIX: Reset payment state after any error to allow retry
+					console.log('[StripePayment] Payment error caught, triggering state reset...');
+					await resetPaymentState();
+
+					// Don't throw error - let UI recover for retry
 					// Instead, return error result so parent can handle it
 					return {
 						success: false,
@@ -273,11 +331,20 @@ export default component$(() => {
 
 			console.log('[StripePayment] Window functions set up successfully');
 			console.log('[StripePayment] confirmStripePreOrderPayment available:', typeof (window as any).confirmStripePreOrderPayment);
+			console.log('[StripePayment] resetStripePaymentState available:', typeof (window as any).resetStripePaymentState);
 		}
 	});
 
-	useVisibleTask$(async () => {
-		store.debugInfo = 'Initializing payment form...';
+	useVisibleTask$(async ({ track }) => {
+		// Track changes to needsReset flag to trigger re-initialization
+		track(() => store.needsReset);
+
+		// Skip initialization if already initialized and no reset needed
+		if (store.isInitialized && !store.needsReset) {
+			return;
+		}
+
+		store.debugInfo = store.needsReset ? 'Reinitializing payment form after error...' : 'Initializing payment form...';
 
 		if (!localCart || !localCart.isLocalMode || !localCart.localCart || !localCart.localCart.items || localCart.localCart.items.length === 0) {
 			store.debugInfo = 'Waiting for cart items...';
@@ -299,8 +366,9 @@ export default component$(() => {
 
 			store.debugInfo = 'Calling GraphQL mutation...';
 
-			// Create pre-order PaymentIntent immediately - no order dependency
-			console.log('[StripePayment] Creating PaymentIntent with estimated total:', estimatedTotal);
+			// 🚨 CRITICAL FIX: Always create a NEW PaymentIntent for retries
+			// This ensures we don't reuse a potentially tainted PaymentIntent
+			console.log('[StripePayment] Creating NEW PaymentIntent with estimated total:', estimatedTotal);
 			const paymentIntentResult = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');
 			console.log('[StripePayment] PaymentIntent result:', paymentIntentResult);
 
@@ -318,8 +386,9 @@ export default component$(() => {
 			console.log('[StripePayment] PaymentIntent ID extracted:', store.paymentIntentId);
 			store.debugInfo = `PaymentIntent created: ${store.paymentIntentId}`;
 
-			// Clear any previous errors
+			// Clear any previous errors and reset flags
 			store.error = '';
+			store.needsReset = false;
 
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -342,6 +411,8 @@ export default component$(() => {
 			store.debugInfo = 'Creating Payment Element with tabbed interface...';
 			store.resolvedStripe = noSerialize(stripe);
 
+			// 🚨 CRITICAL FIX: Create NEW Elements instance for each initialization
+			// This ensures we don't reuse potentially corrupted Elements state
 			const elements = stripe.elements({
 				clientSecret: store.clientSecret,
 				locale: 'en',
@@ -364,7 +435,7 @@ export default component$(() => {
 			store.stripeElements = noSerialize(elements);
 			store.debugInfo = 'Mounting payment element...';
 
-			// Check if mount target exists
+			// Check if mount target exists and clear it first
 			const mountTarget = document.getElementById('payment-form');
 			if (!mountTarget) {
 				store.error = 'Payment form mount target not found';
@@ -372,7 +443,10 @@ export default component$(() => {
 				return;
 			}
 
-			// 🎯 Create Payment Element with TABBED INTERFACE!
+			// 🚨 CRITICAL FIX: Clear the mount target before mounting new element
+			mountTarget.innerHTML = '';
+
+			// Create NEW Payment Element with TABBED INTERFACE
 			const paymentElement = elements.create('payment', {
 				layout: 'tabs', // Simplified syntax for tabbed layout
 				paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'], // Order of payment method tabs
@@ -384,9 +458,13 @@ export default component$(() => {
 				}
 			});
 
+			// Store reference to payment element for cleanup
+			store.paymentElement = noSerialize(paymentElement);
+
 			try {
 				await paymentElement.mount('#payment-form');
 				store.debugInfo = 'Payment Element with tabs mounted successfully!';
+				store.isInitialized = true; // Mark as initialized
 
 				// Add event listeners for better debugging
 				paymentElement.on('ready', () => {
@@ -407,12 +485,14 @@ export default component$(() => {
 				const errorMsg = mountError instanceof Error ? mountError.message : 'Unknown mount error';
 				store.error = `Failed to mount payment form: ${errorMsg}`;
 				store.debugInfo = `Mount error: ${errorMsg}`;
+				store.isInitialized = false;
 			}
 
 		} catch (elementsError) {
 			const errorMsg = elementsError instanceof Error ? elementsError.message : 'Unknown Elements error';
 			store.error = `Failed to initialize payment form: ${errorMsg}`;
 			store.debugInfo = `Elements error: ${errorMsg}`;
+			store.isInitialized = false;
 		}
 	});
 

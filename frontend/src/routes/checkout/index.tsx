@@ -158,6 +158,7 @@ const CheckoutContent = component$(() => {
         delete (window as any).submitCheckoutAddressForm;
         delete (window as any).submitStripeElements;
         delete (window as any).confirmStripePreOrderPayment;
+        delete (window as any).resetStripePaymentState;
       }
     };
   });

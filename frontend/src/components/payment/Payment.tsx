@@ -57,6 +57,17 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 							if (paymentResult && !paymentResult.success) {
 								// Payment failed - communicate error back to checkout page
 								console.error('[Payment] Stripe payment failed:', paymentResult.error);
+
+								// 🚨 NEW FIX: Reset Stripe payment state after error to allow retry
+								if (typeof window !== 'undefined' && (window as any).resetStripePaymentState) {
+									console.log('[Payment] Resetting Stripe payment state after error...');
+									try {
+										await (window as any).resetStripePaymentState();
+									} catch (resetError) {
+										console.warn('[Payment] Failed to reset Stripe payment state:', resetError);
+									}
+								}
+
 								_onError$(paymentResult.error || 'Payment failed. Please check your payment details and try again.');
 								return;
 							}
@@ -65,6 +76,17 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 
 						} catch (paymentError) {
 							console.error('[Payment] Stripe payment error:', paymentError);
+
+							// 🚨 NEW FIX: Reset Stripe payment state after error to allow retry
+							if (typeof window !== 'undefined' && (window as any).resetStripePaymentState) {
+								console.log('[Payment] Resetting Stripe payment state after exception...');
+								try {
+									await (window as any).resetStripePaymentState();
+								} catch (resetError) {
+									console.warn('[Payment] Failed to reset Stripe payment state:', resetError);
+								}
+							}
+
 							_onError$(paymentError instanceof Error ? paymentError.message : 'Payment failed. Please try again.');
 						}
 					} else {
