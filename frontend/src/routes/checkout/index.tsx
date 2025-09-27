@@ -163,12 +163,14 @@ const CheckoutContent = component$(() => {
   });
   
 	const handleReset = $(() => {
-		
+    console.log('isOddpen_', isOpen.value);
+
 		isOpen.value = false;
 		setTimeout(() => {
 			isOpen.value = true;
 		  }, 2000);
 	  });
+    console.log('isOddpen', isOpen.value);
   // Separate task for cart validation that doesn't affect loading state
   useVisibleTask$(async ({ track }) => {
     track(() => localCart.localCart.items);
