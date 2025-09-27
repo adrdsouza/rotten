@@ -208,7 +208,7 @@ export default component$<ChildProps>(({handleReset}) => {
 					// Check for payment confirmation errors
 					if (error) {
 						logAndStore('[StripePayment] Payment confirmation failed:', error);
-						
+						handleReset()
 						store.error = error?.message || 'Payment confirmation failed';
 						store.isProcessing = false;
 						// await resetStripeElements();  
@@ -304,7 +304,7 @@ export default component$<ChildProps>(({handleReset}) => {
 					console.log('[StripePayment] ❌ Payment confirmation error:', error);
 					store.error = error instanceof Error ? error.message : 'Payment failed';
 					store.isProcessing = false;
-					handleReset()
+				
 
 					// Don't trigger reset here - let the parent component handle it
 					// This prevents duplicate resets and race conditions
