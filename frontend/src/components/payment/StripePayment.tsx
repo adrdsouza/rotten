@@ -280,6 +280,8 @@ export default component$(() => {
 
 	// Add this useVisibleTask$ to your StripePayment component (after the existing ones)
 
+// In your StripePayment component, modify the reset handler:
+
 useVisibleTask$(() => {
 	if (typeof window !== 'undefined') {
 		const handleStripeReset = async () => {
@@ -288,75 +290,92 @@ useVisibleTask$(() => {
 			// Clear error states
 			store.error = '';
 			store.isProcessing = false;
-			store.debugInfo = 'Resetting payment form...';
+			store.debugInfo = 'Creating new PaymentIntent for retry...';
 			
-			// Reset Stripe Elements if they exist
-			if (store.stripeElements && store.resolvedStripe && store.clientSecret) {
-				try {
-					// Clear the existing mount target
-					const mountTarget = document.getElementById('payment-form');
-					if (mountTarget) {
-						mountTarget.innerHTML = '';
-					}
-					
-					// Recreate elements with the same client secret
-					const elements = store.resolvedStripe.elements({
-						clientSecret: store.clientSecret,
-						locale: 'en',
-						appearance: {
-							theme: 'stripe',
-							variables: {
-								colorPrimary: '#8a6d4a',
-								colorBackground: '#ffffff',
-								colorText: '#374151',
-								colorDanger: '#ef4444',
-								colorSuccess: '#10b981',
-								fontFamily: 'system-ui, -apple-system, sans-serif',
-								spacingUnit: '4px',
-								borderRadius: '6px',
-								fontSizeBase: '16px',
-							}
-						}
-					});
-					
-					store.stripeElements = noSerialize(elements);
-					
-					// Create and mount a fresh payment element
-					const paymentElement = elements.create('payment', {
-						layout: 'tabs',
-						paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'],
-						defaultValues: {
-							billingDetails: {
-								name: '',
-								email: '',
-							}
-						}
-					});
-					
-					await paymentElement.mount('#payment-form');
-					
-					// Re-add event listeners
-					paymentElement.on('ready', () => {
-						store.debugInfo = 'Payment Element reset and ready for retry!';
-					});
-					
-					paymentElement.on('change', (event: any) => {
-						if (event.error) {
-							store.error = event.error.message || 'Payment validation error';
-							store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
-						} else {
-							store.error = '';
-							store.debugInfo = 'Payment form is valid and ready!';
-						}
-					});
-					
-					console.log('[StripePayment] Stripe Elements reset successfully');
-					store.debugInfo = 'Payment form reset - ready for new attempt!';
-					
-				} catch (resetError) {
-					console.error('[StripePayment] Failed to reset Stripe Elements:', resetError);
-					store.error = 'Failed to reset payment form. Please refresh the page.';
+			try {
+				// 🚨 CRITICAL FIX: Create a new PaymentIntent for retry
+				// Don't reuse the old one as Stripe remembers its failed state
+				const estimatedTotal = calculateCartTotal(localCart);
+				console.log('[StripePayment] Creating new PaymentIntent for retry with total:', estimatedTotal);
+				
+				const paymentIntentResult = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');
+				console.log('[StripePayment] New PaymentIntent created for retry:', paymentIntentResult);
+				
+				// Update store with new PaymentIntent data
+				store.clientSecret = paymentIntentResult.clientSecret;
+				store.paymentIntentId = extractPaymentIntentId(store.clientSecret);
+				
+				console.log('[StripePayment] New PaymentIntent ID for retry:', store.paymentIntentId);
+				
+				if (!store.clientSecret) {
+					store.error = 'Failed to create new payment session. Please refresh the page.';
+					return;
 				}
+				
+				// Clear the existing mount target
+				const mountTarget = document.getElementById('payment-form');
+				if (mountTarget) {
+					mountTarget.innerHTML = '';
+				}
+				
+				// Create new elements with the NEW client secret
+				const elements = store.resolvedStripe?.elements({
+					clientSecret: store.clientSecret, // This is the NEW client secret
+					locale: 'en',
+					appearance: {
+						theme: 'stripe',
+						variables: {
+							colorPrimary: '#8a6d4a',
+							colorBackground: '#ffffff',
+							colorText: '#374151',
+							colorDanger: '#ef4444',
+							colorSuccess: '#10b981',
+							fontFamily: 'system-ui, -apple-system, sans-serif',
+							spacingUnit: '4px',
+							borderRadius: '6px',
+							fontSizeBase: '16px',
+						}
+					}
+				});
+				
+				store.stripeElements = noSerialize(elements);
+				
+				// Create and mount a fresh payment element
+				const paymentElement = elements?.create('payment', {
+					layout: 'tabs',
+					paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'],
+					defaultValues: {
+						billingDetails: {
+							name: '',
+							email: '',
+						}
+					}
+				});
+				
+				await paymentElement?.mount('#payment-form');
+				
+				// Re-add event listeners
+				paymentElement?.on('ready', () => {
+					store.debugInfo = 'New payment form ready for retry!';
+				});
+				
+				paymentElement?.on('change', (event: any) => {
+					if (event.error) {
+						store.error = event.error.message || 'Payment validation error';
+						store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
+					} else {
+						store.error = '';
+						store.debugInfo = 'Payment form is valid and ready!';
+					}
+				});
+				
+				console.log('[StripePayment] New PaymentIntent and Elements created successfully for retry');
+				store.debugInfo = 'Payment form reset with new session - ready for retry!';
+				
+			} catch (resetError) {
+				console.error('[StripePayment] Failed to create new PaymentIntent for retry:', resetError);
+				store.error = 'Failed to reset payment form. Please refresh the page and try again.';
+				store.debugInfo = 'Error creating new payment session';
 			}
 		};
 		
