@@ -376,15 +376,15 @@ export default component$<ChildProps>(({handleReset}) => {
 						console.log('[StripePayment] ✅ Window validation states cleared');
 					}
 
-					// Destroy existing Elements instance if it exists
+					// Properly unmount existing Elements instance if it exists
 					if (store.stripeElements) {
-						console.log('[StripePayment] 🗑️ Destroying existing Elements instance');
+						console.log('[StripePayment] 🗑️ Unmounting existing Elements instance');
 						try {
-							// Unmount all elements first
+							// Unmount the payment element (this is the correct way per Stripe docs)
 							const paymentElement = store.stripeElements.getElement('payment');
 							if (paymentElement) {
 								paymentElement.unmount();
-								console.log('[StripePayment] ✅ Payment element unmounted');
+								console.log('[StripePayment] ✅ Payment element properly unmounted');
 							}
 						} catch (unmountError) {
 							console.log('[StripePayment] ⚠️ Error unmounting elements:', unmountError);
@@ -404,17 +404,42 @@ export default component$<ChildProps>(({handleReset}) => {
 					// Small delay to ensure cleanup is complete
 					await new Promise(resolve => setTimeout(resolve, 200));
 
+					// 🚨 CRITICAL FIX: Create a fresh PaymentIntent to clear server-side validation cache
+					console.log('[StripePayment] 🆕 Creating fresh PaymentIntent to clear server-side validation errors...');
+					try {
+						// Calculate estimated total from local cart
+						const estimatedTotal = calculateCartTotal(localCart);
+						console.log('[StripePayment] Creating new PaymentIntent with total:', estimatedTotal);
+
+						// Create a completely new PaymentIntent
+						const paymentIntentResult = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');
+						console.log('[StripePayment] Fresh PaymentIntent created:', paymentIntentResult);
+
+						// Update store with fresh PaymentIntent data
+						store.clientSecret = paymentIntentResult.clientSecret;
+						store.paymentIntentId = extractPaymentIntentId(store.clientSecret);
+
+						console.log('[StripePayment] ✅ Fresh PaymentIntent ID:', store.paymentIntentId);
+						console.log('[StripePayment] ✅ Fresh client secret:', store.clientSecret);
+
+					} catch (paymentIntentError) {
+						console.error('[StripePayment] ❌ Failed to create fresh PaymentIntent:', paymentIntentError);
+						store.error = 'Failed to reset payment form. Please refresh the page and try again.';
+						store.debugInfo = 'PaymentIntent creation failed during reset';
+						return;
+					}
+
 					// Only recreate if we have a valid client secret and Stripe instance
 					if (!store.clientSecret || !store.resolvedStripe) {
-						console.log('[StripePayment] ⚠️ Missing client secret or Stripe instance, skipping recreation');
+						console.log('[StripePayment] ⚠️ Missing client secret or Stripe instance after reset');
 						store.debugInfo = 'Payment form cleared - will reinitialize when ready';
 						return;
 					}
 
-					// Recreate Elements with fresh state
-					console.log('[StripePayment] 🆕 Creating fresh Elements instance...');
+					// Recreate Elements with fresh PaymentIntent
+					console.log('[StripePayment] 🆕 Creating fresh Elements instance with new PaymentIntent...');
 					const elements = store.resolvedStripe.elements({
-						clientSecret: store.clientSecret,
+						clientSecret: store.clientSecret, // This is now a fresh PaymentIntent
 						appearance: {
 							theme: 'stripe',
 							variables: {
@@ -471,8 +496,8 @@ export default component$<ChildProps>(({handleReset}) => {
 						store.debugInfo = 'Ready for payment details...';
 					});
 
-					console.log('[StripePayment] 🎉 Complete reset successful - fresh Elements with no cached state!');
-					store.debugInfo = 'Payment form completely reset - try again!';
+					console.log('[StripePayment] 🎉 Complete reset successful - fresh PaymentIntent and Elements with no cached state!');
+					store.debugInfo = 'Payment form completely reset with fresh PaymentIntent - try again!';
 
 				} catch (resetError) {
 					console.log('[StripePayment] ❌ Complete reset failed:', resetError);
