@@ -6,6 +6,7 @@ import {
 	linkPaymentIntentToOrderMutation
 } from '~/providers/shop/checkout/checkout';
 import { useLocalCart } from '~/contexts/CartContext';
+import { clearValidationCache } from '~/utils/validation-cache';
 
 import XCircleIcon from '../icons/XCircleIcon';
 import { PropFunction } from '@qwik.dev/core/dist/core-internal';
@@ -324,176 +325,169 @@ export default component$<ChildProps>(({handleReset}) => {
 		}
 	});
 
-	// Add this useVisibleTask$ to your StripePayment component (after the existing ones)
+	// Stripe Elements Reset Handler - Properly clears validation state
+	useVisibleTask$(() => {
+		if (typeof window !== 'undefined') {
+			const handleStripeReset = async () => {
+				console.log('[StripePayment] 🔄 Starting complete Stripe reset process...');
 
-// In your StripePayment component, modify the reset handler:
+				try {
+					console.log('[StripePayment] 🧹 Clearing all validation states...');
 
-// useVisibleTask$(() => {
-// 	if (typeof window !== 'undefined') {
-// 		const handleStripeReset = async () => {
-// 			console.log('[StripePayment] 🔄 Starting complete Stripe reset process...');
-// 			const stripe = await stripePromise;
+					// Clear component state first
+					store.error = '';
+					store.debugInfo = 'Resetting payment form...';
 
-// 			if (!stripe) {
-// 				store.error = 'Failed to load Stripe';
-// 				store.debugInfo = 'Error: Stripe failed to load';
-// 				return;
-// 			}
+					// Clear validation cache
+					clearValidationCache();
 
-// 			// 🚨 CRITICAL FIX: Properly destroy existing Elements FIRST
-// 			try {
-// 				// Destroy existing payment element completely
-// 				const existingPaymentElement = store.stripeElements?.getElement('payment');
-// 				if (existingPaymentElement) {
-// 					console.log('[StripePayment] 🗑️ Destroying existing payment element');
-// 					existingPaymentElement.destroy();
-// 				}
-				
-// 				// Clear the mount target completely
-// 				const mountTarget = document.getElementById('payment-form');
-// 				if (mountTarget) {
-// 					// Force unmount by clearing innerHTML
-// 					mountTarget.innerHTML = '';
-// 					// Force DOM reflow
-// 					void mountTarget.offsetHeight;
-// 					console.log('[StripePayment] 🧹 Payment form DOM completely cleared');
-// 				}
-// 				      store.stripeElements=noSerialize({} as StripeElements);
-// 						store.resolvedStripe=noSerialize({} as Stripe);
+					// Clear any browser storage that might cache validation state
+					try {
+						const keysToRemove = [
+							'stripe_validation_errors',
+							'stripe_form_state',
+							'stripe_last_error',
+							'stripe_elements_state',
+							'stripe_payment_cache'
+						];
+						keysToRemove.forEach(key => {
+							localStorage.removeItem(key);
+							sessionStorage.removeItem(key);
+						});
+						console.log('[StripePayment] ✅ Browser storage validation states cleared');
+					} catch (storageError) {
+						console.log('[StripePayment] ⚠️ Storage not available, skipping storage cleanup');
+					}
 
-						
+					// Clear window object validation state
+					if (typeof window !== 'undefined') {
+						const windowPropsToDelete = [
+							'stripeValidationState',
+							'stripeFormErrors',
+							'lastStripeError',
+							'stripeElementsCache',
+							'stripeLastSubmission',
+							'lastPaymentError',
+							'lastValidationError'
+						];
+						windowPropsToDelete.forEach(prop => {
+							delete (window as any)[prop];
+						});
+						console.log('[StripePayment] ✅ Window validation states cleared');
+					}
 
-// 			    store.debugInfo = 'Creating Payment Element with tabbed interface...';
-// 		         	store.resolvedStripe = noSerialize(stripe);
+					// Destroy existing Elements instance if it exists
+					if (store.stripeElements) {
+						console.log('[StripePayment] 🗑️ Destroying existing Elements instance');
+						try {
+							// Unmount all elements first
+							const paymentElement = store.stripeElements.getElement('payment');
+							if (paymentElement) {
+								paymentElement.unmount();
+								console.log('[StripePayment] ✅ Payment element unmounted');
+							}
+						} catch (unmountError) {
+							console.log('[StripePayment] ⚠️ Error unmounting elements:', unmountError);
+						}
 
-			
-// 				// Wait longer for Stripe's internal cleanup
-// 				await new Promise(resolve => setTimeout(resolve, 500));
-				
-// 			} catch (destroyError) {
-// 				console.log('[StripePayment] ⚠️ Error during Elements cleanup (continuing):', destroyError);
-// 			}
+						// Clear the Elements reference
+						store.stripeElements = noSerialize({} as StripeElements);
+					}
 
-// 			// Clear all validation states
-// 			clearAllValidationStates();
-// 			store.error = '';
-// 			store.isProcessing = false;
-// 			store.debugInfo = 'Creating fresh payment session...';
+					// Clear the payment form container completely
+					const container = document.getElementById('payment-form');
+					if (container) {
+						container.innerHTML = '';
+						console.log('[StripePayment] 🧹 Payment form container cleared');
+					}
 
-// 			try {
-// 				// Create new PaymentIntent with fresh state
-// 				const estimatedTotal = calculateCartTotal(localCart);
-// 				console.log('[StripePayment] 💰 Creating new PaymentIntent with total:', estimatedTotal);
-				
-// 				const paymentIntentResult = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');
-				
-// 				// Update store with completely new data
-// 				store.clientSecret = paymentIntentResult.clientSecret;
-// 				store.paymentIntentId = extractPaymentIntentId(store.clientSecret);
-				
-// 				console.log('[StripePayment] 🆔 New PaymentIntent created:', store.paymentIntentId);
-				
-// 				if (!store.clientSecret) {
-// 					store.error = 'Failed to create new payment session. Please refresh the page.';
-// 					return;
-// 				}
+					// Small delay to ensure cleanup is complete
+					await new Promise(resolve => setTimeout(resolve, 200));
 
-// 				// 🚨 CRITICAL: Create completely new Elements instance (not just new payment element)
-// 				console.log('[StripePayment] 🎨 Creating entirely new Stripe Elements instance');
-				
-// 				const elements = stripe.elements({
-// 					clientSecret: store.clientSecret,
-// 					locale: 'en',
-// 					appearance: {
-// 						theme: 'stripe',
-// 						variables: {
-// 							colorPrimary: '#8a6d4a',
-// 							colorBackground: '#ffffff',
-// 							colorText: '#374151',
-// 							colorDanger: '#ef4444',
-// 							colorSuccess: '#10b981',
-// 							fontFamily: 'system-ui, -apple-system, sans-serif',
-// 							spacingUnit: '4px',
-// 							borderRadius: '6px',
-// 							fontSizeBase: '16px',
-// 						}
-// 					}
-// 				});
+					// Only recreate if we have a valid client secret and Stripe instance
+					if (!store.clientSecret || !store.resolvedStripe) {
+						console.log('[StripePayment] ⚠️ Missing client secret or Stripe instance, skipping recreation');
+						store.debugInfo = 'Payment form cleared - will reinitialize when ready';
+						return;
+					}
 
-// 				if (!elements) {
-// 					throw new Error('Failed to create new Stripe Elements');
-// 				}
+					// Recreate Elements with fresh state
+					console.log('[StripePayment] 🆕 Creating fresh Elements instance...');
+					const elements = store.resolvedStripe.elements({
+						clientSecret: store.clientSecret,
+						appearance: {
+							theme: 'stripe',
+							variables: {
+								colorPrimary: '#0570de',
+								colorBackground: '#ffffff',
+								colorText: '#30313d',
+								colorDanger: '#df1b41',
+								fontFamily: 'system-ui, sans-serif',
+								spacingUnit: '4px',
+								borderRadius: '8px',
+							}
+						}
+					});
 
-// 				// Replace old Elements instance with new one
-// 				store.stripeElements = noSerialize(elements);
-// 				console.log('[StripePayment] ✅ Brand new Elements instance created');
+					store.stripeElements = noSerialize(elements);
 
-// 				// Check if mount target exists
-// 				const mountTarget = document.getElementById('payment-form');
-// 				if (!mountTarget) {
-// 					store.error = 'Payment form mount target not found';
-// 					store.debugInfo = 'Error: #payment-form element missing';
-// 					return;
-// 				}
-	
-// 				// 🎯 Create Payment Element with TABBED INTERFACE!
-// 				const paymentElement = elements.create('payment', {
-// 					layout: 'tabs', // Simplified syntax for tabbed layout
-// 					paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'], // Order of payment method tabs
-// 					defaultValues: {
-// 						billingDetails: {
-// 							name: '',
-// 							email: '',
-// 						}
-// 					}
-// 				});
-	
+					// Create fresh Payment Element
+					const paymentElement = elements.create('payment', {
+						layout: 'tabs',
+						paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'],
+						defaultValues: {
+							billingDetails: {
+								name: '',
+								email: '',
+							}
+						}
+					});
 
-// 				// Mount to the cleared target
-// 				console.log('[StripePayment] 📌 Mounting fresh payment element...');
-// 				await paymentElement?.mount('#payment-form');
-// 				console.log('[StripePayment] ✅ Fresh payment element mounted successfully');
-				
-// 				// Set up clean event listeners
-// 				paymentElement?.on('ready', () => {
-// 					console.log('[StripePayment] 🟢 Fresh payment form ready - no cached validation state');
-// 					store.debugInfo = 'Fresh payment form ready!';
-// 					store.error = '';
-// 				});
+					// Mount the fresh element
+					await paymentElement.mount('#payment-form');
+					console.log('[StripePayment] ✅ Fresh payment element mounted');
 
-// 				paymentElement?.on('change', (event: any) => {
-// 					if (event.error) {
-// 						console.log('[StripePayment] ❌ New validation error:', event.error.message);
-// 						store.error = event.error.message || 'Payment validation error';
-// 					} else {
-// 						console.log('[StripePayment] ✅ Form validation passed');
-// 						store.error = '';
-// 						store.debugInfo = 'Payment form is valid and ready!';
-// 					}
-// 				});
+					// Set up clean event listeners
+					paymentElement.on('ready', () => {
+						console.log('[StripePayment] 🟢 Fresh payment form ready - no cached validation state');
+						store.debugInfo = 'Fresh payment form ready!';
+						store.error = '';
+					});
 
-// 				paymentElement?.on('focus', () => {
-// 					store.error = '';
-// 					store.debugInfo = 'Ready for payment details...';
-// 				});
-				
-// 				console.log('[StripePayment] 🎉 Complete reset successful - fresh Elements with no cached state!');
-// 				store.debugInfo = 'Payment form completely reset - try again!';
+					paymentElement.on('change', (event: any) => {
+						if (event.error) {
+							console.log('[StripePayment] ❌ New validation error:', event.error.message);
+							store.error = event.error.message || 'Payment validation error';
+							store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
+						} else {
+							console.log('[StripePayment] ✅ Form validation passed');
+							store.error = '';
+							store.debugInfo = 'Payment form is valid and ready!';
+						}
+					});
 
-// 			} catch (resetError) {
-// 				console.log('[StripePayment] ❌ Complete reset failed:', resetError);
-// 				store.error = 'Failed to reset payment form. Please refresh the page and try again.';
-// 				store.debugInfo = 'Reset failed - page refresh recommended';
-// 			}
-// 		};
-		
-// 		window.addEventListener('stripe-reset-required', handleStripeReset);
-		
-// 		return () => {
-// 			window.removeEventListener('stripe-reset-required', handleStripeReset);
-// 		};
-// 	}
-// });
+					paymentElement.on('focus', () => {
+						store.error = '';
+						store.debugInfo = 'Ready for payment details...';
+					});
+
+					console.log('[StripePayment] 🎉 Complete reset successful - fresh Elements with no cached state!');
+					store.debugInfo = 'Payment form completely reset - try again!';
+
+				} catch (resetError) {
+					console.log('[StripePayment] ❌ Complete reset failed:', resetError);
+					store.error = 'Failed to reset payment form. Please refresh the page and try again.';
+					store.debugInfo = 'Reset failed - page refresh recommended';
+				}
+			};
+
+			window.addEventListener('stripe-reset-required', handleStripeReset);
+
+			return () => {
+				window.removeEventListener('stripe-reset-required', handleStripeReset);
+			};
+		}
+	});
 
 	useVisibleTask$(async () => {
 		store.debugInfo = 'Initializing payment form...';

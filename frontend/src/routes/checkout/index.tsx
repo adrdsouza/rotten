@@ -163,13 +163,21 @@ const CheckoutContent = component$(() => {
   });
   
 	const handleReset = $(() => {
-    console.log('isOddpen_', isOpen.value);
+    console.log('[Checkout] handleReset called, isOpen:', isOpen.value);
 
+		// First trigger the Stripe reset to clear validation state
+		if (typeof window !== 'undefined') {
+			window.dispatchEvent(new CustomEvent('stripe-reset-required'));
+			console.log('[Checkout] Stripe reset triggered from handleReset');
+		}
+
+		// Then reset the component visibility
 		isOpen.value = false;
 		setTimeout(() => {
 			isOpen.value = true;
-		  }, 2000);
-	  });
+			console.log('[Checkout] Payment component re-rendered');
+		}, 1000); // Reduced timeout for better UX
+	});
     console.log('isOddpen', isOpen.value);
   // Separate task for cart validation that doesn't affect loading state
   useVisibleTask$(async ({ track }) => {
@@ -379,15 +387,19 @@ onError$={$(async (errorMessage: string) => {
   showProcessingModal.value = false;
   state.error = errorMessage || 'Payment processing failed. Please check your details and try again.';
   isOrderProcessing.value = false;
-  
+
   // 🚨 CRITICAL FIX: Reset Stripe trigger signal AND trigger payment form reset
   stripeTriggerSignal.value = 0;
-  
+
   // Clear any cached Stripe Elements state by triggering reset in Payment component
   if (typeof window !== 'undefined') {
     // Signal to Payment component that it needs to reset
     window.dispatchEvent(new CustomEvent('payment-reset-required'));
     console.log('[Checkout] Payment reset signal dispatched');
+
+    // Also trigger the Stripe-specific reset
+    window.dispatchEvent(new CustomEvent('stripe-reset-required'));
+    console.log('[Checkout] Stripe reset signal dispatched');
   }
 
   // Force reset of payment component state
