@@ -98,7 +98,7 @@ const CheckoutContent = component$(() => {
   const validationActions = useCheckoutValidationActions();
   const { checkoutState, convertLocalCartToVendureOrder } = useCheckout();
   const loaderData = useCheckoutLoader();
-
+	const isOpen = useSignal(true); 
   const state = useStore<CheckoutState>({
     loading: false,
     error: loaderData.value.error,
@@ -161,7 +161,14 @@ const CheckoutContent = component$(() => {
       }
     };
   });
-
+  
+	const handleReset = $(() => {
+		
+		isOpen.value = false;
+		setTimeout(() => {
+			isOpen.value = true;
+		  }, 2000);
+	  });
   // Separate task for cart validation that doesn't affect loading state
   useVisibleTask$(async ({ track }) => {
     track(() => localCart.localCart.items);
@@ -354,7 +361,8 @@ const CheckoutContent = component$(() => {
                   </div>
                   <div class="border-t border-gray-100 my-2"></div>
                   <div class="mb-6">
-                    <Payment
+                  {isOpen && <Payment
+                      handleReset={handleReset}
                       triggerStripeSignal={stripeTriggerSignal}
                       selectedPaymentMethod={selectedPaymentMethod}
                       hideButton={true}
@@ -424,7 +432,7 @@ onError$={$(async (errorMessage: string) => {
                         isOrderProcessing.value = isProcessing;
                       })}
                       isDisabled={false}
-                    />
+                    />}
                   </div>
                   <div class="pt-2 border-t border-gray-100">
                     <div class="flex items-start space-x-3 mb-4">

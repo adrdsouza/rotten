@@ -2,6 +2,7 @@ import { component$, QRL, useSignal, useVisibleTask$, Signal, $ } from '@qwik.de
 import { EligiblePaymentMethods } from '~/types';
 
 import StripePayment from './StripePayment';
+import { PropFunction } from '@qwik.dev/core/dist/core-internal';
 
 interface PaymentProps {
 	onForward$: QRL<(orderCode: string) => void>; // Expects orderCode from payment methods
@@ -11,11 +12,12 @@ interface PaymentProps {
 	selectedPaymentMethod?: Signal<string>; // Signal to track selected payment method
 	isDisabled?: boolean;
 	hideButton?: boolean;
+	handleReset: PropFunction<() => void>;
 }
 
-export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _onError$, onProcessingChange$: _onProcessingChange$, triggerStripeSignal: _triggerStripeSignal, selectedPaymentMethod: _externalSelectedPaymentMethod, isDisabled, hideButton: _hideButton = false }) => {
+export default component$<PaymentProps>(({ onForward$: _onForward$,handleReset, onError$: _onError$, onProcessingChange$: _onProcessingChange$, triggerStripeSignal: _triggerStripeSignal, selectedPaymentMethod: _externalSelectedPaymentMethod, isDisabled, hideButton: _hideButton = false }) => {
 	const paymentMethods = useSignal<EligiblePaymentMethods[]>();
-	const isOpen = useSignal(true); 
+
 	// Use external signal if provided, otherwise use internal signal
 
 	useVisibleTask$(() => {
@@ -32,13 +34,7 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 
 		console.log('[Payment] Set payment methods:', paymentMethods.value);
 	});
-	const handleReset = $(() => {
-		
-		isOpen.value = false;
-		setTimeout(() => {
-			isOpen.value = true;
-		  }, 2000);
-	  });
+
 	
 	useVisibleTask$(() => {
 		if (typeof window !== 'undefined') {
@@ -152,7 +148,7 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 							)}
 							{method.code.includes('stripe') && (
 								<div class="!w-full">
-									{isOpen && <StripePayment handleReset={handleReset} />}
+									<StripePayment handleReset={handleReset} />
 								</div>
 							)}
 						</div>
