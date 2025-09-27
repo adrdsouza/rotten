@@ -53,41 +53,41 @@ const calculateCartTotal = (localCart: any): number => {
 	return Math.max(estimatedTotal, 100); // Minimum $1.00
 };
 
-// Helper function to completely clear all validation states
-const clearAllValidationStates = () => {
-	console.log('[StripePayment] 🧹 Clearing ALL validation states...');
+// // Helper function to completely clear all validation states
+// const clearAllValidationStates = () => {
+// 	console.log('[StripePayment] 🧹 Clearing ALL validation states...');
 
-	// Clear localStorage
-	try {
-		const keysToRemove = [
-			'stripe_validation_errors',
-			'stripe_form_state', 
-			'stripe_last_error',
-			'stripe_elements_state',
-			'stripe_payment_cache'
-		];
-		keysToRemove.forEach(key => localStorage.removeItem(key));
-		console.log('[StripePayment] ✅ localStorage validation states cleared');
-	} catch (_e) {
-		console.log('[StripePayment] localStorage not available, skipping');
-	}
+// 	// Clear localStorage
+// 	try {
+// 		const keysToRemove = [
+// 			'stripe_validation_errors',
+// 			'stripe_form_state', 
+// 			'stripe_last_error',
+// 			'stripe_elements_state',
+// 			'stripe_payment_cache'
+// 		];
+// 		keysToRemove.forEach(key => localStorage.removeItem(key));
+// 		console.log('[StripePayment] ✅ localStorage validation states cleared');
+// 	} catch (_e) {
+// 		console.log('[StripePayment] localStorage not available, skipping');
+// 	}
 
-	// Clear window globals
-	if (typeof window !== 'undefined') {
-		const propsToDelete = [
-			'stripeValidationState',
-			'stripeFormErrors', 
-			'lastStripeError',
-			'stripeElementsCache',
-			'stripeLastSubmission'
-		];
-		propsToDelete.forEach(prop => {
-			delete (window as any)[prop];
-		});
-	}
+// 	// Clear window globals
+// 	if (typeof window !== 'undefined') {
+// 		const propsToDelete = [
+// 			'stripeValidationState',
+// 			'stripeFormErrors', 
+// 			'lastStripeError',
+// 			'stripeElementsCache',
+// 			'stripeLastSubmission'
+// 		];
+// 		propsToDelete.forEach(prop => {
+// 			delete (window as any)[prop];
+// 		});
+// 	}
 
-	console.log('[StripePayment] ✅ All validation states cleared');
-};
+// 	console.log('[StripePayment] ✅ All validation states cleared');
+// };
 
 export default component$(() => {
 	const baseUrl = useLocation().url.origin;
