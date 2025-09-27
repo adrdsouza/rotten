@@ -58,17 +58,21 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 								// Payment failed - communicate error back to checkout page
 								console.error('[Payment] Stripe payment failed:', paymentResult.error);
 
-								// 🚨 NEW FIX: Trigger complete reset after payment failure
-								if (typeof window !== 'undefined' && (window as any).resetStripePaymentCompletely) {
-									console.log('[Payment] 🔄 Triggering complete Stripe payment reset after error...');
-									try {
-										await (window as any).resetStripePaymentCompletely();
-									} catch (resetError) {
-										console.warn('[Payment] Failed to reset Stripe payment:', resetError);
-									}
-								}
-
+								// First report the error to allow checkout page to restore cart state
 								_onError$(paymentResult.error || 'Payment failed. Please check your payment details and try again.');
+
+								// 🚨 NEW FIX: Trigger complete reset after payment failure with small delay
+								// This delay allows the checkout page's error handler to restore cart state first
+								if (typeof window !== 'undefined' && (window as any).resetStripePaymentCompletely) {
+									console.log('[Payment] 🔄 Triggering complete Stripe payment reset after error (with delay)...');
+									setTimeout(async () => {
+										try {
+											await (window as any).resetStripePaymentCompletely();
+										} catch (resetError) {
+											console.warn('[Payment] Failed to reset Stripe payment:', resetError);
+										}
+									}, 100); // Small delay to allow cart state restoration
+								}
 								return;
 							}
 
@@ -77,17 +81,21 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 						} catch (paymentError) {
 							console.error('[Payment] Stripe payment error:', paymentError);
 
-							// 🚨 NEW FIX: Trigger complete reset after payment exception
-							if (typeof window !== 'undefined' && (window as any).resetStripePaymentCompletely) {
-								console.log('[Payment] 🔄 Triggering complete Stripe payment reset after exception...');
-								try {
-									await (window as any).resetStripePaymentCompletely();
-								} catch (resetError) {
-									console.warn('[Payment] Failed to reset Stripe payment:', resetError);
-								}
-							}
-
+							// First report the error to allow checkout page to restore cart state
 							_onError$(paymentError instanceof Error ? paymentError.message : 'Payment failed. Please try again.');
+
+							// 🚨 NEW FIX: Trigger complete reset after payment exception with small delay
+							// This delay allows the checkout page's error handler to restore cart state first
+							if (typeof window !== 'undefined' && (window as any).resetStripePaymentCompletely) {
+								console.log('[Payment] 🔄 Triggering complete Stripe payment reset after exception (with delay)...');
+								setTimeout(async () => {
+									try {
+										await (window as any).resetStripePaymentCompletely();
+									} catch (resetError) {
+										console.warn('[Payment] Failed to reset Stripe payment:', resetError);
+									}
+								}, 100); // Small delay to allow cart state restoration
+							}
 						}
 					} else {
 						console.error('[Payment] No active order found for Stripe payment');

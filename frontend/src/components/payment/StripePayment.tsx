@@ -103,7 +103,22 @@ export default component$(() => {
 		store.debugInfo = 'Resetting payment form...';
 		store.needsReset = false;
 
-		// 4. Increment initialization key to force complete re-initialization
+		// 4. Ensure cart is in proper state for retry (don't interfere with cart data)
+		// Just make sure we're in local mode if cart has items
+		try {
+			const { LocalCartService } = await import('~/services/LocalCartService');
+			const currentCart = LocalCartService.getCart();
+			if (currentCart && currentCart.items && currentCart.items.length > 0) {
+				// Ensure local cart context is properly set
+				localCart.isLocalMode = true;
+				localCart.localCart = currentCart;
+				console.log('[StripePayment] ✅ Cart state verified during reset:', currentCart.items.length, 'items');
+			}
+		} catch (error) {
+			console.warn('[StripePayment] ⚠️ Could not verify cart state during reset:', error);
+		}
+
+		// 5. Increment initialization key to force complete re-initialization
 		store.initializationKey++;
 
 		console.log('[StripePayment] ✅ COMPLETE RESET: All state cleared, re-initialization will begin');
@@ -351,10 +366,58 @@ export default component$(() => {
 
 		store.debugInfo = 'Initializing payment form...';
 
-		if (!localCart || !localCart.isLocalMode || !localCart.localCart || !localCart.localCart.items || localCart.localCart.items.length === 0) {
-			store.debugInfo = 'Waiting for cart items...';
-			store.error = 'Cart is empty. Please add items to continue.';
+		// 🚨 FIX: More resilient cart state checking during resets
+		// During payment error recovery, cart state might be temporarily inconsistent
+		// We should be more lenient and allow some time for cart state to stabilize
+
+		// First check if cart context exists
+		if (!localCart) {
+			store.debugInfo = 'Waiting for cart context...';
+			store.error = 'Loading payment form...';
 			return;
+		}
+
+		// Load cart if needed (this ensures cart is loaded from localStorage)
+		try {
+			const { loadCartIfNeeded } = await import('~/contexts/CartContext');
+			await loadCartIfNeeded(localCart);
+		} catch (error) {
+			console.warn('[StripePayment] Failed to load cart if needed:', error);
+		}
+
+		// Check cart state with more resilience during error recovery
+		const hasCartItems = localCart.localCart && localCart.localCart.items && localCart.localCart.items.length > 0;
+
+		// If we don't have cart items, check localStorage directly as a fallback
+		if (!hasCartItems) {
+			try {
+				const { LocalCartService } = await import('~/services/LocalCartService');
+				const directCart = LocalCartService.getCart();
+
+				if (directCart && directCart.items && directCart.items.length > 0) {
+					// Cart exists in localStorage but context is not updated yet
+					// Update the context and continue
+					localCart.localCart = directCart;
+					localCart.isLocalMode = true;
+					console.log('[StripePayment] 🔄 Cart restored from localStorage during payment reset');
+				} else {
+					// Truly no cart items
+					store.debugInfo = 'Waiting for cart items...';
+					store.error = 'Cart is empty. Please add items to continue.';
+					return;
+				}
+			} catch (error) {
+				console.error('[StripePayment] Failed to check cart from localStorage:', error);
+				store.debugInfo = 'Waiting for cart items...';
+				store.error = 'Cart is empty. Please add items to continue.';
+				return;
+			}
+		}
+
+		// Ensure we're in local mode (important after payment errors)
+		if (!localCart.isLocalMode) {
+			console.log('[StripePayment] 🔄 Switching back to local mode for payment retry');
+			localCart.isLocalMode = true;
 		}
 
 		try {
@@ -496,7 +559,7 @@ export default component$(() => {
 			<div class="payment-tabs-container relative">
 				<div id="payment-form" class="mb-8 w-full max-w-full"></div>
 			</div>
-			{store.error !== '' && (
+			{store.error !== '' && !store.error.includes('Cart is empty') && !store.error.includes('Loading payment form') && (
 				<div class="rounded-md bg-red-50 p-4 mb-8">
 					<div class="flex">
 						<div class="flex-shrink-0">
@@ -505,6 +568,37 @@ export default component$(() => {
 						<div class="ml-3">
 							<h3 class="text-sm font-medium text-red-800">We ran into a problem with payment!</h3>
 							<p class="text-sm text-red-700 mt-2">{store.error}</p>
+						</div>
+					</div>
+				</div>
+			)}
+			{store.error.includes('Cart is empty') && (
+				<div class="rounded-md bg-yellow-50 p-4 mb-8">
+					<div class="flex">
+						<div class="flex-shrink-0">
+							<svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+								<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+							</svg>
+						</div>
+						<div class="ml-3">
+							<h3 class="text-sm font-medium text-yellow-800">Loading payment form...</h3>
+							<p class="text-sm text-yellow-700 mt-2">Please wait while we prepare your payment form.</p>
+						</div>
+					</div>
+				</div>
+			)}
+			{store.error.includes('Loading payment form') && (
+				<div class="rounded-md bg-blue-50 p-4 mb-8">
+					<div class="flex">
+						<div class="flex-shrink-0">
+							<svg class="h-5 w-5 text-blue-400 animate-spin" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+						</div>
+						<div class="ml-3">
+							<h3 class="text-sm font-medium text-blue-800">Initializing payment...</h3>
+							<p class="text-sm text-blue-700 mt-2">Setting up your payment form.</p>
 						</div>
 					</div>
 				</div>
