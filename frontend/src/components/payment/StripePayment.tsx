@@ -1,4 +1,4 @@
-import { component$, noSerialize, useStore, useVisibleTask$ } from '@qwik.dev/core';
+import { component$, noSerialize, useStore, useVisibleTask$ ,$} from '@qwik.dev/core';
 import { useLocation } from '@qwik.dev/router';
 import { Stripe, StripeElements, loadStripe } from '@stripe/stripe-js';
 import {
@@ -67,7 +67,7 @@ export default component$(() => {
 		isProcessing: false,
 		debugInfo: 'Initializing...',
 	});
-	const resetStripeElements = async () => {
+	const resetStripeElements = $(async () => {
 		if (store.stripeElements) {
 		  try {
 			const mountTarget = document.getElementById('payment-form');
@@ -106,7 +106,8 @@ export default component$(() => {
 			console.error('[StripePayment] Failed to reset Elements:', e);
 		  }
 		}
-	  };
+	  });
+	  
 	// Expose both submit and payment confirmation functions to window for checkout flow
 	useVisibleTask$(() => {
 		console.log('[StripePayment] Setting up window functions...');
