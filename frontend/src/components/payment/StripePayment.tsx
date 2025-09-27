@@ -104,7 +104,7 @@ export default component$(() => {
 				const { error: submitError } = await store.stripeElements?.submit() || { error: new Error('Elements not initialized') };
 
 				if (submitError) {
-					console.error('[StripePayment] Elements submit failed:', submitError);
+					console.log('[StripePayment] ❌ Elements submit failed in submitStripeElements:', submitError);
 					throw new Error(submitError?.message || 'Form validation failed');
 				}
 
@@ -162,6 +162,7 @@ export default component$(() => {
 					const { error: submitError } = await store.stripeElements?.submit() || { error: new Error('Elements not initialized') };
 
 					if (submitError) {
+						console.log('[StripePayment] ❌ Elements submit failed:', submitError);
 						logAndStore('[StripePayment] Elements submit failed:', submitError);
 						throw new Error(submitError?.message || 'Form validation failed');
 					}
@@ -285,11 +286,16 @@ export default component$(() => {
 					}
 
 				} catch (error) {
-					console.error('[StripePayment] Payment confirmation error:', error);
+					console.log('[StripePayment] ❌ Payment confirmation error:', error);
+					console.log('[StripePayment] 🔄 Triggering reset due to payment error');
 					store.error = error instanceof Error ? error.message : 'Payment failed';
 					store.isProcessing = false;
 
-					// 🚨 CRITICAL FIX: Don't throw error - let UI recover for retry
+					// 🚨 CRITICAL FIX: Trigger reset when payment fails
+					// This ensures the form is ready for retry
+					window.dispatchEvent(new CustomEvent('stripe-reset-required'));
+
+					// Don't throw error - let UI recover for retry
 					// Instead, return error result so parent can handle it
 					return {
 						success: false,
