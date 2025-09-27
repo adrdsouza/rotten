@@ -3,8 +3,8 @@ import { Link } from '@qwik.dev/router';
 
 export default component$(() => {
 	return (
-		<footer class="bg-[#8a6d4a] text-gray-200 py-8">
-			<div class="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 w-full">
+		<footer class="bg-black/80 text-gray-200 py-8 relative">
+			<div class="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 w-full relative z-10">
 				{/* Main Footer Content */}
 				<div class="flex flex-col lg:flex-row lg:justify-between lg:items-start space-y-8 lg:space-y-0">
 							{/* Brand Section - More Compact */}					<div class="text-center lg:text-left">

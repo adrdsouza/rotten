@@ -72,9 +72,24 @@ export default component$(() => {
 
 					console.log('[Confirmation] Payment added to order successfully:', paymentResult);
 
-					// Clear the local cart after successful payment
-					localCart.localCart = LocalCartService.clearCart();
-					localCart.isLocalMode = true;
+					// 🎯 BACKUP: Clear the local cart after successful payment verification
+					// This is a backup mechanism for Stripe redirect flows
+					try {
+						localCart.localCart = LocalCartService.clearCart();
+						localCart.isLocalMode = true;
+
+						// Trigger cart update event for UI consistency
+						if (typeof window !== 'undefined') {
+							window.dispatchEvent(new CustomEvent('cart-updated', {
+								detail: { totalQuantity: 0 }
+							}));
+						}
+
+						console.log('[Confirmation] Local cart cleared after payment verification');
+					} catch (clearCartError) {
+						console.error('[Confirmation] Failed to clear local cart:', clearCartError);
+						// Don't fail the confirmation process if cart clearing fails
+					}
 
 					// Continue to load order normally
 				} else {

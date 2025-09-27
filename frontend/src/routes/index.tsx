@@ -297,7 +297,7 @@ export default component$(() => {
       <section id="shop-section" class="bg-gray-50">
         <ShopComponent
           context="homepage"
-          scrollTarget="shop-section"
+          scrollTarget="customization-section"
           preloadData={true}
           lazyLoadAssets={true}
           analyticsSource="scroll-proximity"
@@ -327,7 +327,7 @@ export default component$(() => {
               </div>
               <h3 class="text-2xl font-semibold text-gray-900 mb-4">Peach Skin Finish</h3>
               <p class="text-gray-600 leading-relaxed">
-                The softest fabric you'll ever feel. Our proprietary peach skin finish creates an unmatched tactile experience that gets better with every wash.
+                The softest fabric you'll ever feel. Our signature peach skin finish creates an unmatched tactile experience that gets better with time.
               </p>
             </div>
 
@@ -340,7 +340,7 @@ export default component$(() => {
               </div>
               <h3 class="text-2xl font-semibold text-gray-900 mb-4">Tagua Nut Buttons</h3>
               <p class="text-gray-600 leading-relaxed">
-                Sustainable buttons carved from tagua nuts - nature's ivory. Each button is unique, adding character while supporting rainforest conservation.
+                Natural buttons made from tagua nuts that fall naturally from palm trees. Durable and sustainable, these buttons support the South American communities who harvest this 'vegetable ivory'.
               </p>
             </div>
 
@@ -360,8 +360,8 @@ export default component$(() => {
         </div>
       </section>
       {/* Guarantee Section */}
-      <section class="py-20 lg:py-32 bg-[#8a6d4a]">
-        <div class="max-w-4xl mx-auto px-8 lg:px-16 text-center">
+      <section class="py-20 lg:py-32 bg-black/80 relative overflow-hidden">
+        <div class="max-w-4xl mx-auto px-8 lg:px-16 text-center relative z-10">
           <h2 class="text-4xl lg:text-6xl font-light text-white mb-8 tracking-wider">
             Our Promise to You
           </h2>

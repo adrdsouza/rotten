@@ -158,7 +158,7 @@ export const SizeColorSelection = component$<SizeColorSelectionProps>((props) =>
                       >
                         <OptimizedImage
                           src={asset.preview}
-                          class="w-full h-full object-contain transition-all duration-200 hover:opacity-80"
+                          class="w-full h-full object-cover transition-all duration-200 hover:opacity-80"
                           width={360}
                           height={450}
                           responsive="thumbnail"

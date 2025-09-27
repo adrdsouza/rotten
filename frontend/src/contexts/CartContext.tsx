@@ -303,3 +303,32 @@ export const clearLocalCart = $((cartState: CartContextState) => {
     cartState.lastError = error instanceof Error ? error.message : 'Failed to clear cart';
   }
 });
+
+// 🚨 NEW: Helper function to restore cart state after payment failure
+export const restoreCartAfterPaymentFailure = $((cartState: CartContextState) => {
+  try {
+    console.log('[CartContext] Restoring cart state after payment failure...');
+
+    // Switch back to local mode
+    cartState.isLocalMode = true;
+
+    // Reload cart from localStorage (should still be there since we don't clear it until payment succeeds)
+    const currentCart = LocalCartService.getCart();
+    cartState.localCart = currentCart;
+
+    // Clear any error state
+    cartState.lastError = null;
+
+    // Trigger UI update
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('cart-updated', {
+        detail: { totalQuantity: currentCart.totalQuantity }
+      }));
+    }
+
+    console.log('[CartContext] Cart state restored:', currentCart.items.length, 'items');
+  } catch (error) {
+    console.error('[CartContext] Failed to restore cart state:', error);
+    cartState.lastError = error instanceof Error ? error.message : 'Failed to restore cart';
+  }
+});

@@ -212,13 +212,22 @@ export default component$(() => {
 						logAndStore('[StripePayment] Payment successfully added to order:', paymentResult);
 						logAndStore('[StripePayment] Order should now be in PaymentSettled state');
 
-						// Clear the local cart after successful payment
+						// 🎯 CRITICAL: Clear the local cart ONLY after successful payment confirmation
+						// This is the correct place to clear the cart - after payment is confirmed and settled
 						try {
 							const { LocalCartService } = await import('~/services/LocalCartService');
 							LocalCartService.clearCart();
-							logAndStore('[StripePayment] Local cart cleared after successful payment');
+							logAndStore('[StripePayment] Local cart cleared after successful payment confirmation');
+
+							// Also trigger cart update event for UI consistency
+							if (typeof window !== 'undefined') {
+								window.dispatchEvent(new CustomEvent('cart-updated', {
+									detail: { totalQuantity: 0 }
+								}));
+							}
 						} catch (clearCartError) {
 							console.error('[StripePayment] Failed to clear local cart after payment:', clearCartError);
+							// Don't fail the entire payment process if cart clearing fails
 						}
 
 						// Store successful payment info in localStorage for confirmation page

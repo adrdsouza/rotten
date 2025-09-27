@@ -625,10 +625,11 @@ export class LocalCartService {
         }
       }
 
-      // Clear local cart after successful conversion
+      // DO NOT clear local cart here - keep it until payment is confirmed
+      // This ensures users can retry payment if it fails without losing their cart
       if (order) {
-        this.clearCart();
         // console.log(`Order created successfully [${conversionId}] with ${order.lines?.length || 0} items`);
+        // Cart will be cleared after successful payment confirmation in StripePayment component
       } else {
         throw new Error('Failed to create order with items');
       }

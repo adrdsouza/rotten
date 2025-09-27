@@ -59,6 +59,8 @@
     color: var(--form-control-disabled);
     cursor: not-allowed;
   }
+
+
   
   .btn-primary {
     @apply w-full border border-transparent rounded py-2 px-5 flex items-center justify-center text-base font-medium text-white bg-[#8a6d4a] hover:bg-[#4F3B26] focus:outline-hidden focus:ring-0 shadow-none transition-all duration-300 cursor-pointer;
@@ -212,6 +214,11 @@
 	body {
 		font-family: var(--font-body);
 		background-color: #fff;
+		background-image: url('/src/media/pattern.jpg');
+		background-size: cover;
+		background-position: center;
+		background-repeat: no-repeat;
+		background-attachment: fixed;
 		color: #111;
 	}
 }

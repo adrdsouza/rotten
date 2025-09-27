@@ -368,15 +368,38 @@ const CheckoutContent = component$(() => {
                         state.error = errorMessage || 'Payment processing failed. Please check your details and try again.';
                         isOrderProcessing.value = false;
                         stripeTriggerSignal.value = 0;
-                        
-                        // CRITICAL FIX: Restore cart to local mode after payment failure
+
+                        // 🚨 CRITICAL FIX: Restore cart to local mode after payment failure
                         // This ensures the cart remains functional for retry attempts
+                        console.log('[Checkout] Payment failed, restoring cart state for retry...');
                         localCart.isLocalMode = true;
-                        
+
+                        // Ensure cart data is still available (it should be since we don't clear it until payment succeeds)
+                        try {
+                          const { LocalCartService } = await import('~/services/LocalCartService');
+                          const currentCart = LocalCartService.getCart();
+                          if (currentCart.items.length > 0) {
+                            console.log('[Checkout] Cart data preserved for retry:', currentCart.items.length, 'items');
+                            // Trigger cart update to refresh UI
+                            if (typeof window !== 'undefined') {
+                              window.dispatchEvent(new CustomEvent('cart-updated', {
+                                detail: { totalQuantity: currentCart.totalQuantity }
+                              }));
+                            }
+                          } else {
+                            console.warn('[Checkout] Cart appears to be empty after payment failure - this should not happen');
+                          }
+                        } catch (cartError) {
+                          console.error('[Checkout] Error checking cart state after payment failure:', cartError);
+                        }
+
+                        // Try to transition order back to AddingItems state for retry
                         try {
                           await transitionOrderToStateMutation('AddingItems');
+                          console.log('[Checkout] Order transitioned back to AddingItems state for retry');
                         } catch (transitionError) {
-                          console.error('Failed to transition order back to AddingItems state:', transitionError);
+                          console.error('[Checkout] Failed to transition order back to AddingItems state:', transitionError);
+                          // This is not critical - user can still retry payment
                         }
                       })}
                       onProcessingChange$={$(async (isProcessing: boolean) => {
