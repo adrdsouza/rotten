@@ -361,7 +361,7 @@ const CheckoutContent = component$(() => {
                   </div>
                   <div class="border-t border-gray-100 my-2"></div>
                   <div class="mb-6">
-                  {isOpen && <Payment
+                  {isOpen.value && <Payment
                       handleReset={handleReset}
                       triggerStripeSignal={stripeTriggerSignal}
                       selectedPaymentMethod={selectedPaymentMethod}
