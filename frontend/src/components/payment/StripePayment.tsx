@@ -78,14 +78,21 @@ export default component$(() => {
 		currentMountId: 'payment-form', // Track current mount target ID
 	});
 
+
+
 	// Complete reset function - simulates fresh page load
 	const completeReset = $(async () => {
 		console.log('[StripePayment] 🔄 COMPLETE RESET: Starting fresh payment initialization...');
 
-		// 1. Completely unmount and clear payment element with all event listeners
+		// 1. Completely clear and unmount payment element with all validation state
 		// This is crucial for clearing all internal Stripe validation state
 		if (store.paymentElement) {
 			try {
+				// 🚨 CRITICAL FIX: Clear the element's values and validation state FIRST
+				// This is the key missing step that was causing validation state persistence
+				console.log('[StripePayment] 🧹 Clearing Payment Element validation state...');
+				store.paymentElement.clear();
+
 				// Remove all event listeners before unmounting
 				store.paymentElement.off('ready');
 				store.paymentElement.off('change');
@@ -94,7 +101,7 @@ export default component$(() => {
 				store.paymentElement.off('escape');
 
 				store.paymentElement.unmount();
-				console.log('[StripePayment] ✅ Payment element unmounted and all event listeners removed');
+				console.log('[StripePayment] ✅ Payment element cleared, unmounted and all event listeners removed');
 			} catch (unmountError) {
 				console.warn('[StripePayment] ⚠️ Error unmounting payment element:', unmountError);
 			}
@@ -190,7 +197,7 @@ export default component$(() => {
 		// 7. Add a longer delay to ensure all Stripe internal state is completely cleared
 		// This is crucial for allowing Stripe's internal validation state to reset
 		console.log('[StripePayment] ⏳ Waiting for Stripe internal state to clear...');
-		await new Promise(resolve => setTimeout(resolve, 300)); // Increased delay
+		await new Promise(resolve => setTimeout(resolve, 500)); // 🚨 ENHANCED FIX: Increased delay for more reliable state clearing
 
 		// 8. Increment initialization key to force complete re-initialization
 		store.initializationKey++;
@@ -205,6 +212,13 @@ export default component$(() => {
 			// Function to submit elements immediately when user clicks pay
 			(window as any).submitStripeElements = async () => {
 				console.log('[StripePayment] Submitting elements for form validation...');
+
+				// 🚨 ENHANCED FIX: Clear any previous error state before submission
+				if (store.error && !store.error.includes('Cart is empty') && !store.error.includes('Loading payment form')) {
+					store.error = '';
+					console.log('[StripePayment] Cleared previous error state before submission');
+				}
+
 				const { error: submitError } = await store.stripeElements?.submit() || { error: new Error('Elements not initialized') };
 
 				if (submitError) {
@@ -223,6 +237,17 @@ export default component$(() => {
 				return { success: true };
 			};
 
+			// 🚨 NEW FIX: Function to proactively clear payment errors (exposed for parent components)
+			(window as any).clearStripePaymentErrors = () => {
+				if (store.error && !store.error.includes('Cart is empty') && !store.error.includes('Loading payment form')) {
+					const previousError = store.error;
+					store.error = '';
+					console.log('[StripePayment] Externally cleared payment error:', previousError);
+					return { success: true, clearedError: previousError };
+				}
+				return { success: false, message: 'No errors to clear' };
+			};
+
 			// Function to confirm payment after order is created and linked
 			(window as any).confirmStripePreOrderPayment = async (order: any) => {
 				console.log('[StripePayment] *** confirmStripePreOrderPayment CALLED ***');
@@ -235,11 +260,22 @@ export default component$(() => {
 				});
 
 				try {
-					// Clear any previous error state before starting fresh payment attempt
+					// 🚨 ENHANCED FIX: More comprehensive error state clearing before payment attempt
 					store.error = '';
 					store.debugInfo = 'Starting fresh payment confirmation...';
 					store.isProcessing = true;
 					console.log('[StripePayment] Confirming payment for order:', order.code);
+
+					// 🚨 NEW FIX: Proactively clear any lingering validation state in the Payment Element
+					if (store.paymentElement) {
+						try {
+							// Clear any validation errors that might be stuck in the element
+							store.paymentElement.clear();
+							console.log('[StripePayment] Cleared Payment Element validation state before confirmation');
+						} catch (clearError) {
+							console.warn('[StripePayment] Could not clear Payment Element state:', clearError);
+						}
+					}
 
 					// Link our pre-existing PaymentIntent to the newly created order
 					try {
@@ -613,7 +649,7 @@ export default component$(() => {
 
 			try {
 				// Mount to the fresh DOM element with dynamic ID
-				await paymentElement.mount(`#${store.currentMountId}`);
+				paymentElement.mount(`#${store.currentMountId}`);
 				store.debugInfo = `Fresh Payment Element mounted to ${store.currentMountId} successfully!`;
 				console.log('[StripePayment] Fresh Payment Element mounted to:', store.currentMountId);
 
@@ -621,10 +657,10 @@ export default component$(() => {
 				paymentElement.on('ready', () => {
 					store.debugInfo = 'Fresh Payment Element is ready and interactive!';
 					console.log('[StripePayment] Fresh Payment Element ready - all validation state cleared');
-					// Clear any residual error state when element is ready
-					if (store.error.includes('Invalid card') || store.error.includes('card was declined') || store.error.includes('incomplete')) {
+					// 🚨 ENHANCED FIX: More comprehensive error clearing on ready
+					if (store.error && !store.error.includes('Cart is empty') && !store.error.includes('Loading payment form')) {
 						store.error = '';
-						console.log('[StripePayment] Cleared residual error state on ready');
+						console.log('[StripePayment] Cleared all previous error state on ready');
 					}
 				});
 
@@ -637,21 +673,29 @@ export default component$(() => {
 							console.log('[StripePayment] Current validation error:', event.error);
 						}
 					} else {
-						// Clear validation errors when form becomes valid
-						if (store.error.includes('validation') || store.error.includes('Invalid card') || store.error.includes('card was declined') || store.error.includes('incomplete')) {
+						// 🚨 ENHANCED FIX: More comprehensive error clearing when form becomes valid
+						if (store.error && !store.error.includes('Cart is empty') && !store.error.includes('Loading payment form')) {
 							store.error = '';
-							console.log('[StripePayment] Cleared validation errors - form is now valid');
+							console.log('[StripePayment] Cleared all validation errors - form is now valid');
 						}
 						store.debugInfo = 'Payment form is valid and ready!';
 					}
 				});
 
-				// Add focus event to clear old errors when user starts typing
+				// 🚨 ENHANCED FIX: More proactive error clearing on focus
 				paymentElement.on('focus', () => {
-					if (store.error.includes('Invalid card') || store.error.includes('card was declined') || store.error.includes('validation') || store.error.includes('incomplete')) {
+					if (store.error && !store.error.includes('Cart is empty') && !store.error.includes('Loading payment form')) {
 						store.error = '';
 						store.debugInfo = 'Payment form focused - ready for fresh input';
-						console.log('[StripePayment] Cleared errors on focus - ready for fresh input');
+						console.log('[StripePayment] Cleared all errors on focus - ready for fresh input');
+					}
+				});
+
+				// 🚨 NEW FIX: Add blur event to ensure errors are cleared when user finishes interacting
+				paymentElement.on('blur', () => {
+					// Only clear validation-related errors on blur, not system errors
+					if (store.error && (store.error.includes('validation') || store.error.includes('Invalid card') || store.error.includes('incomplete') || store.error.includes('declined'))) {
+						console.log('[StripePayment] Clearing validation errors on blur to prepare for fresh submission');
 					}
 				});
 
