@@ -204,8 +204,7 @@ export default component$(() => {
 					// Check for payment confirmation errors
 					if (error) {
 						logAndStore('[StripePayment] Payment confirmation failed:', error);
-						store.stripeElements=noSerialize({} as StripeElements);
-						store.resolvedStripe=noSerialize({} as Stripe);
+						
 						store.error = error?.message || 'Payment confirmation failed';
 						store.isProcessing = false;
 						// await resetStripeElements();  
@@ -347,7 +346,8 @@ useVisibleTask$(() => {
 					void mountTarget.offsetHeight;
 					console.log('[StripePayment] 🧹 Payment form DOM completely cleared');
 				}
-				
+				      store.stripeElements=noSerialize({} as StripeElements);
+						store.resolvedStripe=noSerialize({} as Stripe);
 				// Wait longer for Stripe's internal cleanup
 				await new Promise(resolve => setTimeout(resolve, 500));
 				
