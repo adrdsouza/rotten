@@ -1,4 +1,4 @@
-import { component$, noSerialize, useStore, useVisibleTask$ } from '@qwik.dev/core';
+import { component$, noSerialize, useSignal, useStore, useVisibleTask$ } from '@qwik.dev/core';
 import { useLocation } from '@qwik.dev/router';
 import { Stripe, StripeElements, loadStripe } from '@stripe/stripe-js';
 import {
@@ -56,7 +56,7 @@ const calculateCartTotal = (localCart: any): number => {
 export default component$(() => {
 	const baseUrl = useLocation().url.origin;
 	const localCart = useLocalCart();
-
+	const rerenderElement = useSignal(0);
 	const store = useStore({
 		clientSecret: '',
 		paymentIntentId: '',
@@ -169,6 +169,7 @@ export default component$(() => {
 						logAndStore('[StripePayment] Payment confirmation failed:', error);
 						store.error = error?.message || 'Payment confirmation failed';
 						store.isProcessing = false;
+						rerenderElement.value++;
 						return {
 							success: false,
 							error: error?.message || 'Payment confirmation failed'
@@ -276,7 +277,9 @@ export default component$(() => {
 		}
 	});
 
-	useVisibleTask$(async () => {
+	useVisibleTask$(async ({track}) => {
+		track(() => rerenderElement.value);
+		console.log('[StripePayment] Rerender element:', rerenderElement.value);
 		store.debugInfo = 'Initializing payment form..';
 
 		if (!localCart || !localCart.isLocalMode || !localCart.localCart || !localCart.localCart.items || localCart.localCart.items.length === 0) {
