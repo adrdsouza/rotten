@@ -277,14 +277,14 @@ export default component$(() => {
 	});
 
 	useVisibleTask$(async () => {
-		store.debugInfo = 'Initializing payment form...';
+		store.debugInfo = 'Initializing payment form..';
 
 		if (!localCart || !localCart.isLocalMode || !localCart.localCart || !localCart.localCart.items || localCart.localCart.items.length === 0) {
 			store.debugInfo = 'Waiting for cart items...';
 			store.error = 'Cart is empty. Please add items to continue.';
 			return;
 		}
-
+ 
 		try {
 			// Calculate estimated total from local cart
 			const estimatedTotal = calculateCartTotal(localCart);
