@@ -66,12 +66,23 @@ export default component$(() => {
 		error: '',
 		isProcessing: false,
 		debugInfo: 'Initializing...',
+		paymentIntentCreated: false, // Flag to track if PaymentIntent has been created
+		lastEstimatedTotal: 0, // Track the last estimated total to detect changes
 	});
 
 	// Expose both submit and payment confirmation functions to window for checkout flow
 	useVisibleTask$(() => {
 		console.log('[StripePayment] Setting up window functions...');
 		if (typeof window !== 'undefined') {
+			// 🎯 CRITICAL FIX: Add cleanup function to window for error handling
+			(window as any).clearStripePaymentIntent = () => {
+				console.log('[StripePayment] Clearing stored PaymentIntent due to error or navigation');
+				localStorage.removeItem('stripe_payment_intent');
+				store.paymentIntentCreated = false;
+				store.clientSecret = '';
+				store.paymentIntentId = '';
+				store.lastEstimatedTotal = 0;
+			};
 			// Function to submit elements immediately when user clicks pay
 			(window as any).submitStripeElements = async () => {
 				console.log('[StripePayment] Submitting elements for form validation...');
@@ -240,6 +251,10 @@ export default component$(() => {
 						};
 						localStorage.setItem('stripe_payment_success', JSON.stringify(paymentInfo));
 
+						// 🎯 CRITICAL FIX: Clear stored PaymentIntent after successful payment
+						localStorage.removeItem('stripe_payment_intent');
+						console.log('[StripePayment] Cleared stored PaymentIntent after successful payment');
+
 						// Order should now be in PaymentSettled state - redirect to confirmation
 						logAndStore('[StripePayment] Payment settled successfully, redirecting to confirmation page...');
 						window.location.href = `${baseUrl}/checkout/confirmation/${order.code}`;
@@ -285,9 +300,38 @@ export default component$(() => {
 			return;
 		}
 
+		// 🎯 CRITICAL FIX: Check for existing PaymentIntent in localStorage first
+		const existingPaymentIntent = localStorage.getItem('stripe_payment_intent');
+		if (existingPaymentIntent && !store.paymentIntentCreated) {
+			try {
+				const paymentData = JSON.parse(existingPaymentIntent);
+				if (paymentData.clientSecret && paymentData.paymentIntentId && paymentData.timestamp) {
+					// Check if the stored PaymentIntent is not too old (max 24 hours)
+					const age = Date.now() - paymentData.timestamp;
+					if (age < 24 * 60 * 60 * 1000) {
+						console.log('[StripePayment] Restoring PaymentIntent from localStorage:', paymentData.paymentIntentId);
+						store.clientSecret = paymentData.clientSecret;
+						store.paymentIntentId = paymentData.paymentIntentId;
+						store.paymentIntentCreated = true;
+						store.lastEstimatedTotal = paymentData.estimatedTotal || 0;
+						store.debugInfo = `Restored PaymentIntent: ${store.paymentIntentId}`;
+					} else {
+						console.log('[StripePayment] Stored PaymentIntent is too old, will create new one');
+						localStorage.removeItem('stripe_payment_intent');
+					}
+				}
+			} catch (error) {
+				console.error('[StripePayment] Error parsing stored PaymentIntent:', error);
+				localStorage.removeItem('stripe_payment_intent');
+			}
+		}
+
+		let totalChanged = false;
+		let estimatedTotal = 0;
+
 		try {
 			// Calculate estimated total from local cart
-			const estimatedTotal = calculateCartTotal(localCart);
+			estimatedTotal = calculateCartTotal(localCart);
 			store.debugInfo = `Calculating total: $${(estimatedTotal / 100).toFixed(2)} (${localCart.localCart.items.length} items)`;
 
 			// Validate estimated total
@@ -297,26 +341,46 @@ export default component$(() => {
 				return;
 			}
 
-			store.debugInfo = 'Calling GraphQL mutation...';
+			// 🎯 CRITICAL FIX: Only create PaymentIntent if not already created or if total changed significantly
+			totalChanged = Math.abs(estimatedTotal - store.lastEstimatedTotal) > 100; // Allow $1 variance
 
-			// Create pre-order PaymentIntent immediately - no order dependency
-			console.log('[StripePayment] Creating PaymentIntent with estimated total:', estimatedTotal);
-			const paymentIntentResult = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');
-			console.log('[StripePayment] PaymentIntent result:', paymentIntentResult);
+			if (!store.paymentIntentCreated || !store.clientSecret || totalChanged) {
+				store.debugInfo = 'Creating new PaymentIntent...';
+				console.log('[StripePayment] Creating PaymentIntent with estimated total:', estimatedTotal);
+				console.log('[StripePayment] Reason:', !store.paymentIntentCreated ? 'First creation' : totalChanged ? 'Total changed' : 'Missing client secret');
 
-			store.clientSecret = paymentIntentResult.clientSecret;
-			console.log('[StripePayment] Client secret extracted:', store.clientSecret);
+				const paymentIntentResult = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');
+				console.log('[StripePayment] PaymentIntent result:', paymentIntentResult);
 
-			if (!store.clientSecret) {
-				store.error = 'Failed to initialize payment. Please try again.';
-				store.debugInfo = 'Error: No client secret returned from server';
-				console.error('[StripePayment] No client secret in result:', paymentIntentResult);
-				return;
+				store.clientSecret = paymentIntentResult.clientSecret;
+				console.log('[StripePayment] Client secret extracted:', store.clientSecret);
+
+				if (!store.clientSecret) {
+					store.error = 'Failed to initialize payment. Please try again.';
+					store.debugInfo = 'Error: No client secret returned from server';
+					console.error('[StripePayment] No client secret in result:', paymentIntentResult);
+					return;
+				}
+
+				store.paymentIntentId = extractPaymentIntentId(store.clientSecret);
+				console.log('[StripePayment] PaymentIntent ID extracted:', store.paymentIntentId);
+				store.debugInfo = `PaymentIntent created: ${store.paymentIntentId}`;
+				store.paymentIntentCreated = true;
+				store.lastEstimatedTotal = estimatedTotal;
+
+				// 🎯 CRITICAL FIX: Store PaymentIntent in localStorage for reuse
+				const paymentData = {
+					clientSecret: store.clientSecret,
+					paymentIntentId: store.paymentIntentId,
+					estimatedTotal: estimatedTotal,
+					timestamp: Date.now()
+				};
+				localStorage.setItem('stripe_payment_intent', JSON.stringify(paymentData));
+				console.log('[StripePayment] PaymentIntent stored in localStorage for reuse');
+			} else {
+				console.log('[StripePayment] Reusing existing PaymentIntent:', store.paymentIntentId);
+				store.debugInfo = `Reusing PaymentIntent: ${store.paymentIntentId}`;
 			}
-
-			store.paymentIntentId = extractPaymentIntentId(store.clientSecret);
-			console.log('[StripePayment] PaymentIntent ID extracted:', store.paymentIntentId);
-			store.debugInfo = `PaymentIntent created: ${store.paymentIntentId}`;
 
 			// Clear any previous errors
 			store.error = '';
@@ -328,91 +392,100 @@ export default component$(() => {
 			return;
 		}
 
-		// Initialize Stripe Elements
-		try {
-			store.debugInfo = 'Loading Stripe...';
-			const stripe = await stripePromise;
+		// Initialize Stripe Elements only if not already initialized or if PaymentIntent changed
+		const needsElementsInit = !store.stripeElements || !store.resolvedStripe || totalChanged;
 
-			if (!stripe) {
-				store.error = 'Failed to load Stripe';
-				store.debugInfo = 'Error: Stripe failed to load';
-				return;
-			}
-
-			store.debugInfo = 'Creating Payment Element with tabbed interface...';
-			store.resolvedStripe = noSerialize(stripe);
-
-			const elements = stripe.elements({
-				clientSecret: store.clientSecret,
-				locale: 'en',
-				appearance: {
-					theme: 'stripe',
-					variables: {
-						colorPrimary: '#8a6d4a',
-						colorBackground: '#ffffff',
-						colorText: '#374151',
-						colorDanger: '#ef4444',
-						colorSuccess: '#10b981',
-						fontFamily: 'system-ui, -apple-system, sans-serif',
-						spacingUnit: '4px',
-						borderRadius: '6px',
-						fontSizeBase: '16px',
-					}
-				}
-			});
-
-			store.stripeElements = noSerialize(elements);
-			store.debugInfo = 'Mounting payment element...';
-
-			// Check if mount target exists
-			const mountTarget = document.getElementById('payment-form');
-			if (!mountTarget) {
-				store.error = 'Payment form mount target not found';
-				store.debugInfo = 'Error: #payment-form element missing';
-				return;
-			}
-
-			// 🎯 Create Payment Element with TABBED INTERFACE!
-			const paymentElement = elements.create('payment', {
-				layout: 'tabs', // Simplified syntax for tabbed layout
-				paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'], // Order of payment method tabs
-				defaultValues: {
-					billingDetails: {
-						name: '',
-						email: '',
-					}
-				}
-			});
-
+		if (needsElementsInit) {
 			try {
-				await paymentElement.mount('#payment-form');
-				store.debugInfo = 'Payment Element with tabs mounted successfully!';
+				store.debugInfo = 'Loading Stripe...';
+				const stripe = await stripePromise;
 
-				// Add event listeners for better debugging
-				paymentElement.on('ready', () => {
-					store.debugInfo = 'Payment Element with tabs is ready and interactive!';
-				});
+				if (!stripe) {
+					store.error = 'Failed to load Stripe';
+					store.debugInfo = 'Error: Stripe failed to load';
+					return;
+				}
 
-				paymentElement.on('change', (event: any) => {
-					if (event.error) {
-						store.error = event.error.message || 'Payment validation error';
-						store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
-					} else {
-						store.error = '';
-						store.debugInfo = 'Payment form is valid and ready!';
+				store.debugInfo = 'Creating Payment Element with tabbed interface...';
+				store.resolvedStripe = noSerialize(stripe);
+
+				// Clear existing mount target to avoid conflicts
+				const mountTarget = document.getElementById('payment-form');
+				if (mountTarget) {
+					mountTarget.innerHTML = '';
+				} else {
+					store.error = 'Payment form mount target not found';
+					store.debugInfo = 'Error: #payment-form element missing';
+					return;
+				}
+
+				const elements = stripe.elements({
+					clientSecret: store.clientSecret,
+					locale: 'en',
+					appearance: {
+						theme: 'stripe',
+						variables: {
+							colorPrimary: '#8a6d4a',
+							colorBackground: '#ffffff',
+							colorText: '#374151',
+							colorDanger: '#ef4444',
+							colorSuccess: '#10b981',
+							fontFamily: 'system-ui, -apple-system, sans-serif',
+							spacingUnit: '4px',
+							borderRadius: '6px',
+							fontSizeBase: '16px',
+						}
 					}
 				});
 
-			} catch (mountError) {
-				const errorMsg = mountError instanceof Error ? mountError.message : 'Unknown mount error';
-				store.error = `Failed to mount payment form: ${errorMsg}`;
-				store.debugInfo = `Mount error: ${errorMsg}`;
-			}
+				store.stripeElements = noSerialize(elements);
+				store.debugInfo = 'Mounting payment element...';
 
-		} catch (elementsError) {
-			const errorMsg = elementsError instanceof Error ? elementsError.message : 'Unknown Elements error';
-			store.error = `Failed to initialize payment form: ${errorMsg}`;
-			store.debugInfo = `Elements error: ${errorMsg}`;
+				// 🎯 Create Payment Element with TABBED INTERFACE!
+				const paymentElement = elements.create('payment', {
+					layout: 'tabs', // Simplified syntax for tabbed layout
+					paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'], // Order of payment method tabs
+					defaultValues: {
+						billingDetails: {
+							name: '',
+							email: '',
+						}
+					}
+				});
+
+				try {
+					await paymentElement.mount('#payment-form');
+					store.debugInfo = 'Payment Element with tabs mounted successfully!';
+
+					// Add event listeners for better debugging
+					paymentElement.on('ready', () => {
+						store.debugInfo = 'Payment Element with tabs is ready and interactive!';
+					});
+
+					paymentElement.on('change', (event: any) => {
+						if (event.error) {
+							store.error = event.error.message || 'Payment validation error';
+							store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
+						} else {
+							store.error = '';
+							store.debugInfo = 'Payment form is valid and ready!';
+						}
+					});
+
+				} catch (mountError) {
+					const errorMsg = mountError instanceof Error ? mountError.message : 'Unknown mount error';
+					store.error = `Failed to mount payment form: ${errorMsg}`;
+					store.debugInfo = `Mount error: ${errorMsg}`;
+				}
+
+			} catch (elementsError) {
+				const errorMsg = elementsError instanceof Error ? elementsError.message : 'Unknown Elements error';
+				store.error = `Failed to initialize payment form: ${errorMsg}`;
+				store.debugInfo = `Elements error: ${errorMsg}`;
+			}
+		} else {
+			console.log('[StripePayment] Reusing existing Stripe Elements');
+			store.debugInfo = 'Reusing existing payment form';
 		}
 	});
 

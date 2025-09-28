@@ -369,6 +369,12 @@ const CheckoutContent = component$(() => {
                         isOrderProcessing.value = false;
                         stripeTriggerSignal.value = 0;
 
+                        // 🚨 CRITICAL FIX: Clear stored PaymentIntent on error to force recreation
+                        if (typeof window !== 'undefined' && (window as any).clearStripePaymentIntent) {
+                          (window as any).clearStripePaymentIntent();
+                          console.log('[Checkout] Cleared stored PaymentIntent for retry');
+                        }
+
                         // 🚨 CRITICAL FIX: Restore cart to local mode after payment failure
                         // This ensures the cart remains functional for retry attempts
                         console.log('[Checkout] Payment failed, restoring cart state for retry...');
