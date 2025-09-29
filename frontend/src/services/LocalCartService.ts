@@ -543,8 +543,34 @@ export class LocalCartService {
       }
 
       // Dynamically import to avoid circular dependencies
-      const { addItemsToOrderMutation, addItemToOrderMutation, applyCouponCodeMutation } = await import('~/providers/shop/orders/order');
+      const { addItemsToOrderMutation, addItemToOrderMutation, applyCouponCodeMutation, getActiveOrderQuery, removeOrderLineMutation } = await import('~/providers/shop/orders/order');
       let order: Order | null = null;
+
+      // CRITICAL FIX: Check for existing order and clear its items to prevent accumulation
+      try {
+        const existingOrder = await getActiveOrderQuery();
+        if (existingOrder && existingOrder.lines && existingOrder.lines.length > 0) {
+          console.log(`[${conversionId}] Found existing order with ${existingOrder.lines.length} items. Clearing to prevent accumulation.`);
+          
+          // Remove all existing order lines to prevent item accumulation
+          for (const line of existingOrder.lines) {
+            try {
+              await removeOrderLineMutation(line.id);
+              console.log(`[${conversionId}] Removed existing order line: ${line.id}`);
+            } catch (removeError) {
+              console.warn(`[${conversionId}] Failed to remove order line ${line.id}:`, removeError);
+              // Continue with other lines even if one fails
+            }
+          }
+          
+          // Get the updated order after clearing
+          order = await getActiveOrderQuery();
+          console.log(`[${conversionId}] Order cleared. Remaining lines: ${order?.lines?.length || 0}`);
+        }
+      } catch (clearError) {
+        console.warn(`[${conversionId}] Failed to clear existing order items:`, clearError);
+        // Continue with conversion even if clearing fails
+      }
 
       // Prepare batch input for all items
       const batchInput = cart.items.map(item => ({

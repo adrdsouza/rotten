@@ -165,6 +165,17 @@ export type CartItemInput = {
   unitPrice: Scalars['Float']['input'];
 };
 
+export type CartOrderMapping = {
+  __typename?: 'CartOrderMapping';
+  cartUuid: Scalars['String']['output'];
+  completedAt?: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  orderCode: Scalars['String']['output'];
+  orderId: Scalars['String']['output'];
+  paymentIntentId?: Maybe<Scalars['String']['output']>;
+};
+
 export type Channel = Node & {
   __typename?: 'Channel';
   availableCurrencyCodes: Array<CurrencyCode>;
@@ -1785,13 +1796,12 @@ export type Mutation = {
   applyCouponCode: ApplyCouponCodeResult;
   /** Authenticates the user using a named authentication strategy */
   authenticate: AuthenticationResult;
+  createCartMapping: CartOrderMapping;
   /** Create a new Customer Address */
   createCustomerAddress: Address;
-  createPreOrderStripePaymentIntent: PaymentIntentResult;
   createStripePaymentIntent: Scalars['String']['output'];
   /** Delete an existing Address */
   deleteCustomerAddress: Success;
-  linkPaymentIntentToOrder: Scalars['Boolean']['output'];
   /**
    * Authenticates the user using the native authentication strategy. This mutation is an alias for authenticate({ native: { ... }})
    *
@@ -1801,6 +1811,7 @@ export type Mutation = {
   login: NativeAuthenticationResult;
   /** End the current authenticated session */
   logout: Success;
+  markCartMappingCompleted?: Maybe<CartOrderMapping>;
   /** Regenerate and send a verification token for a new Customer registration. Only applicable if `authOptions.requireVerification` is set to true. */
   refreshCustomerVerification: RefreshCustomerVerificationResult;
   /**
@@ -1852,7 +1863,6 @@ export type Mutation = {
    * shipping method will apply to.
    */
   setOrderShippingMethod: SetOrderShippingMethodResult;
-  settleStripePayment: SettlementResult;
   subscribeToNewsletter: NewsletterSubscriptionResult;
   /** Transitions an Order to a new state. Valid next states can be found by querying `nextOrderStates` */
   transitionOrderToState?: Maybe<TransitionOrderToStateResult>;
@@ -1861,6 +1871,7 @@ export type Mutation = {
   /** Unsets the shipping address for the active Order. Available since version 3.1.0 */
   unsetOrderShippingAddress: ActiveOrderResult;
   unsubscribeFromNewsletter: NewsletterUnsubscribeResult;
+  updateCartMappingPaymentIntent?: Maybe<CartOrderMapping>;
   /** Update an existing Customer */
   updateCustomer: Customer;
   /** Update an existing Address */
@@ -1915,14 +1926,16 @@ export type MutationAuthenticateArgs = {
 };
 
 
-export type MutationCreateCustomerAddressArgs = {
-  input: CreateAddressInput;
+export type MutationCreateCartMappingArgs = {
+  cartUuid: Scalars['String']['input'];
+  orderCode: Scalars['String']['input'];
+  orderId: Scalars['String']['input'];
+  paymentIntentId?: InputMaybe<Scalars['String']['input']>;
 };
 
 
-export type MutationCreatePreOrderStripePaymentIntentArgs = {
-  currency?: InputMaybe<Scalars['String']['input']>;
-  estimatedTotal: Scalars['Int']['input'];
+export type MutationCreateCustomerAddressArgs = {
+  input: CreateAddressInput;
 };
 
 
@@ -1931,19 +1944,15 @@ export type MutationDeleteCustomerAddressArgs = {
 };
 
 
-export type MutationLinkPaymentIntentToOrderArgs = {
-  customerEmail?: InputMaybe<Scalars['String']['input']>;
-  finalTotal: Scalars['Int']['input'];
-  orderCode: Scalars['String']['input'];
-  orderId: Scalars['String']['input'];
-  paymentIntentId: Scalars['String']['input'];
-};
-
-
 export type MutationLoginArgs = {
   password: Scalars['String']['input'];
   rememberMe?: InputMaybe<Scalars['Boolean']['input']>;
   username: Scalars['String']['input'];
+};
+
+
+export type MutationMarkCartMappingCompletedArgs = {
+  cartUuid: Scalars['String']['input'];
 };
 
 
@@ -2009,11 +2018,6 @@ export type MutationSetOrderShippingMethodArgs = {
 };
 
 
-export type MutationSettleStripePaymentArgs = {
-  paymentIntentId: Scalars['String']['input'];
-};
-
-
 export type MutationSubscribeToNewsletterArgs = {
   input: NewsletterSubscriptionInput;
 };
@@ -2026,6 +2030,12 @@ export type MutationTransitionOrderToStateArgs = {
 
 export type MutationUnsubscribeFromNewsletterArgs = {
   email: Scalars['String']['input'];
+};
+
+
+export type MutationUpdateCartMappingPaymentIntentArgs = {
+  cartUuid: Scalars['String']['input'];
+  paymentIntentId: Scalars['String']['input'];
 };
 
 
@@ -2502,14 +2512,6 @@ export type PaymentInput = {
   method: Scalars['String']['input'];
 };
 
-export type PaymentIntentResult = {
-  __typename?: 'PaymentIntentResult';
-  amount: Scalars['Int']['output'];
-  clientSecret: Scalars['String']['output'];
-  currency: Scalars['String']['output'];
-  paymentIntentId: Scalars['String']['output'];
-};
-
 export type PaymentMethod = Node & {
   __typename?: 'PaymentMethod';
   checker?: Maybe<ConfigurableOperation>;
@@ -2544,24 +2546,6 @@ export type PaymentMethodTranslation = {
   languageCode: LanguageCode;
   name: Scalars['String']['output'];
   updatedAt: Scalars['DateTime']['output'];
-};
-
-export const PaymentStatus = {
-  Failed: 'FAILED',
-  NotFound: 'NOT_FOUND',
-  Pending: 'PENDING',
-  Settled: 'SETTLED'
-} as const;
-
-export type PaymentStatus = typeof PaymentStatus[keyof typeof PaymentStatus];
-export type PaymentStatusResult = {
-  __typename?: 'PaymentStatusResult';
-  amount?: Maybe<Scalars['Int']['output']>;
-  createdAt?: Maybe<Scalars['DateTime']['output']>;
-  orderCode?: Maybe<Scalars['String']['output']>;
-  paymentIntentId: Scalars['String']['output'];
-  settledAt?: Maybe<Scalars['DateTime']['output']>;
-  status: PaymentStatus;
 };
 
 /**
@@ -2786,12 +2770,6 @@ export const Permission = {
 } as const;
 
 export type Permission = typeof Permission[keyof typeof Permission];
-export type PreOrderCartItemInput = {
-  productVariantId: Scalars['String']['input'];
-  quantity: Scalars['Int']['input'];
-  unitPrice: Scalars['Int']['input'];
-};
-
 /** The price range where the result has more than one price */
 export type PriceRange = {
   __typename?: 'PriceRange';
@@ -3099,7 +3077,6 @@ export type Query = {
   activeShippingMethods: Array<Maybe<PublicShippingMethod>>;
   /** An array of supported Countries */
   availableCountries: Array<Country>;
-  calculateEstimatedTotal: Scalars['Int']['output'];
   /** Returns a Collection either by its id or slug. If neither 'id' nor 'slug' is specified, an error will result. */
   collection?: Maybe<Collection>;
   /** A list of Collections available to the shop */
@@ -3112,7 +3089,8 @@ export type Query = {
   facet?: Maybe<Facet>;
   /** A list of Facets available to the shop */
   facets: FacetList;
-  getPaymentStatus: PaymentStatusResult;
+  getCartMapping?: Maybe<CartOrderMapping>;
+  getCartMappingByOrderCode?: Maybe<CartOrderMapping>;
   /** Returns information about the current authenticated User */
   me?: Maybe<CurrentUser>;
   /** Returns the possible next states that the activeOrder can transition to */
@@ -3139,11 +3117,6 @@ export type Query = {
 };
 
 
-export type QueryCalculateEstimatedTotalArgs = {
-  cartItems: Array<PreOrderCartItemInput>;
-};
-
-
 export type QueryCollectionArgs = {
   id?: InputMaybe<Scalars['ID']['input']>;
   slug?: InputMaybe<Scalars['String']['input']>;
@@ -3165,8 +3138,13 @@ export type QueryFacetsArgs = {
 };
 
 
-export type QueryGetPaymentStatusArgs = {
-  paymentIntentId: Scalars['String']['input'];
+export type QueryGetCartMappingArgs = {
+  cartUuid: Scalars['String']['input'];
+};
+
+
+export type QueryGetCartMappingByOrderCodeArgs = {
+  orderCode: Scalars['String']['input'];
 };
 
 
@@ -3382,15 +3360,6 @@ export type Seller = Node & {
 export type SetCustomerForOrderResult = AlreadyLoggedInError | EmailAddressConflictError | GuestCheckoutError | NoActiveOrderError | Order;
 
 export type SetOrderShippingMethodResult = IneligibleShippingMethodError | NoActiveOrderError | Order | OrderModificationError;
-
-export type SettlementResult = {
-  __typename?: 'SettlementResult';
-  error?: Maybe<Scalars['String']['output']>;
-  orderCode: Scalars['String']['output'];
-  orderId: Scalars['String']['output'];
-  paymentId?: Maybe<Scalars['String']['output']>;
-  success: Scalars['Boolean']['output'];
-};
 
 export type ShippingLine = {
   __typename?: 'ShippingLine';
@@ -3871,38 +3840,15 @@ export type CreateStripePaymentIntentMutationVariables = Exact<{ [key: string]: 
 
 export type CreateStripePaymentIntentMutation = { __typename?: 'Mutation', createStripePaymentIntent: string };
 
-export type CreatePreOrderStripePaymentIntentMutationVariables = Exact<{
-  estimatedTotal: Scalars['Int']['input'];
-  currency: Scalars['String']['input'];
-}>;
-
-
-export type CreatePreOrderStripePaymentIntentMutation = { __typename?: 'Mutation', createPreOrderStripePaymentIntent: { __typename?: 'PaymentIntentResult', clientSecret: string, paymentIntentId: string, amount: number, currency: string } };
-
-export type LinkPaymentIntentToOrderMutationVariables = Exact<{
-  paymentIntentId: Scalars['String']['input'];
+export type CreateCartMappingMutationVariables = Exact<{
+  cartUuid: Scalars['String']['input'];
   orderId: Scalars['String']['input'];
   orderCode: Scalars['String']['input'];
-  finalTotal: Scalars['Int']['input'];
-  customerEmail?: InputMaybe<Scalars['String']['input']>;
+  paymentIntentId?: InputMaybe<Scalars['String']['input']>;
 }>;
 
 
-export type LinkPaymentIntentToOrderMutation = { __typename?: 'Mutation', linkPaymentIntentToOrder: boolean };
-
-export type SettleStripePaymentMutationVariables = Exact<{
-  paymentIntentId: Scalars['String']['input'];
-}>;
-
-
-export type SettleStripePaymentMutation = { __typename?: 'Mutation', settleStripePayment: { __typename?: 'SettlementResult', success: boolean, orderId: string, orderCode: string, paymentId?: string | null, error?: string | null } };
-
-export type CalculateEstimatedTotalQueryVariables = Exact<{
-  cartItems: Array<PreOrderCartItemInput> | PreOrderCartItemInput;
-}>;
-
-
-export type CalculateEstimatedTotalQuery = { __typename?: 'Query', calculateEstimatedTotal: number };
+export type CreateCartMappingMutation = { __typename?: 'Mutation', createCartMapping: { __typename?: 'CartOrderMapping', id: string, cartUuid: string, orderId: string, orderCode: string, paymentIntentId?: string | null, createdAt: any, completedAt?: any | null } };
 
 export type CollectionsQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -4484,44 +4430,22 @@ export const CreateStripePaymentIntentDocument = gql`
   createStripePaymentIntent
 }
     `;
-export const CreatePreOrderStripePaymentIntentDocument = gql`
-    mutation createPreOrderStripePaymentIntent($estimatedTotal: Int!, $currency: String!) {
-  createPreOrderStripePaymentIntent(
-    estimatedTotal: $estimatedTotal
-    currency: $currency
-  ) {
-    clientSecret
-    paymentIntentId
-    amount
-    currency
-  }
-}
-    `;
-export const LinkPaymentIntentToOrderDocument = gql`
-    mutation linkPaymentIntentToOrder($paymentIntentId: String!, $orderId: String!, $orderCode: String!, $finalTotal: Int!, $customerEmail: String) {
-  linkPaymentIntentToOrder(
-    paymentIntentId: $paymentIntentId
+export const CreateCartMappingDocument = gql`
+    mutation createCartMapping($cartUuid: String!, $orderId: String!, $orderCode: String!, $paymentIntentId: String) {
+  createCartMapping(
+    cartUuid: $cartUuid
     orderId: $orderId
     orderCode: $orderCode
-    finalTotal: $finalTotal
-    customerEmail: $customerEmail
-  )
-}
-    `;
-export const SettleStripePaymentDocument = gql`
-    mutation settleStripePayment($paymentIntentId: String!) {
-  settleStripePayment(paymentIntentId: $paymentIntentId) {
-    success
+    paymentIntentId: $paymentIntentId
+  ) {
+    id
+    cartUuid
     orderId
     orderCode
-    paymentId
-    error
+    paymentIntentId
+    createdAt
+    completedAt
   }
-}
-    `;
-export const CalculateEstimatedTotalDocument = gql`
-    query calculateEstimatedTotal($cartItems: [PreOrderCartItemInput!]!) {
-  calculateEstimatedTotal(cartItems: $cartItems)
 }
     `;
 export const CollectionsDocument = gql`
@@ -5011,17 +4935,8 @@ export function getSdk<C>(requester: Requester<C>) {
     createStripePaymentIntent(variables?: CreateStripePaymentIntentMutationVariables, options?: C): Promise<CreateStripePaymentIntentMutation> {
       return requester<CreateStripePaymentIntentMutation, CreateStripePaymentIntentMutationVariables>(CreateStripePaymentIntentDocument, variables, options) as Promise<CreateStripePaymentIntentMutation>;
     },
-    createPreOrderStripePaymentIntent(variables: CreatePreOrderStripePaymentIntentMutationVariables, options?: C): Promise<CreatePreOrderStripePaymentIntentMutation> {
-      return requester<CreatePreOrderStripePaymentIntentMutation, CreatePreOrderStripePaymentIntentMutationVariables>(CreatePreOrderStripePaymentIntentDocument, variables, options) as Promise<CreatePreOrderStripePaymentIntentMutation>;
-    },
-    linkPaymentIntentToOrder(variables: LinkPaymentIntentToOrderMutationVariables, options?: C): Promise<LinkPaymentIntentToOrderMutation> {
-      return requester<LinkPaymentIntentToOrderMutation, LinkPaymentIntentToOrderMutationVariables>(LinkPaymentIntentToOrderDocument, variables, options) as Promise<LinkPaymentIntentToOrderMutation>;
-    },
-    settleStripePayment(variables: SettleStripePaymentMutationVariables, options?: C): Promise<SettleStripePaymentMutation> {
-      return requester<SettleStripePaymentMutation, SettleStripePaymentMutationVariables>(SettleStripePaymentDocument, variables, options) as Promise<SettleStripePaymentMutation>;
-    },
-    calculateEstimatedTotal(variables: CalculateEstimatedTotalQueryVariables, options?: C): Promise<CalculateEstimatedTotalQuery> {
-      return requester<CalculateEstimatedTotalQuery, CalculateEstimatedTotalQueryVariables>(CalculateEstimatedTotalDocument, variables, options) as Promise<CalculateEstimatedTotalQuery>;
+    createCartMapping(variables: CreateCartMappingMutationVariables, options?: C): Promise<CreateCartMappingMutation> {
+      return requester<CreateCartMappingMutation, CreateCartMappingMutationVariables>(CreateCartMappingDocument, variables, options) as Promise<CreateCartMappingMutation>;
     },
     collections(variables?: CollectionsQueryVariables, options?: C): Promise<CollectionsQuery> {
       return requester<CollectionsQuery, CollectionsQueryVariables>(CollectionsDocument, variables, options) as Promise<CollectionsQuery>;

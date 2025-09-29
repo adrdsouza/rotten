@@ -27,7 +27,9 @@ import { AuditPlugin } from './plugins/audit-plugin';
 
 import { CustomShippingPlugin } from './plugins/custom-shipping';
 import { StripeExtensionPlugin } from './plugins/stripe-extension';
-import { StripePreOrderPlugin } from './plugins/stripe-pre-order';
+// import { StripePreOrderPlugin } from './plugins/stripe-pre-order'; // REMOVED - migrating to official plugin
+import { StripePlugin } from '@vendure/payments-plugin/package/stripe';
+import { CartMappingPlugin } from './plugins/cart-mapping';
 // REMOVED: SezzlePaymentPlugin - not available for this clothing brand
 import { orderFulfillmentHandler } from './email-handlers/order-fulfillment-handler';
 import { orderConfirmationHandler } from './email-handlers/order-confirmation-handler';
@@ -280,7 +282,9 @@ export const config: VendureConfig = {
             allowGuestCheckoutForRegisteredCustomers: true,
         }),
     },
-    customFields: {},
+    customFields: {
+        // StripePlugin automatically adds stripeCustomerId field when storeCustomersInStripe: true
+    },
     catalogOptions: {
         stockDisplayStrategy: new ExactStockDisplayStrategy(),
     },
@@ -315,19 +319,20 @@ export const config: VendureConfig = {
         //     minRecaptchaScore: IS_DEV ? 0.3 : 0.5
         // }), // DISABLED
         NewsletterPlugin,
-        // StripePlugin.init({
-        //     // This prevents different customers from using the same PaymentIntent
-        //     storeCustomersInStripe: true,
-        //     // Add payment method information to Stripe metadata for webhook processing
-        //     metadata: async (injector, ctx, order) => {
-        //         return {
-        //             vendure_order_code: order.code,
-        //             vendure_order_id: order.id.toString(),
-        //             vendure_customer_email: order.customer?.emailAddress || 'guest'
-        //         };
-        //     },
-        // }),
-        StripePreOrderPlugin, // 🚀 Stripe pre-order: PaymentIntent creation before order creation
+        StripePlugin.init({
+            // This prevents different customers from using the same PaymentIntent
+            storeCustomersInStripe: true,
+            // Add payment method information to Stripe metadata for webhook processing
+            metadata: async (injector, ctx, order) => {
+                return {
+                    vendure_order_code: order.code,
+                    vendure_order_id: order.id.toString(),
+                    vendure_customer_email: order.customer?.emailAddress || 'guest'
+                };
+            },
+        }),
+        CartMappingPlugin, // 🗂️ Cart UUID mapping for pre-order tracking
+        // StripePreOrderPlugin, // 🚀 REMOVED - migrated to official StripePlugin
         StripeExtensionPlugin, // 💳 Stripe extensions: payment method capture + refund webhooks
         // REMOVED: NmiPaymentPlugin - not available for this clothing brand
         // REMOVED: SezzlePaymentPlugin - not available for this clothing brand

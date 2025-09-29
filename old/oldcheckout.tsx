@@ -236,8 +236,64 @@ const CheckoutContent = component$(() => {
             console.warn('Could not set preferred shipping method. Proceeding with default.');
           }
         }
+<<<<<<< HEAD
+        
+        const latestOrder = await getActiveOrderQuery();
+        if (latestOrder && latestOrder.id) {
+          appState.activeOrder = latestOrder;
+          if (latestOrder.state === 'ArrangingPayment') {
+            if (selectedPaymentMethod.value === 'stripe' && stripeTriggerSignal.value === 0) {
+              stripeTriggerSignal.value++;
+              if (typeof window !== 'undefined' && (window as any).confirmStripePreOrderPayment) {
+                try {
+                  await (window as any).confirmStripePreOrderPayment(appState.activeOrder);
+                } catch (paymentError) {
+                  console.error('[Checkout] Payment error:', paymentError);
+                  
+                  // Extract enhanced error information
+                  const errorMessage = paymentError instanceof Error ? paymentError.message : 'Unknown error';
+                  
+                  // Check for specific error types that need special handling
+                  if (errorMessage.includes('refresh')) {
+                    state.error = `${errorMessage} The page will refresh automatically.`;
+                    setTimeout(() => window.location.reload(), 3000);
+                  } else if (errorMessage.includes('verification') || errorMessage.includes('action required')) {
+                    state.error = `${errorMessage} Please complete any required steps and try again.`;
+                  } else {
+                    state.error = `Payment failed: ${errorMessage}`;
+                  }
+                  
+                  showProcessingModal.value = false;
+                  isOrderProcessing.value = false;
+                }
+              } else {
+                state.error = 'Payment system not ready. Please refresh and try again.';
+                showProcessingModal.value = false;
+                isOrderProcessing.value = false;
+              }
+
+              if (appState.activeOrder?.code) {
+                await prefetchOrderConfirmation(appState.activeOrder?.code);
+              }
+            }
+          } else {
+            state.error = 'Order is not ready for payment. Please try again.';
+            showProcessingModal.value = false;
+            isOrderProcessing.value = false;
+          }
+        } else {
+          state.error = 'Order could not be found. Please restart the checkout process.';
+          showProcessingModal.value = false;
+          isOrderProcessing.value = false;
+        }
+      } catch (_waitError) {
+        state.error = 'Address submission took too long or failed. Please try again.';
+        showProcessingModal.value = false;
+        isOrderProcessing.value = false;
+=======
       } catch (shippingError) {
         console.error('Error setting shipping method:', shippingError);
+>>>>>>> 5a1e37c1313ea95d1a27f726d7a0aad98764c920
       }
       
       if (appState.activeOrder && appState.activeOrder.state !== 'ArrangingPayment') {
@@ -256,22 +312,6 @@ const CheckoutContent = component$(() => {
         if (latestOrder.code) {
           await prefetchOrderConfirmation(latestOrder.code);
         }
-        
-        // Link PaymentIntent to order if using Stripe
-        if (selectedPaymentMethod.value === 'stripe') {
-          try {
-            // Get the PaymentIntent ID from the StripePayment component
-            const stripePaymentElement = document.querySelector('#payment-form');
-            if (stripePaymentElement && (window as any).linkPaymentIntentToOrder) {
-              console.log('[Checkout] Linking PaymentIntent to order:', latestOrder.code);
-              await (window as any).linkPaymentIntentToOrder(latestOrder);
-            }
-          } catch (linkError) {
-            console.error('[Checkout] Failed to link PaymentIntent to order:', linkError);
-            // Continue with payment even if linking fails - the webhook will handle it
-          }
-        }
-        
         // Only trigger payment if we haven't already triggered it for this order
         // This prevents multiple payment attempts on the same order
         if (selectedPaymentMethod.value === 'stripe' && stripeTriggerSignal.value === 0) {
@@ -384,37 +424,15 @@ const CheckoutContent = component$(() => {
                         state.error = errorMessage || 'Payment processing failed. Please check your details and try again.';
                         isOrderProcessing.value = false;
                         stripeTriggerSignal.value = 0;
-
-                        // 🚨 CRITICAL FIX: Restore cart to local mode after payment failure
+                        
+                        // CRITICAL FIX: Restore cart to local mode after payment failure
                         // This ensures the cart remains functional for retry attempts
-                        console.log('[Checkout] Payment failed, restoring cart state for retry...');
                         localCart.isLocalMode = true;
-
-                        // Ensure cart data is still available (it should be since we don't clear it until payment succeeds)
-                        try {
-                          const currentCart = LocalCartService.getCart();
-                          if (currentCart.items.length > 0) {
-                            console.log('[Checkout] Cart data preserved for retry:', currentCart.items.length, 'items');
-                            // Trigger cart update to refresh UI
-                            if (typeof window !== 'undefined') {
-                              window.dispatchEvent(new CustomEvent('cart-updated', {
-                                detail: { totalQuantity: currentCart.totalQuantity }
-                              }));
-                            }
-                          } else {
-                            console.warn('[Checkout] Cart appears to be empty after payment failure - this should not happen');
-                          }
-                        } catch (cartError) {
-                          console.error('[Checkout] Error checking cart state after payment failure:', cartError);
-                        }
-
-                        // Try to transition order back to AddingItems state for retry
+                        
                         try {
                           await transitionOrderToStateMutation('AddingItems');
-                          console.log('[Checkout] Order transitioned back to AddingItems state for retry');
                         } catch (transitionError) {
-                          console.error('[Checkout] Failed to transition order back to AddingItems state:', transitionError);
-                          // This is not critical - user can still retry payment
+                          console.error('Failed to transition order back to AddingItems state:', transitionError);
                         }
                       })}
                       onProcessingChange$={$(async (isProcessing: boolean) => {

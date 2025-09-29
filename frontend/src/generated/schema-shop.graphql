@@ -131,6 +131,16 @@ input CartItemInput {
   unitPrice: Float!
 }
 
+type CartOrderMapping {
+  cartUuid: String!
+  completedAt: DateTime
+  createdAt: DateTime!
+  id: ID!
+  orderCode: String!
+  orderId: String!
+  paymentIntentId: String
+}
+
 type Channel implements Node {
   availableCurrencyCodes: [CurrencyCode!]!
   availableLanguageCodes: [LanguageCode!]
@@ -2055,15 +2065,14 @@ type Mutation {
 
   """Authenticates the user using a named authentication strategy"""
   authenticate(input: AuthenticationInput!, rememberMe: Boolean): AuthenticationResult!
+  createCartMapping(cartUuid: String!, orderCode: String!, orderId: String!, paymentIntentId: String): CartOrderMapping!
 
   """Create a new Customer Address"""
   createCustomerAddress(input: CreateAddressInput!): Address!
-  createPreOrderStripePaymentIntent(currency: String = "usd", estimatedTotal: Int!): PaymentIntentResult!
   createStripePaymentIntent: String!
 
   """Delete an existing Address"""
   deleteCustomerAddress(id: ID!): Success!
-  linkPaymentIntentToOrder(customerEmail: String, finalTotal: Int!, orderCode: String!, orderId: String!, paymentIntentId: String!): Boolean!
 
   """
   Authenticates the user using the native authentication strategy. This mutation is an alias for authenticate({ native: { ... }})
@@ -2075,6 +2084,7 @@ type Mutation {
 
   """End the current authenticated session"""
   logout: Success!
+  markCartMappingCompleted(cartUuid: String!): CartOrderMapping
 
   """
   Regenerate and send a verification token for a new Customer registration. Only applicable if `authOptions.requireVerification` is set to true.
@@ -2143,7 +2153,6 @@ type Mutation {
   shipping method will apply to.
   """
   setOrderShippingMethod(shippingMethodId: [ID!]!): SetOrderShippingMethodResult!
-  settleStripePayment(paymentIntentId: String!): SettlementResult!
   subscribeToNewsletter(input: NewsletterSubscriptionInput!): NewsletterSubscriptionResult!
 
   """
@@ -2161,6 +2170,7 @@ type Mutation {
   """
   unsetOrderShippingAddress: ActiveOrderResult!
   unsubscribeFromNewsletter(email: String!): NewsletterUnsubscribeResult!
+  updateCartMappingPaymentIntent(cartUuid: String!, paymentIntentId: String!): CartOrderMapping
 
   """Update an existing Customer"""
   updateCustomer(input: UpdateCustomerInput!): Customer!
@@ -2663,13 +2673,6 @@ input PaymentInput {
   method: String!
 }
 
-type PaymentIntentResult {
-  amount: Int!
-  clientSecret: String!
-  currency: String!
-  paymentIntentId: String!
-}
-
 type PaymentMethod implements Node {
   checker: ConfigurableOperation
   code: String!
@@ -2701,22 +2704,6 @@ type PaymentMethodTranslation {
   languageCode: LanguageCode!
   name: String!
   updatedAt: DateTime!
-}
-
-enum PaymentStatus {
-  FAILED
-  NOT_FOUND
-  PENDING
-  SETTLED
-}
-
-type PaymentStatusResult {
-  amount: Int
-  createdAt: DateTime
-  orderCode: String
-  paymentIntentId: String!
-  settledAt: DateTime
-  status: PaymentStatus!
 }
 
 """
@@ -3040,12 +3027,6 @@ enum Permission {
   UpdateZone
 }
 
-input PreOrderCartItemInput {
-  productVariantId: String!
-  quantity: Int!
-  unitPrice: Int!
-}
-
 """The price range where the result has more than one price"""
 type PriceRange {
   max: Money!
@@ -3348,7 +3329,6 @@ type Query {
 
   """An array of supported Countries"""
   availableCountries: [Country!]!
-  calculateEstimatedTotal(cartItems: [PreOrderCartItemInput!]!): Int!
 
   """
   Returns a Collection either by its id or slug. If neither 'id' nor 'slug' is specified, an error will result.
@@ -3373,7 +3353,8 @@ type Query {
 
   """A list of Facets available to the shop"""
   facets(options: FacetListOptions): FacetList!
-  getPaymentStatus(paymentIntentId: String!): PaymentStatusResult!
+  getCartMapping(cartUuid: String!): CartOrderMapping
+  getCartMappingByOrderCode(orderCode: String!): CartOrderMapping
 
   """Returns information about the current authenticated User"""
   me: CurrentUser
@@ -3586,14 +3567,6 @@ type Seller implements Node {
 union SetCustomerForOrderResult = AlreadyLoggedInError | EmailAddressConflictError | GuestCheckoutError | NoActiveOrderError | Order
 
 union SetOrderShippingMethodResult = IneligibleShippingMethodError | NoActiveOrderError | Order | OrderModificationError
-
-type SettlementResult {
-  error: String
-  orderCode: String!
-  orderId: String!
-  paymentId: String
-  success: Boolean!
-}
 
 type ShippingLine {
   customFields: JSON

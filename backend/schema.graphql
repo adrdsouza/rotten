@@ -78,8 +78,8 @@ type Query {
   """Get active shipping methods"""
   activeShippingMethods: [PublicShippingMethod]!
   validateLocalCartCoupon(input: ValidateLocalCartCouponInput!): CouponValidationResult!
-  calculateEstimatedTotal(cartItems: [PreOrderCartItemInput!]!): Int!
-  getPaymentStatus(paymentIntentId: String!): PaymentStatusResult!
+  getCartMapping(cartUuid: String!): CartOrderMapping
+  getCartMappingByOrderCode(orderCode: String!): CartOrderMapping
 }
 
 type Mutation {
@@ -232,9 +232,9 @@ type Mutation {
   subscribeToNewsletter(input: NewsletterSubscriptionInput!): NewsletterSubscriptionResult!
   unsubscribeFromNewsletter(email: String!): NewsletterUnsubscribeResult!
   createStripePaymentIntent: String!
-  createPreOrderStripePaymentIntent(estimatedTotal: Int!, currency: String = "usd"): PaymentIntentResult!
-  linkPaymentIntentToOrder(paymentIntentId: String!, orderId: String!, orderCode: String!, finalTotal: Int!, customerEmail: String): Boolean!
-  settleStripePayment(paymentIntentId: String!): SettlementResult!
+  createCartMapping(cartUuid: String!, orderId: String!, orderCode: String!, paymentIntentId: String): CartOrderMapping!
+  updateCartMappingPaymentIntent(cartUuid: String!, paymentIntentId: String!): CartOrderMapping
+  markCartMappingCompleted(cartUuid: String!): CartOrderMapping
 }
 
 type Address implements Node {
@@ -3704,41 +3704,14 @@ type NewsletterUnsubscribeError {
 
 union NewsletterUnsubscribeResult = NewsletterUnsubscribeSuccess | NewsletterUnsubscribeError
 
-type PaymentIntentResult {
-  clientSecret: String!
-  paymentIntentId: String!
-  amount: Int!
-  currency: String!
-}
-
-type SettlementResult {
-  success: Boolean!
+type CartOrderMapping {
+  id: ID!
+  cartUuid: String!
   orderId: String!
   orderCode: String!
-  paymentId: String
-  error: String
-}
-
-type PaymentStatusResult {
-  status: PaymentStatus!
-  paymentIntentId: String!
-  orderCode: String
-  amount: Int
-  createdAt: DateTime
-  settledAt: DateTime
-}
-
-enum PaymentStatus {
-  PENDING
-  SETTLED
-  FAILED
-  NOT_FOUND
-}
-
-input PreOrderCartItemInput {
-  productVariantId: String!
-  quantity: Int!
-  unitPrice: Int!
+  paymentIntentId: String
+  createdAt: DateTime!
+  completedAt: DateTime
 }
 
 input ProductVariantFilterParameter {

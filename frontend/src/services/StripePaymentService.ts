@@ -90,8 +90,8 @@ export class StripePaymentService {
       console.log(`Creating PaymentIntent for ${estimatedTotal} ${currency}`);
 
       const response = await this.makeGraphQLRequest(`
-        mutation CreatePreOrderStripePaymentIntent($estimatedTotal: Int!, $currency: String!) {
-          createPreOrderStripePaymentIntent(estimatedTotal: $estimatedTotal, currency: $currency) {
+        mutation CreateStripePaymentIntent($estimatedTotal: Int!, $currency: String!) {
+          createStripePaymentIntent(estimatedTotal: $estimatedTotal, currency: $currency) {
             clientSecret
             paymentIntentId
             amount
@@ -103,7 +103,7 @@ export class StripePaymentService {
         currency
       });
 
-      const result = response.data.createPreOrderStripePaymentIntent;
+      const result = response.data.createStripePaymentIntent;
       console.log(`PaymentIntent created: ${result.paymentIntentId}`);
 
       return result;
@@ -432,17 +432,20 @@ export class StripePaymentService {
         variables
       })
     });
-
+  
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const errorBody = await response.text(); // Read the response body for debugging
+      console.error(`GraphQL Request Failed: HTTP ${response.status} - Body: ${errorBody}`);
+      throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorBody}`);
     }
-
+  
     const result = await response.json();
-
+  
     if (result.errors) {
+      console.error('GraphQL Errors:', result.errors);
       throw new Error(`GraphQL Error: ${result.errors.map((e: any) => e.message).join(', ')}`);
     }
-
+  
     return result;
   }
 
