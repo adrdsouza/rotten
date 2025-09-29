@@ -6,9 +6,13 @@ import {
 import { useLocalCart } from '~/contexts/CartContext';
 import { StripePaymentService } from '~/services/StripePaymentService';
 import { PaymentError } from '~/services/payment-error-handler';
+<<<<<<< HEAD
 import { PaymentErrorDisplay } from './PaymentErrorDisplay';
 import { APP_STATE, AUTH_TOKEN } from '~/constants';
 import { getCookie } from '~/utils';
+=======
+import PaymentErrorDisplay from './PaymentErrorDisplay';
+>>>>>>> bacb344 (Kiro)
 
 import XCircleIcon from '../icons/XCircleIcon';
 
@@ -34,7 +38,11 @@ export default component$(() => {
     resolvedStripe: noSerialize({} as Stripe),
     stripeElements: noSerialize({} as StripeElements),
     error: '',
+<<<<<<< HEAD
     paymentError: null as PaymentError | null,
+=======
+    paymentError: noSerialize(null as PaymentError | null),
+>>>>>>> bacb344 (Kiro)
     isProcessing: false,
     debugInfo: 'Initializing...',
     retryCount: 0,
@@ -64,7 +72,11 @@ export default component$(() => {
             severity: 'high' as const,
             userAction: 'Please refresh the page and try again'
           };
+<<<<<<< HEAD
           store.paymentError = error;
+=======
+          store.paymentError = noSerialize(error);
+>>>>>>> bacb344 (Kiro)
           return { success: false, error: error.message };
         }
 
@@ -75,6 +87,7 @@ export default component$(() => {
 
         store.isProcessing = true;
         store.error = '';
+<<<<<<< HEAD
         store.paymentError = null;
         store.debugInfo = 'Processing payment...';
 
@@ -124,12 +137,24 @@ export default component$(() => {
           console.log('[StripePayment] Form submitted successfully, confirming payment with Stripe...');
 
           const result = await store.resolvedStripe.confirmPayment({
+=======
+        store.paymentError = noSerialize(null);
+        store.debugInfo = 'Processing payment...';
+
+        try {
+          // Step 1: Confirm payment with Stripe (without redirect)
+          console.log('[StripePayment] Confirming payment with Stripe...');
+          
+          const { error: confirmError, paymentIntent } = await store.resolvedStripe.confirmPayment({
+>>>>>>> bacb344 (Kiro)
             elements: store.stripeElements,
+            redirect: 'if_required',
             confirmParams: {
               return_url: `${window.location.origin}/checkout/confirmation/${activeOrder?.code || 'unknown'}`,
             },
           });
 
+<<<<<<< HEAD
           // This code should only run if there's an error (redirect didn't happen)
           if (result?.error) {
             console.error('[StripePayment] Payment confirmation failed:', result.error);
@@ -151,10 +176,22 @@ export default component$(() => {
             const errorMessage = stripeService.getErrorMessage(result.error, 'CONFIRM_PAYMENT');
             const isRetryable = stripeService.isErrorRetryable(result.error, 'CONFIRM_PAYMENT');
 
+=======
+          if (confirmError) {
+            console.error('[StripePayment] Payment confirmation failed:', confirmError);
+            
+            // Create enhanced error object
+            const stripeKey = await getStripePublishableKeyQuery();
+            const stripeService = new StripePaymentService(stripeKey, '/shop-api', $(() => ({})));
+            const errorMessage = stripeService.getErrorMessage(confirmError, 'CONFIRM_PAYMENT');
+            const isRetryable = stripeService.isErrorRetryable(confirmError, 'CONFIRM_PAYMENT');
+            
+>>>>>>> bacb344 (Kiro)
             const paymentError: PaymentError = {
               message: errorMessage,
               isRetryable,
               category: 'stripe',
+<<<<<<< HEAD
               severity: result.error.type === 'card_error' ? 'medium' : 'high',
               userAction: result.error.type === 'card_error' ?
                 'Please check your payment information and try again' :
@@ -162,11 +199,21 @@ export default component$(() => {
             };
 
             store.paymentError = paymentError;
+=======
+              severity: confirmError.type === 'card_error' ? 'medium' : 'high',
+              userAction: confirmError.type === 'card_error' ? 
+                'Please check your payment information and try again' : 
+                'Please try again or contact support'
+            };
+            
+            store.paymentError = noSerialize(paymentError);
+>>>>>>> bacb344 (Kiro)
             store.error = errorMessage;
             store.debugInfo = `Confirmation error: ${errorMessage}`;
             return { success: false, error: errorMessage, paymentError };
           }
 
+<<<<<<< HEAD
           // If we reach here without redirect, something unexpected happened
           // This should normally not execute because Stripe redirects on success
           console.warn('[StripePayment] Payment confirmed but no redirect occurred');
@@ -176,6 +223,75 @@ export default component$(() => {
             success: true,
             message: 'Payment processing...'
           };
+=======
+          if (!paymentIntent || paymentIntent.status !== 'succeeded') {
+            const errorMsg = `Payment not completed. Status: ${paymentIntent?.status || 'unknown'}`;
+            console.error('[StripePayment]', errorMsg);
+            
+            const paymentError: PaymentError = {
+              message: errorMsg,
+              isRetryable: paymentIntent?.status === 'processing',
+              category: 'stripe',
+              severity: 'medium',
+              userAction: paymentIntent?.status === 'processing' ? 
+                'Please wait a moment and try again' : 
+                'Please try again or use a different payment method'
+            };
+            
+            store.paymentError = noSerialize(paymentError);
+            store.error = errorMsg;
+            store.debugInfo = errorMsg;
+            return { success: false, error: errorMsg, paymentError };
+          }
+
+          console.log('[StripePayment] Payment confirmed with Stripe, now settling...');
+          store.debugInfo = 'Payment confirmed, settling with backend...';
+
+          // Step 2: Settle payment with backend using enhanced retry mechanism
+          const stripeKey = await getStripePublishableKeyQuery();
+          const stripeService = new StripePaymentService(
+            stripeKey,
+            '/shop-api',
+            $(() => ({}))
+          );
+
+          // Attempt settlement with enhanced retry mechanism
+          const settlementResult = await stripeService.retrySettlement(paymentIntent.id, store.maxRetries, 1000);
+
+          if (settlementResult.success) {
+            console.log('[StripePayment] Payment settled successfully');
+            store.debugInfo = 'Payment completed successfully!';
+            store.retryCount = 0; // Reset retry count on success
+            return { 
+              success: true, 
+              orderCode: settlementResult.orderCode || activeOrder?.code,
+              settlement: settlementResult
+            };
+          } else {
+            console.error('[StripePayment] Settlement failed:', settlementResult.error);
+            
+            // Use enhanced error details if available
+            const paymentError = settlementResult.errorDetails || {
+              message: settlementResult.error || 'Payment settlement failed',
+              isRetryable: settlementResult.isRetryable || false,
+              category: 'system' as const,
+              severity: 'medium' as const,
+              userAction: 'Please try again or contact support if the problem persists'
+            };
+            
+            store.paymentError = noSerialize(paymentError);
+            store.error = paymentError.message;
+            store.debugInfo = `Settlement error: ${paymentError.message}`;
+            store.retryCount = settlementResult.attempts || 0;
+            
+            return { 
+              success: false, 
+              error: paymentError.message, 
+              paymentError,
+              canRetry: paymentError.isRetryable && store.retryCount < store.maxRetries
+            };
+          }
+>>>>>>> bacb344 (Kiro)
 
         } catch (error) {
           console.error('[StripePayment] Payment process error:', error);
@@ -189,7 +305,11 @@ export default component$(() => {
             userAction: 'Please try again or contact support if the problem persists'
           };
           
+<<<<<<< HEAD
           store.paymentError = paymentError;
+=======
+          store.paymentError = noSerialize(paymentError);
+>>>>>>> bacb344 (Kiro)
           store.error = errorMessage;
           store.debugInfo = `Error: ${errorMessage}`;
           
@@ -224,6 +344,25 @@ export default component$(() => {
       // Expose error dismissal function
       (window as any).dismissStripePaymentError = () => {
         store.paymentError = null;
+        store.error = '';
+      };
+
+      // Expose retry function
+      (window as any).retryStripePayment = async (activeOrder?: any) => {
+        if (store.retryCount >= store.maxRetries) {
+          console.log('[StripePayment] Maximum retry attempts reached');
+          return { success: false, error: 'Maximum retry attempts reached' };
+        }
+        
+        store.retryCount++;
+        console.log(`[StripePayment] Retry attempt ${store.retryCount}/${store.maxRetries}`);
+        
+        return await (window as any).confirmStripePreOrderPayment(activeOrder);
+      };
+
+      // Expose error dismissal function
+      (window as any).dismissStripePaymentError = () => {
+        store.paymentError = noSerialize(null);
         store.error = '';
       };
 
@@ -419,6 +558,19 @@ export default component$(() => {
     }
   });
 
+  // Handler functions for error display
+  const handleRetry = $(() => {
+    if (typeof window !== 'undefined' && (window as any).retryStripePayment) {
+      (window as any).retryStripePayment();
+    }
+  });
+
+  const handleDismissError = $(() => {
+    if (typeof window !== 'undefined' && (window as any).dismissStripePaymentError) {
+      (window as any).dismissStripePaymentError();
+    }
+  });
+
   return (
     <div class="w-full max-w-full">
       <div class="payment-tabs-container relative">
@@ -426,12 +578,23 @@ export default component$(() => {
       </div>
       
       {/* Enhanced error display */}
+<<<<<<< HEAD
       {store.paymentError && (
         <PaymentErrorDisplay
           error={store.paymentError}
           isRetrying={store.isProcessing}
         />
       )}
+=======
+      <PaymentErrorDisplay
+        error={store.paymentError}
+        onRetry={handleRetry}
+        onDismiss={handleDismissError}
+        showRetryButton={true}
+        autoRetryCountdown={store.paymentError?.isRetryable && store.retryCount < store.maxRetries ? 
+          (store.paymentError.retryDelayMs ? Math.ceil(store.paymentError.retryDelayMs / 1000) : 0) : 0}
+      />
+>>>>>>> bacb344 (Kiro)
       
       {/* Fallback error display for non-enhanced errors */}
       {store.error !== '' && !store.paymentError && (
