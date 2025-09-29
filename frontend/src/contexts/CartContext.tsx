@@ -266,10 +266,12 @@ export const convertLocalCartToVendureOrder = $(async (cartState: CartContextSta
     const order = await LocalCartService.convertToVendureOrder(appliedCoupon);
     
     if (order) {
-      // Switch to Vendure mode after successful conversion
-      cartState.isLocalMode = false;
-      // Do NOT clear the local cart here; keep it until payment completes.
-      // This ensures payment cancellations do not wipe the cart.
+      // Keep isLocalMode = true until payment succeeds
+      // The address/shipping logic should work based on activeOrder existence, not isLocalMode
+      // cartState.isLocalMode = false; // Don't switch until payment succeeds
+
+      // Do NOT clear the local cart data here; keep it until payment completes.
+      // This ensures payment cancellations do not wipe the cart data.
       cartState.lastStockValidation = {};
       // Clear applied coupon after successful conversion
       cartState.appliedCoupon = null;
@@ -304,31 +306,6 @@ export const clearLocalCart = $((cartState: CartContextState) => {
   }
 });
 
-// 🚨 NEW: Helper function to restore cart state after payment failure
-export const restoreCartAfterPaymentFailure = $((cartState: CartContextState) => {
-  try {
-    console.log('[CartContext] Restoring cart state after payment failure...');
-
-    // Switch back to local mode
-    cartState.isLocalMode = true;
-
-    // Reload cart from localStorage (should still be there since we don't clear it until payment succeeds)
-    const currentCart = LocalCartService.getCart();
-    cartState.localCart = currentCart;
-
-    // Clear any error state
-    cartState.lastError = null;
-
-    // Trigger UI update
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('cart-updated', {
-        detail: { totalQuantity: currentCart.totalQuantity }
-      }));
-    }
-
-    console.log('[CartContext] Cart state restored:', currentCart.items.length, 'items');
-  } catch (error) {
-    console.error('[CartContext] Failed to restore cart state:', error);
-    cartState.lastError = error instanceof Error ? error.message : 'Failed to restore cart';
-  }
-});
+// 🚨 REMOVED: No longer needed since we don't switch modes during payment
+// The cart remains in local mode throughout the entire payment process
+// and only switches to Vendure mode after successful payment confirmation

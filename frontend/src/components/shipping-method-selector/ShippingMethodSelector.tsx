@@ -4,14 +4,12 @@ import { setOrderShippingMethodMutation } from '~/providers/shop/orders/order';
 import { AppState, EligibleShippingMethods } from '~/types';
 import { formatPrice } from '~/utils';
 import CheckCircleIcon from '../icons/CheckCircleIcon';
-import { useLocalCart } from '~/contexts/CartContext';
 
 type Props = {
 	appState: AppState;
 };
 
 export default component$<Props>(({ appState }) => {
-	const localCart = useLocalCart();
 	const currencyCode = appState.activeOrder?.currencyCode || 'USD';
 	const state = useStore<{ selectedMethodId: string; methods: EligibleShippingMethods[] }>({
 		selectedMethodId: '',
@@ -20,9 +18,9 @@ export default component$<Props>(({ appState }) => {
 
 	// Client-side only: Load shipping methods after component is visible
 	useVisibleTask$(async () => {
-		// Skip in local cart mode since we can't calculate shipping without an order
-		if (localCart.isLocalMode) {
-			console.log('🛒 Local cart mode: Skipping shipping methods query');
+		// Skip if no active order since we can't calculate shipping without an order
+		if (!appState.activeOrder) {
+			console.log('🛒 No active order: Skipping shipping methods query');
 			return;
 		}
 		

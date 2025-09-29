@@ -1,4 +1,4 @@
-import { component$, useContext, useStore, useVisibleTask$, $ } from '@qwik.dev/core';
+import { component$, useContext, useStore, useVisibleTask$ } from '@qwik.dev/core';
 import { Link, useLocation } from '@qwik.dev/router';
 import CartContents from '~/components/cart-contents/CartContents';
 import CartTotals from '~/components/cart-totals/CartTotals';
@@ -9,8 +9,7 @@ import { Order } from '~/generated/graphql';
 import { getOrderByCodeQuery } from '~/providers/shop/orders/order';
 import { LocalCartService } from '~/services/LocalCartService';
 import { createSEOHead } from '~/utils/seo';
-import { StripePaymentService } from '~/services/StripePaymentService';
-import { getStripePublishableKeyQuery } from '~/providers/shop/checkout/checkout';
+
 
 export default component$(() => {
 	const {
@@ -26,33 +25,7 @@ export default component$(() => {
 		loading: true,
 	});
 
-	// Handle payment settlement for redirect flows
-	const handlePaymentSettlement = $(async (paymentIntentId: string, _orderCode: string) => {
-		try {
-			console.log('[Confirmation] Attempting to settle payment for PaymentIntent:', paymentIntentId);
-			
-			const stripeKey = await getStripePublishableKeyQuery();
-			const stripeService = new StripePaymentService(
-				stripeKey,
-				'/shop-api',
-				$(() => ({}))
-			);
-
-			// Attempt settlement with retry mechanism
-			const settlementResult = await stripeService.retrySettlement(paymentIntentId, 3, 1000);
-
-			if (settlementResult.success) {
-				console.log('[Confirmation] Payment settled successfully');
-			} else {
-				console.error('[Confirmation] Settlement failed:', settlementResult.error);
-				// Don't throw error here as the payment was already confirmed by Stripe
-				// Just log the issue - the order should still be valid
-			}
-		} catch (error) {
-			console.error('[Confirmation] Error during settlement:', error);
-			// Don't throw error here as the payment was already confirmed by Stripe
-		}
-	});
+	// ✅ Removed manual settlement - Stripe webhook handles this automatically
 
 	useVisibleTask$(async () => {
 		const url = new URL(window.location.href);
@@ -87,17 +60,15 @@ export default component$(() => {
 				if (paymentIntent && paymentIntent.status === 'succeeded') {
 					console.log('[Confirmation] Payment succeeded - PaymentIntent verified but NOT settling immediately');
 					console.log('[Confirmation] PaymentIntent ID:', paymentIntentId, 'Status:', paymentIntent.status);
-					
-					// NOTE: Settlement should have been handled by the payment flow
-					// If we reach here via redirect, we may need to settle the payment
-					// Check if payment needs settlement and handle it
-					await handlePaymentSettlement(paymentIntentId, code);
 
-					// 🎯 BACKUP: Clear the local cart after successful payment verification
-					// This is a backup mechanism for Stripe redirect flows
+					// ✅ Payment confirmed by Stripe - webhook will handle settlement automatically
+					console.log('[Confirmation] Payment succeeded - webhook will settle the order');
+
+					// 🎯 Clear the local cart and switch to Vendure mode after successful payment
+					// This is where we finally switch modes after payment confirmation
 					try {
 						localCart.localCart = LocalCartService.clearCart();
-						localCart.isLocalMode = true;
+						localCart.isLocalMode = false; // NOW we switch to Vendure mode after successful payment
 
 						// Trigger cart update event for UI consistency
 						if (typeof window !== 'undefined') {
@@ -106,7 +77,7 @@ export default component$(() => {
 							}));
 						}
 
-						console.log('[Confirmation] Local cart cleared after payment verification');
+						console.log('[Confirmation] Local cart cleared and switched to Vendure mode after payment verification');
 					} catch (clearCartError) {
 						console.error('[Confirmation] Failed to clear local cart:', clearCartError);
 						// Don't fail the confirmation process if cart clearing fails

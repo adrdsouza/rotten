@@ -33,6 +33,10 @@ import { sanitizePhoneNumber } from '~/utils/validation';
 import { CountryService } from '~/services/CountryService';
 import { LocalAddressService } from '~/services/LocalAddressService';
 
+// Pattern background image - simplified (2 formats to avoid memory issues)
+import PatternImageAvif from '~/media/pattern.jpg?format=avif&quality=85&url';
+import PatternImageWebp from '~/media/pattern.jpg?format=webp&quality=85&url';
+
 export const onGet: RequestHandler = async ({ cacheControl, url, headers }) => {
 	// 🚀 ADVANCED CACHING: Intelligent cache strategies based on page type and user agent
 	const pathname = url.pathname;
@@ -258,6 +262,18 @@ export default component$(() => {
 							phoneNumber: defaultShipping.phoneNumber || '',
 							company: defaultShipping.company || '',
 						};
+
+						// CRITICAL FIX: Save customer's country to sessionStorage to override geolocation
+						// This ensures customer address takes precedence over geolocation
+						if (typeof sessionStorage !== 'undefined') {
+							sessionStorage.setItem('countryCode', defaultShipping.countryCode);
+							sessionStorage.setItem('countrySource', 'customer');
+							// console.log('✅ Customer address loaded, saved country to sessionStorage:', defaultShipping.countryCode);
+						}
+
+						// IMPORTANT: Always use the phone number from the default shipping address, not the customer's general phone
+						// Each address has its own phone number in Vendure - use it even if empty
+						state.customer.phoneNumber = defaultShipping.phoneNumber ? sanitizePhoneNumber(defaultShipping.phoneNumber) : '';
 					}
 				}
 			} catch (error) {
@@ -290,6 +306,12 @@ export default component$(() => {
 		console.error('Qwik Router Error:', event.detail);
 		// Could show a user-friendly error message here
 	}));
+
+	// Set optimized background pattern image
+	useVisibleTask$(() => {
+		// Set background image with format fallbacks (browser picks best supported)
+		document.body.style.backgroundImage = `url(${PatternImageAvif}), url(${PatternImageWebp})`;
+	});
 
 	return (
 		<LoginModalProvider>

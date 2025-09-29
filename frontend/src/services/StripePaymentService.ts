@@ -119,55 +119,173 @@ export class StripePaymentService {
   }
 
   /**
-   * Step 2: Link PaymentIntent to order (metadata only, no settlement)
-   * UPDATED: Uses correct parameter types
+   * Update PaymentIntent amount (for pre-order flow)
    */
-  async linkPaymentIntentToOrder(
-    paymentIntentId: string,
-    orderId: string,
-    orderCode: string,
-    finalTotal: number,
-    customerEmail?: string
-  ): Promise<boolean> {
+  async updatePaymentIntentAmount(paymentIntentId: string, amount: number): Promise<boolean> {
     try {
-      console.log(`Linking PaymentIntent ${paymentIntentId} to order ${orderCode}`);
+      console.log(`Updating PaymentIntent ${paymentIntentId} amount to ${amount}`);
 
       const response = await this.makeGraphQLRequest(`
-        mutation LinkPaymentIntentToOrder(
-          $paymentIntentId: String!,
-          $orderId: String!,
-          $orderCode: String!,
-          $finalTotal: Int!,
-          $customerEmail: String
-        ) {
-          linkPaymentIntentToOrder(
-            paymentIntentId: $paymentIntentId,
-            orderId: $orderId,
-            orderCode: $orderCode,
-            finalTotal: $finalTotal,
-            customerEmail: $customerEmail
-          )
+        mutation UpdatePaymentIntentAmount($paymentIntentId: String!, $amount: Int!) {
+          updatePaymentIntentAmount(paymentIntentId: $paymentIntentId, amount: $amount)
         }
       `, {
         paymentIntentId,
-        orderId,
-        orderCode,
-        finalTotal: Math.round(finalTotal), // Ensure integer
-        customerEmail: customerEmail || null
+        amount
       });
 
-      const success = response.data.linkPaymentIntentToOrder;
-      
-      if (success) {
-        console.log('PaymentIntent linked to order successfully');
-      } else {
-        console.error('Failed to link PaymentIntent to order');
+      return response.data.updatePaymentIntentAmount;
+    } catch (error) {
+      console.error('Failed to update PaymentIntent amount:', error);
+      throw this.errorHandler.handlePaymentError(error, 'UPDATE_PAYMENT_INTENT');
+    }
+  }
+
+  /**
+   * Add payment to order using official Vendure Stripe plugin
+   * This replaces the old linkPaymentIntentToOrder + settleStripePayment flow
+   *
+   * NOTE: PaymentIntent metadata should be updated BEFORE calling this method
+   * to ensure webhook has complete metadata when it fires
+   */
+  async addPaymentToOrder(
+    paymentIntentId: string,
+    _orderCode?: string
+  ): Promise<{ success: boolean; order?: any; error?: string }> {
+    try {
+      console.log(`Adding Stripe payment to order with PaymentIntent ${paymentIntentId}`);
+
+      const response = await this.makeGraphQLRequest(`
+        mutation AddPaymentToOrder($input: PaymentInput!) {
+          addPaymentToOrder(input: $input) {
+            ... on Order {
+              id
+              code
+              state
+              totalWithTax
+              payments {
+                id
+                method
+                amount
+                state
+                transactionId
+              }
+            }
+            ... on OrderPaymentStateError {
+              errorCode
+              message
+            }
+            ... on IneligiblePaymentMethodError {
+              errorCode
+              message
+              eligibilityCheckerMessage
+            }
+            ... on PaymentFailedError {
+              errorCode
+              message
+              paymentErrorMessage
+            }
+            ... on PaymentDeclinedError {
+              errorCode
+              message
+              paymentErrorMessage
+            }
+            ... on OrderStateTransitionError {
+              errorCode
+              message
+              transitionError
+              fromState
+              toState
+            }
+            ... on NoActiveOrderError {
+              errorCode
+              message
+            }
+          }
+        }
+      `, {
+        input: {
+          method: 'stripe',
+          metadata: {
+            paymentIntentId: paymentIntentId
+          }
+        }
+      });
+
+      const result = response.data.addPaymentToOrder;
+
+      // Check if result is an Order (success case)
+      if (result && result.id && result.code) {
+        console.log('Payment added to order successfully:', result.code);
+
+        return {
+          success: true,
+          order: result
+        };
       }
 
-      return success;
+      // Handle error cases
+      if (result && result.errorCode) {
+        const errorMessage = result.message || result.paymentErrorMessage || 'Payment failed';
+        console.error('Payment failed with error:', result.errorCode, errorMessage);
+        return {
+          success: false,
+          error: errorMessage
+        };
+      }
+
+      // Fallback error
+      console.error('Unexpected payment result:', result);
+      return {
+        success: false,
+        error: 'Payment failed with unexpected result'
+      };
+
     } catch (error) {
-      console.error('Error linking PaymentIntent to order:', error);
-      throw this.errorHandler.handlePaymentError(error, 'LINK_PAYMENT_INTENT');
+      console.error('Error adding payment to order:', error);
+      const handledError = this.errorHandler.handlePaymentError(error, 'ADD_PAYMENT');
+      return {
+        success: false,
+        error: handledError.message
+      };
+    }
+  }
+
+  /**
+   * Update PaymentIntent metadata with order information for webhook processing
+   */
+  async updatePaymentIntentMetadata(
+    paymentIntentId: string,
+    orderCode: string,
+    orderId: number
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log(`Updating PaymentIntent ${paymentIntentId} metadata for order ${orderCode} (${orderId})`);
+
+      const response = await this.makeGraphQLRequest(`
+        mutation UpdatePaymentIntentMetadata($paymentIntentId: String!, $orderCode: String!, $orderId: Int!) {
+          updatePaymentIntentMetadata(paymentIntentId: $paymentIntentId, orderCode: $orderCode, orderId: $orderId)
+        }
+      `, {
+        paymentIntentId,
+        orderCode,
+        orderId
+      });
+
+      if (response.data.updatePaymentIntentMetadata) {
+        console.log(`PaymentIntent metadata updated successfully for order ${orderCode}`);
+        return { success: true };
+      } else {
+        console.error('Failed to update PaymentIntent metadata');
+        return { success: false, error: 'Failed to update PaymentIntent metadata' };
+      }
+
+    } catch (error) {
+      console.error('Error updating PaymentIntent metadata:', error);
+      return {
+        success: false,
+        error: this.errorHandler.handlePaymentError(error, 'UPDATE_METADATA').message
+      };
     }
   }
 
@@ -235,58 +353,23 @@ export class StripePaymentService {
   }
 
   /**
-   * Step 3b: Settle payment after Stripe confirmation
-   * UPDATED: Now includes cart UUID for cart mapping system
+   * DEPRECATED: Use addPaymentToOrder instead
+   * This method is kept for backward compatibility but should not be used
    */
-  async settlePayment(paymentIntentId: string, cartUuid?: string): Promise<SettlementResult> {
-    try {
-      console.log(`Settling payment for PaymentIntent ${paymentIntentId}${cartUuid ? ` with cart UUID ${cartUuid}` : ''}`);
+  async settlePayment(paymentIntentId: string, _cartUuid?: string): Promise<SettlementResult> {
+    console.warn('settlePayment is deprecated. Use addPaymentToOrder instead.');
 
-      const response = await this.makeGraphQLRequest(`
-        mutation SettleStripePayment($paymentIntentId: String!, $cartUuid: String) {
-          settleStripePayment(paymentIntentId: $paymentIntentId, cartUuid: $cartUuid) {
-            success
-            orderId
-            orderCode
-            paymentId
-            error
-          }
-        }
-      `, {
-        paymentIntentId,
-        cartUuid
-      });
+    // Redirect to the new method
+    const result = await this.addPaymentToOrder(paymentIntentId);
 
-      const result = response.data.settleStripePayment;
-
-      if (result.success) {
-        console.log('Payment settled successfully');
-        return {
-          success: true,
-          orderId: result.orderId,
-          orderCode: result.orderCode,
-          paymentId: result.paymentId
-        };
-      } else {
-        console.error('Payment settlement failed:', result.error);
-        return {
-          success: false,
-          error: result.error || 'Payment settlement failed'
-        };
-      }
-
-    } catch (error) {
-      console.error('Payment settlement error:', error);
-      
-      const handledError = this.errorHandler.handlePaymentError(error, 'SETTLE_PAYMENT');
-      
-      return {
-        success: false,
-        error: handledError.message,
-        isRetryable: handledError.isRetryable,
-        retryDelayMs: handledError.retryDelayMs
-      };
-    }
+    return {
+      success: result.success,
+      orderId: result.order?.id,
+      orderCode: result.order?.code,
+      paymentId: result.order?.payments?.[0]?.id,
+      error: result.error,
+      isRetryable: !result.success, // Allow retry if failed
+    };
   }
 
   /**
@@ -352,16 +435,17 @@ export class StripePaymentService {
   }
 
   /**
-   * Complete payment flow: Confirm with Stripe → Settle with backend
+   * Complete payment flow: Confirm with Stripe → Add payment to order
+   * This is the new recommended flow using the official Vendure Stripe plugin
    */
   async completePayment(
     clientSecret: string,
     elements: StripeElements,
     returnUrl?: string
-  ): Promise<{ success: boolean; error?: string; requiresAction?: boolean; settlement?: SettlementResult }> {
+  ): Promise<{ success: boolean; error?: string; requiresAction?: boolean; order?: any }> {
     // Step 1: Confirm with Stripe
     const confirmResult = await this.confirmPayment(clientSecret, elements, returnUrl);
-    
+
     if (!confirmResult.success) {
       return confirmResult;
     }
@@ -373,13 +457,13 @@ export class StripePaymentService {
       };
     }
 
-    // Step 2: Settle with backend
-    const settlementResult = await this.settlePayment(confirmResult.paymentIntent.id);
-    
+    // Step 2: Add payment to order using official plugin
+    const paymentResult = await this.addPaymentToOrder(confirmResult.paymentIntent.id);
+
     return {
-      success: settlementResult.success,
-      error: settlementResult.error,
-      settlement: settlementResult
+      success: paymentResult.success,
+      error: paymentResult.error,
+      order: paymentResult.order
     };
   }
 
@@ -436,13 +520,14 @@ export class StripePaymentService {
   }
 
   /**
-   * Retry settlement with exponential backoff and enhanced error handling
+   * Retry payment with exponential backoff and enhanced error handling
+   * Updated to use the new addPaymentToOrder flow
    */
   async retrySettlement(
     paymentIntentId: string,
     maxRetries = 3,
     baseDelayMs = 1000,
-    cartUuid?: string
+    _cartUuid?: string
   ): Promise<SettlementResult & { attempts: number; errorDetails?: PaymentError }> {
     let lastError: any;
     let attempts = 0;
@@ -450,41 +535,39 @@ export class StripePaymentService {
 
     for (let i = 0; i < maxRetries; i++) {
       attempts = i + 1;
-      console.log(`Settlement attempt ${attempts}/${maxRetries} for PaymentIntent ${paymentIntentId}`);
+      console.log(`Payment attempt ${attempts}/${maxRetries} for PaymentIntent ${paymentIntentId}`);
 
       try {
-        const result = await this.settlePayment(paymentIntentId, cartUuid);
-        
+        const result = await this.addPaymentToOrder(paymentIntentId);
+
         if (result.success) {
-          console.log(`Settlement succeeded on attempt ${attempts}`);
-          return { ...result, attempts };
+          console.log(`Payment succeeded on attempt ${attempts}`);
+          return {
+            success: true,
+            orderId: result.order?.id,
+            orderCode: result.order?.code,
+            paymentId: result.order?.payments?.[0]?.id,
+            attempts
+          };
         }
 
         lastError = result.error;
-        
+
         // Create enhanced error details
         errorDetails = {
-          message: result.error || 'Settlement failed',
-          isRetryable: result.isRetryable !== false, // Default to retryable unless explicitly false
+          message: result.error || 'Payment failed',
+          isRetryable: true, // Most payment failures are retryable
           category: 'system',
           severity: 'medium',
-          userAction: result.isRetryable !== false ? 
-            'Please wait a moment and try again' : 
-            'Please contact support if the problem persists'
+          userAction: 'Please wait a moment and try again'
         };
 
-        // If not retryable, break early
-        if (result.isRetryable === false) {
-          console.log(`Settlement not retryable, stopping after attempt ${attempts}`);
-          break;
-        }
-
       } catch (error) {
-        console.error(`Settlement attempt ${attempts} failed:`, error);
+        console.error(`Payment attempt ${attempts} failed:`, error);
         lastError = error;
-        
+
         errorDetails = {
-          message: error instanceof Error ? error.message : 'Settlement failed',
+          message: error instanceof Error ? error.message : 'Payment failed',
           isRetryable: true,
           category: 'system',
           severity: 'high',
@@ -500,11 +583,11 @@ export class StripePaymentService {
       }
     }
 
-    console.error(`All ${maxRetries} settlement attempts failed. Last error:`, lastError);
-    
+    console.error(`All ${maxRetries} payment attempts failed. Last error:`, lastError);
+
     return {
       success: false,
-      error: lastError instanceof Error ? lastError.message : (lastError || 'All settlement attempts failed'),
+      error: lastError instanceof Error ? lastError.message : (lastError || 'All payment attempts failed'),
       isRetryable: false,
       attempts,
       errorDetails

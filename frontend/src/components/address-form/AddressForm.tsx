@@ -177,6 +177,50 @@ export default component$<IProps>(({ shippingAddress, formApi, isReviewMode, onU
 		}
 	});
 
+	// 🚀 NEW: Re-validate country-dependent fields when country changes
+	// This ensures pre-filled address fields get validated when user changes country
+	useVisibleTask$(({ track }) => {
+		track(() => appState.shippingAddress.countryCode);
+
+		const countryCode = appState.shippingAddress.countryCode || 'US';
+		console.log(`📍 [AddressForm] Country changed to: ${countryCode}, re-validating address fields`);
+
+		// Mark country-dependent fields as touched and re-validate them
+		const currentTouched = touchedFields.value;
+		let needsUpdate = false;
+
+		// Re-validate postal code if it has a value
+		if (localFormData.value.postalCode) {
+			if (!currentTouched.has('postalCode')) {
+				touchedFields.value = new Set([...currentTouched, 'postalCode']);
+				needsUpdate = true;
+			}
+			validateField$('postalCode', localFormData.value.postalCode, countryCode);
+			console.log(`📮 [AddressForm] Postal code re-validated for ${countryCode}`);
+		}
+
+		// Re-validate state/province if it has a value
+		if (localFormData.value.province) {
+			if (!currentTouched.has('province')) {
+				if (!needsUpdate) {
+					touchedFields.value = new Set([...currentTouched, 'province']);
+				} else {
+					touchedFields.value = new Set([...touchedFields.value, 'province']);
+				}
+				needsUpdate = true;
+			}
+			validateField$('province', localFormData.value.province, countryCode);
+			console.log(`🏛️ [AddressForm] Province re-validated for ${countryCode}`);
+		}
+
+		// Trigger complete form validation after field validations
+		if (needsUpdate) {
+			setTimeout(() => {
+				validateAndSync$();
+			}, 100);
+		}
+	});
+
 	// Complete form validation and sync to app state
 	const validateAndSync$ = $(() => {
 		// Merge local form data with shipping address
@@ -482,7 +526,7 @@ export default component$<IProps>(({ shippingAddress, formApi, isReviewMode, onU
 							class={getSelectClasses()}
 							value={localCountryCode.value}
 							onChange$={(_, el) => {
-								// console.log(`📍 [AddressForm] Shipping country dropdown changed to: ${el.value}`);
+								console.log(`📍 [AddressForm] Shipping country dropdown changed to: ${el.value}`);
 								handleInputChange$('countryCode', el.value);
 							}}
 							key={`country-select-${localCountryCode.value}`}

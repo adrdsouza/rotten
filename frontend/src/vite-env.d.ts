@@ -81,6 +81,14 @@ declare module "~/media/homelast.png?format=webp&url" {
   export default src;
 }
 
+// Shop image optimized formats
+declare module "~/media/shop.jpg?format=avif&width=800&quality=85&url" { const src: string; export default src; }
+declare module "~/media/shop.jpg?format=webp&width=800&quality=85&url" { const src: string; export default src; }
+
+// Pattern background image optimized formats
+declare module "~/media/pattern.jpg?format=avif&quality=85&url" { const src: string; export default src; }
+declare module "~/media/pattern.jpg?format=webp&quality=85&url" { const src: string; export default src; }
+
 // Generic patterns for future images
 declare module "*.png?*&format=webp&url" {
   const src: string;

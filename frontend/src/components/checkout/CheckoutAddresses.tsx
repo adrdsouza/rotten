@@ -16,15 +16,16 @@ import {
 import { Order } from '~/generated/graphql';
 import { isActiveCustomerValid, isShippingAddressValid, isBillingAddressValid, getCookie } from '~/utils';
 import { validateEmail, validateName, validatePhone, filterPhoneInput, sanitizePhoneNumber } from '~/utils/validation';
-import { useLocalCart } from '~/contexts/CartContext';
+
 import { useCheckoutValidationActions } from '~/contexts/CheckoutValidationContext';
 import { useLoginModalActions } from '~/contexts/LoginModalContext';
 // import { useAddressContext } from '~/contexts/AddressContext'; // Not used in current implementation
-import { LocalAddressService } from '~/services/LocalAddressService';
+
 // Import shared addressState instead of defining it here
 import { addressState } from '~/utils/checkout-state';
 import { useCheckoutAddressState } from '~/contexts/CheckoutAddressContext';
 import { CheckoutOptimizationService } from '~/services/CheckoutOptimizationService';
+import { LocalAddressService } from '~/services/LocalAddressService';
 
 
 // Interfaces for the component
@@ -35,7 +36,6 @@ interface CheckoutAddressesProps {
 export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddressesSubmitted$ }) => {
   // ... existing hooks ...
   const appState = useContext(APP_STATE);
-  const localCart = useLocalCart();
   const validationActions = useCheckoutValidationActions();
   const { openLoginModal } = useLoginModalActions();
   const checkoutAddressState = useCheckoutAddressState();
@@ -280,10 +280,23 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     track(() => appState.shippingAddress?.province);
     track(() => appState.shippingAddress?.postalCode);
     track(() => appState.shippingAddress?.countryCode);
-    
+    track(() => appState.customer?.phoneNumber);
+
     // When shipping address is populated (e.g., after login), update form validation state
     // This ensures the address fields are properly validated and the form can proceed
     if (appState.shippingAddress?.streetLine1) {
+      // Mark phone as touched if it has a value from login, so validation errors show
+      if (appState.customer?.phoneNumber && !phoneTouched.value) {
+        phoneTouched.value = true;
+        // Immediately validate the phone number with the current country
+        const countryCode = appState.shippingAddress.countryCode || 'US';
+        const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
+        const phoneResult = validatePhone(appState.customer.phoneNumber, countryCode, isPhoneOptional);
+        if (!phoneResult.isValid) {
+          phoneValidationError.value = phoneResult.message || 'Invalid phone number';
+        }
+      }
+
       // Trigger validation to update the form state
       validateCompleteForm$();
     }
@@ -323,19 +336,21 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
     const customerPhoneNumber = (appState.customer?.phoneNumber || '') as string;
 
-    // if (import.meta.env.DEV) {
-    //   console.log(`📍 [CheckoutAddresses] Country changed to: ${countryCode}, Phone optional: ${isPhoneOptional}`);
-    // }
+    console.log(`📍 [CheckoutAddresses] Country changed to: ${countryCode}, Phone optional: ${isPhoneOptional}`);
 
     // Immediately re-validate phone with new country rules
-    if (customerPhoneNumber && phoneTouched.value) {
+    // Mark phone as touched if it has a value, so validation errors show in UI
+    if (customerPhoneNumber) {
+      if (!phoneTouched.value) {
+        phoneTouched.value = true;
+      }
       const phoneResult = validatePhone(customerPhoneNumber, countryCode, isPhoneOptional);
       phoneValidationError.value = phoneResult.isValid ? '' : (phoneResult.message || 'Invalid phone number');
 
-      // if (import.meta.env.DEV) {
-      //   console.log(`📞 [CheckoutAddresses] Phone re-validated for ${countryCode}: ${phoneResult.isValid ? 'valid' : (phoneResult.message || 'Invalid phone number')}`);
-      // }
+      console.log(`📞 [CheckoutAddresses] Phone re-validated for ${countryCode}: ${phoneResult.isValid ? 'valid' : (phoneResult.message || 'Invalid phone number')}`);
     }
+
+    // Address field validation now handled in AddressForm component itself
 
     // Trigger immediate complete validation for country changes
     validateCompleteForm$();
@@ -362,8 +377,9 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
       appState.customer = { ...customerForSync };
       // console.log('[CheckoutAddresses] Syncing customer data to appState for submission');
 
-      // Only call order mutations if not in local cart mode
-      if (!localCart.isLocalMode) {
+      // Set addresses and customer info on Vendure order if one exists
+      // This should happen regardless of isLocalMode - if we have a Vendure order, it needs proper setup
+      if (appState.activeOrder) {
         // First check if customer is already authenticated
         const activeCustomer = await getActiveCustomerCached();
           
@@ -569,6 +585,103 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
 
       // console.log('✅ All addresses set successfully');
 
+      // Save addresses to LocalAddressService after successful submission
+      try {
+        // Determine source based on customer login status
+        const isLoggedIn = appState.customer?.id && appState.customer.id !== CUSTOMER_NOT_DEFINED_ID;
+
+        if (appState.shippingAddress.streetLine1) {
+          const savedShippingAddress = isLoggedIn
+            ? LocalAddressService.saveOrUpdateDefaultShippingAddress({
+                firstName: appState.customer?.firstName || '',
+                lastName: appState.customer?.lastName || '',
+                fullName: `${appState.customer?.firstName || ''} ${appState.customer?.lastName || ''}`.trim(),
+                company: appState.shippingAddress.company || '',
+                streetLine1: appState.shippingAddress.streetLine1 || '',
+                streetLine2: appState.shippingAddress.streetLine2 || '',
+                city: appState.shippingAddress.city || '',
+                province: appState.shippingAddress.province || '',
+                postalCode: appState.shippingAddress.postalCode || '',
+                countryCode: appState.shippingAddress.countryCode || '',
+                phoneNumber: appState.customer?.phoneNumber || '',
+                defaultShippingAddress: true,
+                defaultBillingAddress: !useDifferentBilling.value, // Set as billing address if not using separate billing
+                source: 'customer'
+              })
+            : LocalAddressService.saveAddress({
+                firstName: appState.customer?.firstName || '',
+                lastName: appState.customer?.lastName || '',
+                fullName: `${appState.customer?.firstName || ''} ${appState.customer?.lastName || ''}`.trim(),
+                company: appState.shippingAddress.company || '',
+                streetLine1: appState.shippingAddress.streetLine1 || '',
+                streetLine2: appState.shippingAddress.streetLine2 || '',
+                city: appState.shippingAddress.city || '',
+                province: appState.shippingAddress.province || '',
+                postalCode: appState.shippingAddress.postalCode || '',
+                countryCode: appState.shippingAddress.countryCode || '',
+                phoneNumber: appState.customer?.phoneNumber || '',
+                defaultShippingAddress: true,
+                defaultBillingAddress: false,
+                source: 'checkout'
+              });
+
+          // If customer is logged in, sync to Vendure
+          if (isLoggedIn) {
+            LocalAddressService.syncToVendure(savedShippingAddress).catch(error => {
+              console.warn('Failed to sync shipping address to Vendure:', error);
+            });
+          }
+        }
+
+        if (useDifferentBilling.value && appState.billingAddress?.streetLine1) {
+          const savedBillingAddress = isLoggedIn
+            ? LocalAddressService.saveOrUpdateDefaultBillingAddress({
+                firstName: appState.billingAddress.firstName || '',
+                lastName: appState.billingAddress.lastName || '',
+                fullName: `${appState.billingAddress.firstName || ''} ${appState.billingAddress.lastName || ''}`.trim(),
+                company: '',
+                streetLine1: appState.billingAddress.streetLine1 || '',
+                streetLine2: appState.billingAddress.streetLine2 || '',
+                city: appState.billingAddress.city || '',
+                province: appState.billingAddress.province || '',
+                postalCode: appState.billingAddress.postalCode || '',
+                countryCode: appState.billingAddress.countryCode || '',
+                phoneNumber: '',
+                defaultShippingAddress: false,
+                defaultBillingAddress: true,
+                source: 'customer'
+              })
+            : LocalAddressService.saveAddress({
+                firstName: appState.billingAddress.firstName || '',
+                lastName: appState.billingAddress.lastName || '',
+                fullName: `${appState.billingAddress.firstName || ''} ${appState.billingAddress.lastName || ''}`.trim(),
+                company: '',
+                streetLine1: appState.billingAddress.streetLine1 || '',
+                streetLine2: appState.billingAddress.streetLine2 || '',
+                city: appState.billingAddress.city || '',
+                province: appState.billingAddress.province || '',
+                postalCode: appState.billingAddress.postalCode || '',
+                countryCode: appState.billingAddress.countryCode || '',
+                phoneNumber: '',
+                defaultShippingAddress: false,
+                defaultBillingAddress: true,
+                source: 'checkout'
+              });
+
+          // If customer is logged in, sync to Vendure
+          if (isLoggedIn) {
+            LocalAddressService.syncToVendure(savedBillingAddress).catch(error => {
+              console.warn('Failed to sync billing address to Vendure:', error);
+            });
+          }
+        }
+
+        // console.log('✅ Addresses saved to LocalAddressService');
+      } catch (addressSaveError) {
+        console.error('Failed to save addresses to LocalAddressService:', addressSaveError);
+        // Don't fail the entire process for address saving issues
+      }
+
       // Notify parent component that addresses have been submitted
       if (onAddressesSubmitted$) {
         await onAddressesSubmitted$();
@@ -612,185 +725,13 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     };
   });
 
-  // Auto-proceed when form becomes valid - exactly like old implementation
-  // Client-side only: Prevents Q20 SSR errors by running only after hydration
+  // Form validation tracking - but NO automatic submission
+  // The submitAddresses function should ONLY be called when "Place Order" is clicked
   useVisibleTask$(async ({ track }) => {
     track(() => isFormValidSignal.value);
 
-    if (isFormValidSignal.value && !hasProceeded.value) {
-      hasProceeded.value = true;
-      // console.log('✅ Form is valid, automatically proceeding (calling submitAddresses from useTask$)');
-
-      // Perform final safety checks before submitting
-      const customerEmail = appState.customer?.emailAddress || '';
-      const customerFirstName = appState.customer?.firstName || '';
-      const customerLastName = appState.customer?.lastName || '';
-      const customerPhoneNumber = appState.customer?.phoneNumber || '';
-      const shippingCountryCode = appState.shippingAddress?.countryCode || 'US';
-
-      const emailResultCheck = validateEmail(customerEmail);
-      const firstNameResultCheck = validateName(customerFirstName, 'First name');
-      const lastNameResultCheck = validateName(customerLastName, 'Last name');
-      const currentIsPhoneOptional = shippingCountryCode === 'US' || shippingCountryCode === 'PR';
-      const phoneResultCheck = validatePhone(customerPhoneNumber, shippingCountryCode, currentIsPhoneOptional);
-
-      // Check shipping address validity
-      if (!isShippingAddressValid(appState.shippingAddress)) {
-        // console.log('❌ Shipping address validation failed at auto-forward');
-        hasProceeded.value = false;
-        return;
-      }
-
-      // Check billing address validity if using different billing address
-      if (useDifferentBilling.value && !isBillingAddressValid(appState.billingAddress)) {
-        // console.log('❌ Billing address validation failed at auto-forward');
-        hasProceeded.value = false;
-        return;
-      }
-
-      // Only set touched states and show errors if the user has already interacted with the form
-      // This prevents showing errors for autofilled fields from login
-      if (!emailResultCheck.isValid) {
-        // console.log('❌ Email validation failed at auto-forward:', emailResultCheck.message);
-        // Only show error if field was already touched by user interaction
-        if (emailTouched.value) {
-          emailTouched.value = true;
-          emailValidationError.value = emailResultCheck.message || 'Invalid email address';
-        }
-        hasProceeded.value = false;
-        return;
-      }
-      if (!firstNameResultCheck.isValid) {
-        // console.log('❌ First name validation failed at auto-forward:', firstNameResultCheck.message);
-        // Only show error if field was already touched by user interaction
-        if (firstNameTouched.value) {
-          firstNameTouched.value = true;
-          firstNameValidationError.value = firstNameResultCheck.message || 'Invalid first name';
-        }
-        hasProceeded.value = false;
-        return;
-      }
-      if (!lastNameResultCheck.isValid) {
-        // console.log('❌ Last name validation failed at auto-forward:', lastNameResultCheck.message);
-        // Only show error if field was already touched by user interaction
-        if (lastNameTouched.value) {
-          lastNameTouched.value = true;
-          lastNameValidationError.value = lastNameResultCheck.message || 'Invalid last name';
-        }
-        hasProceeded.value = false;
-        return;
-      }
-      if (!phoneResultCheck.isValid && !currentIsPhoneOptional) {
-        // console.log('❌ Phone validation failed at auto-forward:', phoneResultCheck.message);
-        // Only show error if field was already touched by user interaction
-        if (phoneTouched.value) {
-          phoneTouched.value = true;
-          phoneValidationError.value = phoneResultCheck.message || 'Invalid phone number';
-        }
-        hasProceeded.value = false;
-        return;
-      }
-
-      // All validations passed, proceed with submission
-      await submitAddresses();
-      
-      // Save addresses to LocalAddressService after successful submission
-       try {
-          // Determine source based on customer login status
-          const isLoggedIn = appState.customer?.id && appState.customer.id !== CUSTOMER_NOT_DEFINED_ID;
-          
-          if (appState.shippingAddress.streetLine1) {
-            const savedShippingAddress = isLoggedIn
-              ? LocalAddressService.saveOrUpdateDefaultShippingAddress({
-                  firstName: appState.customer?.firstName || '',
-                  lastName: appState.customer?.lastName || '',
-                  fullName: `${appState.customer?.firstName || ''} ${appState.customer?.lastName || ''}`.trim(),
-                  company: appState.shippingAddress.company || '',
-                  streetLine1: appState.shippingAddress.streetLine1 || '',
-                  streetLine2: appState.shippingAddress.streetLine2 || '',
-                  city: appState.shippingAddress.city || '',
-                  province: appState.shippingAddress.province || '',
-                  postalCode: appState.shippingAddress.postalCode || '',
-                  countryCode: appState.shippingAddress.countryCode || '',
-                  phoneNumber: appState.customer?.phoneNumber || '',
-                  defaultShippingAddress: true,
-                  defaultBillingAddress: !useDifferentBilling.value, // Set as billing address if not using separate billing
-                  source: 'customer'
-                })
-              : LocalAddressService.saveAddress({
-                  firstName: appState.customer?.firstName || '',
-                  lastName: appState.customer?.lastName || '',
-                  fullName: `${appState.customer?.firstName || ''} ${appState.customer?.lastName || ''}`.trim(),
-                  company: appState.shippingAddress.company || '',
-                  streetLine1: appState.shippingAddress.streetLine1 || '',
-                  streetLine2: appState.shippingAddress.streetLine2 || '',
-                  city: appState.shippingAddress.city || '',
-                  province: appState.shippingAddress.province || '',
-                  postalCode: appState.shippingAddress.postalCode || '',
-                  countryCode: appState.shippingAddress.countryCode || '',
-                  phoneNumber: appState.customer?.phoneNumber || '',
-                  defaultShippingAddress: true,
-                  defaultBillingAddress: false,
-                  source: 'checkout'
-                });
-            
-            // If customer is logged in, sync to Vendure
-            if (isLoggedIn) {
-              LocalAddressService.syncToVendure(savedShippingAddress).catch(error => {
-                console.warn('Failed to sync shipping address to Vendure:', error);
-              });
-            }
-          }
-          
-          if (useDifferentBilling.value && appState.billingAddress?.streetLine1) {
-            const savedBillingAddress = isLoggedIn
-              ? LocalAddressService.saveOrUpdateDefaultBillingAddress({
-                  firstName: appState.billingAddress.firstName || '',
-                  lastName: appState.billingAddress.lastName || '',
-                  fullName: `${appState.billingAddress.firstName || ''} ${appState.billingAddress.lastName || ''}`.trim(),
-                  company: '',
-                  streetLine1: appState.billingAddress.streetLine1 || '',
-                  streetLine2: appState.billingAddress.streetLine2 || '',
-                  city: appState.billingAddress.city || '',
-                  province: appState.billingAddress.province || '',
-                  postalCode: appState.billingAddress.postalCode || '',
-                  countryCode: appState.billingAddress.countryCode || '',
-                  phoneNumber: '',
-                  defaultShippingAddress: false,
-                  defaultBillingAddress: true,
-                  source: 'customer'
-                })
-              : LocalAddressService.saveAddress({
-                  firstName: appState.billingAddress.firstName || '',
-                  lastName: appState.billingAddress.lastName || '',
-                  fullName: `${appState.billingAddress.firstName || ''} ${appState.billingAddress.lastName || ''}`.trim(),
-                  company: '',
-                  streetLine1: appState.billingAddress.streetLine1 || '',
-                  streetLine2: appState.billingAddress.streetLine2 || '',
-                  city: appState.billingAddress.city || '',
-                  province: appState.billingAddress.province || '',
-                  postalCode: appState.billingAddress.postalCode || '',
-                  countryCode: appState.billingAddress.countryCode || '',
-                  phoneNumber: '',
-                  defaultShippingAddress: false,
-                  defaultBillingAddress: true,
-                  source: 'checkout'
-                });
-            
-            // If customer is logged in, sync to Vendure
-            if (isLoggedIn) {
-              LocalAddressService.syncToVendure(savedBillingAddress).catch(error => {
-                console.warn('Failed to sync billing address to Vendure:', error);
-              });
-            }
-          }
-          
-
-        } catch (error) {
-          console.error('Failed to save addresses:', error);
-          // Don't block checkout flow if address saving fails
-        }
-    }
+    // Just track form validity for UI purposes - no automatic submission
+    // console.log('Form validity changed:', isFormValidSignal.value);
   });
 
   // Individual field validation handlers - exactly like old implementation

@@ -1,9 +1,7 @@
-import { useCheckoutLoader } from '~/routes/checkout';
-
 export function useCheckoutSeo() {
-  const loader = useCheckoutLoader();
+  // Checkout page works with local cart - no order code until place order
   return {
-    title: `Checkout - ${loader.value.order?.code || 'Empty Cart'}`,
+    title: 'Checkout - Complete Your Purchase',
     meta: [
       {
         name: 'description',

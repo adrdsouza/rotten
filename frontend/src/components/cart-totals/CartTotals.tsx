@@ -39,19 +39,43 @@ export default component$<{
 		return total;
 	});
 
+	// 🚀 Create a reactive signal that forces shipping recalculation when country changes
+	const shippingTrigger = useSignal(0);
+
+	useVisibleTask$(({ track }) => {
+		track(() => appState.shippingAddress.countryCode);
+		const countryCode = appState.shippingAddress.countryCode;
+		const timestamp = new Date().toISOString().slice(11, 23);
+		console.log(`🚢 [CartTotals] [${timestamp}] Country change detected: ${countryCode}, forcing shipping recalculation`);
+		// Force shipping computed to recalculate by updating trigger signal
+		shippingTrigger.value = shippingTrigger.value + 1;
+	});
+
 	const shipping = useComputed$(() => {
+		// Track the trigger signal to ensure recalculation on country changes
+		const trigger = shippingTrigger.value;
+		const timestamp = new Date().toISOString().slice(11, 23); // HH:MM:SS.mmm
+		const countryCode = appState.shippingAddress?.countryCode;
+		console.log(`🚢 [CartTotals] [${timestamp}] Shipping computation triggered for country: ${countryCode || 'undefined'} (trigger: ${trigger})`);
+
 		if (appState.shippingAddress && appState.shippingAddress.countryCode) {
 			if (localCartContext.appliedCoupon?.freeShipping) {
+				console.log(`🚢 [CartTotals] [${timestamp}] Shipping: Free shipping from coupon`);
 				return 0;
 			}
 
-			const countryCode = appState.shippingAddress.countryCode;
 			const orderTotal = orderTotalAfterDiscount.value;
+			console.log(`🚢 [CartTotals] [${timestamp}] Calculating shipping for country: ${countryCode}, orderTotal: ${orderTotal}`);
+
 			if (countryCode === 'US' || countryCode === 'PR') {
-				return orderTotal >= 10000 ? 0 : 800;
+				const shippingCost = orderTotal >= 10000 ? 0 : 800;
+				console.log(`🚢 [CartTotals] [${timestamp}] US/PR shipping: ${shippingCost} (${orderTotal >= 10000 ? 'free over $100' : '$8 under $100'})`);
+				return shippingCost;
 			}
+			console.log(`🚢 [CartTotals] [${timestamp}] International shipping: 2000 ($20)`);
 			return 2000;
 		}
+		console.log(`🚢 [CartTotals] [${timestamp}] No country code, using fallback shipping`);
 		// Fallback to active order shipping for confirmation pages
 		return activeOrder.value?.shippingWithTax || 0;
 	});

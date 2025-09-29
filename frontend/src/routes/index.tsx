@@ -3,11 +3,12 @@
 import { component$, useStylesScoped$ } from '@qwik.dev/core';
 import { routeLoader$ } from '@qwik.dev/router';
 import { createSEOHead } from '~/utils/seo';
-import { OptimizedImage } from '~/components/ui';
 import { ShopComponent } from '~/components/shop/ShopComponent';
 import { getShirtStylesForSelection } from '~/providers/shop/products/products';
 
-import ShopImageUrl from '~/media/shop.jpg?url';
+// Shop image - simplified responsive (2 sizes, 2 formats to avoid memory issues)
+import ShopImageAvif from '~/media/shop.jpg?format=avif&width=800&quality=85&url';
+import ShopImageWebp from '~/media/shop.jpg?format=webp&width=800&quality=85&url';
 
 // 🚀 OPTIMIZED: Only hero image imports (67% bundle size reduction)
 // HERO SECTION - Only image needed for modern design
@@ -231,16 +232,20 @@ export default component$(() => {
       <section class="py-12 lg:py-20 bg-white">
         <div class="max-w-7xl mx-auto px-8 lg:px-16">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            {/* Left Side - Image */}
+            {/* Left Side - Image with optimized formats */}
             <div class="relative">
-              <OptimizedImage
-                src={ShopImageUrl}
-                alt="Premium shirt collection - Three years in the making"
-                class="w-full h-[600px] object-cover rounded-2xl shadow-2xl"
-                width={800}
-                height={600}
-                responsive="productMain"
-              />
+              <picture>
+                <source srcset={ShopImageAvif} type="image/avif" />
+                <source srcset={ShopImageWebp} type="image/webp" />
+                <img
+                  src={ShopImageWebp}
+                  alt="Premium shirt collection - Three years in the making"
+                  class="w-full h-[600px] object-cover rounded-2xl shadow-2xl"
+                  width={800}
+                  height={600}
+                  loading="lazy"
+                />
+              </picture>
               <div class="absolute inset-0 bg-black/20 rounded-2xl"></div>
             </div>
 

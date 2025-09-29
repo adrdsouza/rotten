@@ -1,6 +1,4 @@
 import { setOrderShippingAddressMutation, setOrderBillingAddressMutation, setOrderShippingMethodMutation } from '~/providers/shop/orders/order';
-import { getEligibleShippingMethodsCached } from '~/providers/shop/checkout/checkout';
-import { CacheService } from './CacheService';
 import type { Order } from '~/generated/graphql';
 
 export interface AddressInput {
@@ -32,30 +30,7 @@ export interface ParallelCheckoutResult {
 }
 
 export class CheckoutOptimizationService {
-  /**
-   * Get shipping methods with caching support
-   */
-  private static async getShippingMethodsWithCache(
-    countryCode: string,
-    postalCode: string,
-    orderTotal: number
-  ) {
-    // Check cache first
-    const cacheKey = { countryCode, postalCode, orderTotal };
-    const cachedMethods = CacheService.getCachedShippingMethods(cacheKey);
-    
-    if (cachedMethods) {
-      return cachedMethods;
-    }
 
-    // Fetch from API if not cached
-    const methods = await getEligibleShippingMethodsCached(countryCode, orderTotal);
-    
-    // Cache the result
-    CacheService.cacheShippingMethods(cacheKey, methods);
-    
-    return methods;
-  }
 
   /**
    * Processes address setting and shipping method selection in parallel
@@ -85,15 +60,13 @@ export class CheckoutOptimizationService {
         operations.push(billingAddressPromise);
       }
 
-      // 3. Get eligible shipping methods (can run in parallel with address setting)
-      const shippingMethodsPromise = this.getShippingMethodsWithCache(
-        shippingAddress.countryCode,
-        shippingAddress.postalCode || '',
-        orderSubTotal
-      );
-      operations.push(shippingMethodsPromise);
+      // 3. Determine shipping method using efficient hardcoded logic (no GraphQL queries needed)
+      // Since we only have 3 fixed shipping methods, use hardcoded IDs for efficiency
+      const shippingMethodId = (shippingAddress.countryCode === 'US' || shippingAddress.countryCode === 'PR')
+        ? (orderSubTotal >= 10000 ? '6' : '3')
+        : '7';
 
-      // Execute all operations in parallel
+      // Execute address operations in parallel
       const results = await Promise.allSettled(operations);
 
       // Process shipping address result
@@ -110,9 +83,8 @@ export class CheckoutOptimizationService {
       }
 
       // Process billing address result (if applicable)
-      let billingResultIndex = 1;
       if (billingAddress) {
-        const billingResult = results[billingResultIndex];
+        const billingResult = results[1];
         if (billingResult.status === 'fulfilled') {
           const billingOrder = billingResult.value;
           if (billingOrder.__typename === 'Order') {
@@ -123,30 +95,21 @@ export class CheckoutOptimizationService {
         } else {
           errors.push(`Billing address error: ${billingResult.reason}`);
         }
-        billingResultIndex++;
       }
 
-      // Process shipping methods result
-      const shippingMethodsResult = results[billingResultIndex];
-      if (shippingMethodsResult.status === 'fulfilled') {
-        const methods = shippingMethodsResult.value;
-        
-        // Auto-select first available shipping method if any exist
-        if (methods && methods.length > 0 && finalOrder) {
-          try {
-            const updatedOrder = await setOrderShippingMethodMutation([methods[0].id]);
-            if (updatedOrder) {
-              finalOrder = updatedOrder;
-              shippingMethodsApplied = true;
-            }
-          } catch (shippingMethodError) {
-            errors.push(`Failed to set shipping method: ${shippingMethodError}`);
+      // Set shipping method using hardcoded logic (efficient, no GraphQL query needed)
+      if (finalOrder) {
+        try {
+          const updatedOrder = await setOrderShippingMethodMutation([shippingMethodId]);
+          if (updatedOrder && updatedOrder.__typename === 'Order') {
+            finalOrder = updatedOrder;
+            shippingMethodsApplied = true;
+          } else {
+            errors.push('Failed to set shipping method - invalid response');
           }
-        } else if (!methods || methods.length === 0) {
-          errors.push('No shipping methods available for your location');
+        } catch (shippingMethodError) {
+          errors.push(`Failed to set shipping method: ${shippingMethodError}`);
         }
-      } else {
-        errors.push(`Shipping methods error: ${shippingMethodsResult.reason}`);
       }
 
       if (!finalOrder) {
@@ -196,21 +159,21 @@ export class CheckoutOptimizationService {
         }
       }
 
-      // 3. Get and set shipping methods with caching
-      const methods = await this.getShippingMethodsWithCache(
-        shippingAddress.countryCode,
-        shippingAddress.postalCode || '',
-        orderSubTotal
-      );
+      // 3. Set shipping method using efficient hardcoded logic
+      const shippingMethodId = (shippingAddress.countryCode === 'US' || shippingAddress.countryCode === 'PR')
+        ? (orderSubTotal >= 10000 ? '6' : '3')
+        : '7';
 
-      if (methods && methods.length > 0) {
-        const updatedOrder = await setOrderShippingMethodMutation([methods[0].id]);
-        if (updatedOrder) {
+      try {
+        const updatedOrder = await setOrderShippingMethodMutation([shippingMethodId]);
+        if (updatedOrder && updatedOrder.__typename === 'Order') {
           finalOrder = updatedOrder;
           shippingMethodsApplied = true;
+        } else {
+          errors.push('Failed to set shipping method - invalid response');
         }
-      } else {
-        errors.push('No shipping methods available for your location');
+      } catch (shippingMethodError) {
+        errors.push(`Failed to set shipping method: ${shippingMethodError}`);
       }
 
       if (!finalOrder) {

@@ -1,15 +1,16 @@
 // 🚀 ADVANCED CACHING: Background cache warming for optimal performance
 import { $ } from '@qwik.dev/core';
-import ShopImageUrl from '~/media/shop.jpg?url';
+// Shop image - optimized
+import ShopImageAvif from '~/media/shop.jpg?format=avif&width=800&quality=85&url';
 
 // Cache warming configuration
 const CACHE_WARMING_CONFIG = {
   // Products to prefetch in background
   PRIORITY_PRODUCTS: ['shortsleeveshirt', 'longsleeveshirt'],
   
-  // Assets to prefetch
+  // Assets to prefetch - optimized images
   PRIORITY_ASSETS: [
-    ShopImageUrl, // Dynamic path resolved by Vite import
+    ShopImageAvif, // Optimized shop image
     '/fonts/inter/inter-v19-latin-regular.woff2',
     '/fonts/inter/inter-v19-latin-500.woff2',
     '/fonts/playfair-display/playfair-display-v37-latin-regular.woff2',

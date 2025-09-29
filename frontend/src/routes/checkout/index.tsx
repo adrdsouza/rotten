@@ -10,8 +10,10 @@ import {
 } from '@qwik.dev/router';
 import CartContents from '~/components/cart-contents/CartContents';
 import CartTotals from '~/components/cart-totals/CartTotals';
-import { APP_STATE } from '~/constants';
+import { APP_STATE, AUTH_TOKEN } from '~/constants';
+import { getCookie } from '~/utils';
 import { getActiveOrderQuery } from '~/providers/shop/orders/order';
+
 import { CheckoutAddresses } from '~/components/checkout/CheckoutAddresses';
 import { CheckoutAddressProvider } from '~/contexts/CheckoutAddressContext';
 import { createSEOHead } from '~/utils/seo';
@@ -23,13 +25,23 @@ import { OrderProcessingModal } from '~/components/OrderProcessingModal';
 import { clearAllValidationCache } from '~/utils/cached-validation';
 import { useCheckout } from '~/hooks/useCheckout';
 import { transitionOrderToStateMutation } from '~/providers/shop/checkout/checkout';
-import { setOrderShippingMethodMutation } from '~/providers/shop/orders/order';
+
 import { LocalCartService } from '~/services/LocalCartService';
+
+// Create a Qwik-compatible auth headers function
+const getAuthHeaders = $(() => {
+  const token = getCookie(AUTH_TOKEN);
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+});
 
 export const useCheckoutLoader = routeLoader$(async () => {
   try {
     const order = await getActiveOrderQuery();
-    return { 
+    return {
       order,
       error: null
     };
@@ -218,28 +230,48 @@ const CheckoutContent = component$(() => {
         throw new Error('Failed to submit address form.');
       }
       
-      // Address submission is now handled directly by CheckoutAddresses component
-      // No need to wait for address state as it's managed internally
-        
-      try {
-        if (appState.shippingAddress.countryCode && appState.activeOrder) {
-          const { countryCode } = appState.shippingAddress;
-          const subTotal = appState.activeOrder.subTotal || 0;
-          const shippingMethodId = (countryCode === 'US' || countryCode === 'PR') 
-            ? (subTotal >= 10000 ? '6' : '3') 
-            : '7';
-          
-          const shippingResult = await setOrderShippingMethodMutation([shippingMethodId]);
-          if (shippingResult && '__typename' in shippingResult && shippingResult.__typename === 'Order') {
-            appState.activeOrder = shippingResult;
-          } else {
-            console.warn('Could not set preferred shipping method. Proceeding with default.');
-          }
-        }
-      } catch (shippingError) {
-        console.error('Error setting shipping method:', shippingError);
-      }
+      // Address submission and shipping method setting is handled by CheckoutOptimizationService
+      // during the address processing phase - no need to set shipping method again here
       
+      // Get current order before transitioning to ArrangingPayment
+      const currentOrder = await getActiveOrderQuery();
+
+      // CRITICAL: Update PaymentIntent metadata BEFORE transitioning to ArrangingPayment
+      // This ensures webhook has complete metadata when payment is processed
+      if (selectedPaymentMethod.value === 'stripe' && typeof window !== 'undefined' && currentOrder) {
+        try {
+          const paymentIntentId = (window as any).__stripePaymentIntentId;
+          if (paymentIntentId && currentOrder.totalWithTax && currentOrder.code && currentOrder.id) {
+            console.log(`[Checkout] Updating PaymentIntent ${paymentIntentId} for order ${currentOrder.code}`);
+
+            const { StripePaymentService } = await import('~/services/StripePaymentService');
+            const { getStripePublishableKeyQuery } = await import('~/providers/shop/checkout/checkout');
+
+            const stripeKey = await getStripePublishableKeyQuery();
+            const stripeService = new StripePaymentService(
+              stripeKey,
+              '/shop-api',
+              getAuthHeaders
+            );
+
+            // Update amount
+            await stripeService.updatePaymentIntentAmount(paymentIntentId, currentOrder.totalWithTax);
+            console.log('[Checkout] PaymentIntent amount updated');
+
+            // Update metadata with order details
+            await stripeService.updatePaymentIntentMetadata(
+              paymentIntentId,
+              currentOrder.code,
+              parseInt(currentOrder.id)
+            );
+            console.log('[Checkout] PaymentIntent metadata updated with order details');
+          }
+        } catch (updateError) {
+          console.warn('[Checkout] Failed to update PaymentIntent (non-critical):', updateError);
+        }
+      }
+
+      // Now transition to ArrangingPayment with complete PaymentIntent metadata
       if (appState.activeOrder && appState.activeOrder.state !== 'ArrangingPayment') {
         const transitionResult = await transitionOrderToStateMutation('ArrangingPayment');
         if (transitionResult.transitionOrderToState && 'state' in transitionResult.transitionOrderToState) {
@@ -248,7 +280,7 @@ const CheckoutContent = component$(() => {
             throw new Error('Failed to prepare the order for payment.');
         }
       }
-      
+
       // Get latest order and trigger payment
       const latestOrder = await getActiveOrderQuery();
       if (latestOrder?.state === 'ArrangingPayment') {
@@ -256,22 +288,7 @@ const CheckoutContent = component$(() => {
         if (latestOrder.code) {
           await prefetchOrderConfirmation(latestOrder.code);
         }
-        
-        // Link PaymentIntent to order if using Stripe
-        if (selectedPaymentMethod.value === 'stripe') {
-          try {
-            // Get the PaymentIntent ID from the StripePayment component
-            const stripePaymentElement = document.querySelector('#payment-form');
-            if (stripePaymentElement && (window as any).linkPaymentIntentToOrder) {
-              console.log('[Checkout] Linking PaymentIntent to order:', latestOrder.code);
-              await (window as any).linkPaymentIntentToOrder(latestOrder);
-            }
-          } catch (linkError) {
-            console.error('[Checkout] Failed to link PaymentIntent to order:', linkError);
-            // Continue with payment even if linking fails - the webhook will handle it
-          }
-        }
-        
+
         // Only trigger payment if we haven't already triggered it for this order
         // This prevents multiple payment attempts on the same order
         if (selectedPaymentMethod.value === 'stripe' && stripeTriggerSignal.value === 0) {

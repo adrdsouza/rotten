@@ -4,14 +4,13 @@ import { setOrderShippingMethodMutation, setOrderShippingAddressMutation } from 
 import { AppState, EligibleShippingMethods, Order } from '~/types';
 import { CreateAddressInput } from '~/generated/graphql';
 import { formatPrice } from '~/utils';
-import { useLocalCart } from '~/contexts/CartContext';
+
 
 type Props = {
 	appState: AppState;
 };
 
 export default component$<Props>(({ appState }) => {
-	const localCart = useLocalCart();
 	const currencyCode = appState.activeOrder?.currencyCode || 'USD';
 	const state = useStore<{ 
 		selectedMethod: EligibleShippingMethods | null; 
@@ -75,9 +74,9 @@ export default component$<Props>(({ appState }) => {
 		shouldQueryShipping.value = false; // Reset the trigger
 
 		try {
-			// Skip shipping mutations in local cart mode
-			if (localCart.isLocalMode) {
-				console.log('🛒 Local cart mode: Skipping shipping mutations, will calculate on Place Order');
+			// Skip shipping mutations if no active order
+			if (!appState.activeOrder) {
+				console.log('🛒 No active order: Skipping shipping mutations, will calculate on Place Order');
 				state.methods = []; // Clear methods since we can't calculate without order
 				state.selectedMethod = null;
 				state.lastCheckedCountry = appState.shippingAddress.countryCode;

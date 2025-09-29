@@ -77,7 +77,7 @@ class StripePreOrderResolver {
         @Args('currency') currency?: string,
         @Args('cartUuid') cartUuid?: string
     ): Promise<string> {
-        const amountToUse = amount || 0;
+        const amountToUse = amount || 100; // Minimum $1.00 if no amount provided
         const currencyToUse = currency || 'usd';
         const cartUuidToUse = cartUuid || '';
 
@@ -89,13 +89,67 @@ class StripePreOrderResolver {
             automatic_payment_methods: { enabled: true },
             metadata: {
                 cartUuid: cartUuidToUse,
-                channelToken: ctx.channel.token,
+                channelToken: ctx.channel.token,  // Required by webhook validation
+                languageCode: ctx.languageCode,   // Used by webhook processing
             },
         });
 
         Logger.info(`Pre-order PaymentIntent created: ${paymentIntent.id}`, 'StripePreOrder');
 
         return paymentIntent.client_secret!;
+    }
+
+    @Mutation()
+    @Allow(Permission.Public)
+    async updatePaymentIntentAmount(
+        @Ctx() ctx: RequestContext,
+        @Args('paymentIntentId') paymentIntentId: string,
+        @Args('amount') amount: number
+    ): Promise<boolean> {
+        try {
+            Logger.info(`Updating PaymentIntent ${paymentIntentId} amount to ${amount}`, 'StripePreOrder');
+
+            await this.stripe.paymentIntents.update(paymentIntentId, {
+                amount: amount,
+            });
+
+            Logger.info(`PaymentIntent ${paymentIntentId} amount updated successfully`, 'StripePreOrder');
+            return true;
+        } catch (error) {
+            Logger.error(`Failed to update PaymentIntent ${paymentIntentId}: ${error}`, 'StripePreOrder');
+            return false;
+        }
+    }
+
+    @Mutation()
+    @Allow(Permission.Public)
+    async updatePaymentIntentMetadata(
+        @Ctx() ctx: RequestContext,
+        @Args('paymentIntentId') paymentIntentId: string,
+        @Args('orderCode') orderCode: string,
+        @Args('orderId') orderId: number
+    ): Promise<boolean> {
+        try {
+            Logger.info(`Updating PaymentIntent ${paymentIntentId} with order metadata: ${orderCode} (${orderId})`, 'StripePreOrder');
+
+            // Get the current PaymentIntent to preserve existing metadata
+            const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
+
+            // Add only the missing order-specific metadata (channelToken and languageCode already set)
+            await this.stripe.paymentIntents.update(paymentIntentId, {
+                metadata: {
+                    ...paymentIntent.metadata,
+                    orderCode: orderCode,           // Required by webhook validation
+                    orderId: orderId.toString(),    // Required by webhook validation
+                }
+            });
+
+            Logger.info(`PaymentIntent ${paymentIntentId} order metadata added successfully`, 'StripePreOrder');
+            return true;
+        } catch (error) {
+            Logger.error(`Failed to update PaymentIntent ${paymentIntentId} metadata: ${error}`, 'StripePreOrder');
+            return false;
+        }
     }
 }
 
@@ -113,6 +167,8 @@ class StripePreOrderResolver {
         schema: gql`
             extend type Mutation {
                 createPreOrderPaymentIntent(amount: Int, currency: String, cartUuid: String): String!
+                updatePaymentIntentAmount(paymentIntentId: String!, amount: Int!): Boolean!
+                updatePaymentIntentMetadata(paymentIntentId: String!, orderCode: String!, orderId: Int!): Boolean!
             }
         `,
     },

@@ -322,8 +322,11 @@ export const config: VendureConfig = {
         StripePlugin.init({
             // This prevents different customers from using the same PaymentIntent
             storeCustomersInStripe: true,
+            // CRITICAL: Skip PaymentIntents without expected Vendure metadata
+            // This prevents our pre-order PaymentIntents from interfering with webhook processing
+            skipPaymentIntentsWithoutExpectedMetadata: true,
             // Add payment method information to Stripe metadata for webhook processing
-            metadata: async (injector, ctx, order) => {
+            metadata: async (_injector, _ctx, order) => {
                 return {
                     vendure_order_code: order.code,
                     vendure_order_id: order.id.toString(),

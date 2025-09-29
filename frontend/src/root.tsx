@@ -60,10 +60,6 @@ export default component$(() => {
 		<QwikRouterProvider>
 			<Head />
 			<body lang="en" class="relative">
-				<div 
-				class="fixed inset-0 z-[-1] opacity-5 bg-cover bg-center bg-no-repeat"
-				style="background-image: url('/media/pattern.jpg');"
-			></div>
 				<RouterOutlet />
 				<ServiceWorkerRegister />
 			</body>

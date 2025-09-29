@@ -15,6 +15,7 @@ import LoginModal from '~/components/auth/LoginModal';
 import MenuIcon from '../icons/MenuIcon';
 import ShoppingBagIcon from '../icons/ShoppingBagIcon';
 import UserIcon from '../icons/UserIcon';
+import ContactIcon from '../icons/ContactIcon';
 
 export default component$(() => {
 	const appState = useContext(APP_STATE);
@@ -136,16 +137,7 @@ export default component$(() => {
 							</Link>
 						</div>						{/* Centered Navigation - Hidden on mobile, shown on desktop */}
 						<nav class="hidden md:flex flex-1 justify-center items-center space-x-8">
-							<Link
-								href="/contact"
-								class={`hover:scale-105 transition-all duration-500 ease-in-out uppercase text-lg xl:text-xl 2xl:text-2xl font-bold font-heading border-b-2 text-white hover:text-gray-200 ${
-									location.url.pathname.startsWith('/contact')
-										? 'border-white'
-										: 'border-transparent hover:border-gray-300'
-								}`}
-							>
-								Contact
-							</Link>
+							{/* Navigation items can be added here if needed */}
 						</nav>{/* Icons */}
 						<div class="flex items-center space-x-3 pr-1">
 							{/* Cart */}
@@ -198,7 +190,18 @@ export default component$(() => {
 									)}
 								</button>
 							)}
-									{/* User Icon - Hidden on mobile, shown on desktop */}						<div class="relative hidden md:block" ref={userMenuRef}>
+
+							{/* Contact Icon - Hidden on mobile, shown on desktop */}
+							<Link
+								href="/contact"
+								class="hidden md:block p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer text-white hover:text-gray-200 flex items-center justify-center"
+								aria-label="Contact us"
+								title="Contact"
+							>
+								<ContactIcon />
+							</Link>
+
+							{/* User Icon - Hidden on mobile, shown on desktop */}						<div class="relative hidden md:block" ref={userMenuRef}>
 								<button
 									class={`p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer flex items-center justify-center ${
 										appState.customer.id !== CUSTOMER_NOT_DEFINED_ID 

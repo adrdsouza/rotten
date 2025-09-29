@@ -214,7 +214,7 @@
 	body {
 		font-family: var(--font-body);
 		background-color: #fff;
-		background-image: url('/src/media/pattern.jpg');
+		/* Background pattern will be set via CSS custom properties from imported optimized images */
 		background-size: cover;
 		background-position: center;
 		background-repeat: no-repeat;
