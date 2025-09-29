@@ -368,14 +368,15 @@ export class StripePaymentService {
   }
 
   /**
-   * Retry settlement with exponential backoff
+   * Retry settlement with exponential backoff and enhanced error handling
    */
   async retrySettlement(
     paymentIntentId: string,
     maxRetries = 3,
     baseDelayMs = 1000
-  ): Promise<SettlementResult> {
+  ): Promise<SettlementResult & { attempts: number; errorDetails?: PaymentError }> {
     let lastError: SettlementResult = { success: false, error: 'Settlement failed after retries' };
+    let errorDetails: PaymentError | undefined;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -385,21 +386,44 @@ export class StripePaymentService {
         
         if (result.success) {
           console.log(`Settlement succeeded on attempt ${attempt}`);
-          return result;
+          return { ...result, attempts: attempt };
         }
 
-        if (!result.isRetryable) {
+        // Handle error with enhanced error handler
+        const error = new Error(result.error || 'Settlement failed');
+        errorDetails = this.errorHandler.handlePaymentError(error, 'SETTLE_PAYMENT');
+
+        if (!result.isRetryable || !errorDetails.isRetryable) {
           console.log(`Settlement failed with non-retryable error: ${result.error}`);
-          return result;
+          return { ...result, attempts: attempt, errorDetails };
         }
 
         lastError = result;
 
-      } catch (error: any) {
-        lastError = { success: false, error: error.message };
-        
+        // Use error-specific retry delay if available
         if (attempt < maxRetries) {
-          const delay = Math.min(baseDelayMs * Math.pow(2, attempt - 1), 10000);
+          const delay = Math.min(
+            errorDetails.retryDelayMs || baseDelayMs * Math.pow(2, attempt - 1), 
+            10000
+          );
+          console.log(`Waiting ${delay}ms before retry (${errorDetails.category} error)...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+      } catch (error: any) {
+        errorDetails = this.errorHandler.handlePaymentError(error, 'SETTLE_PAYMENT');
+        lastError = { 
+          success: false, 
+          error: errorDetails.message,
+          isRetryable: errorDetails.isRetryable,
+          retryDelayMs: errorDetails.retryDelayMs
+        };
+        
+        if (attempt < maxRetries && errorDetails.isRetryable) {
+          const delay = Math.min(
+            errorDetails.retryDelayMs || baseDelayMs * Math.pow(2, attempt - 1), 
+            10000
+          );
           console.log(`Waiting ${delay}ms before retry...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
@@ -407,7 +431,32 @@ export class StripePaymentService {
     }
 
     console.error(`Settlement failed after ${maxRetries} attempts`);
-    return lastError || { success: false, error: 'Settlement failed after retries' };
+    return { 
+      ...lastError, 
+      attempts: maxRetries,
+      errorDetails: errorDetails || this.errorHandler.handlePaymentError(
+        new Error(lastError.error || 'Unknown error'), 
+        'SETTLE_PAYMENT'
+      )
+    };
+  }
+
+  /**
+   * Get user-friendly error message for display
+   */
+  getErrorMessage(error: any, context: string = 'PAYMENT'): string {
+    return this.errorHandler.getUserMessage ? 
+      this.errorHandler.getUserMessage(error, context) : 
+      this.errorHandler.handlePaymentError(error, context).message;
+  }
+
+  /**
+   * Check if an error is retryable
+   */
+  isErrorRetryable(error: any, context: string = 'PAYMENT'): boolean {
+    return this.errorHandler.isRetryable ? 
+      this.errorHandler.isRetryable(error, context) : 
+      this.errorHandler.handlePaymentError(error, context).isRetryable;
   }
 
   /**

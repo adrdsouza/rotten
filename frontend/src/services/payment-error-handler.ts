@@ -2,6 +2,10 @@ export interface PaymentError {
   message: string;
   isRetryable: boolean;
   retryDelayMs?: number;
+  errorCode?: string;
+  category?: 'network' | 'stripe' | 'validation' | 'system' | 'user';
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+  userAction?: string;
 }
 
 export class PaymentErrorHandler {
@@ -14,7 +18,9 @@ export class PaymentErrorHandler {
     if (!error) {
       return {
         message: 'An unknown payment error occurred',
-        isRetryable: false
+        isRetryable: false,
+        category: 'system',
+        severity: 'medium'
       };
     }
 
@@ -23,7 +29,11 @@ export class PaymentErrorHandler {
       return {
         message: 'Network connection failed. Please check your internet connection and try again.',
         isRetryable: true,
-        retryDelayMs: 2000
+        retryDelayMs: 2000,
+        errorCode: 'NETWORK_ERROR',
+        category: 'network',
+        severity: 'medium',
+        userAction: 'Check your internet connection and try again'
       };
     }
 
@@ -32,13 +42,22 @@ export class PaymentErrorHandler {
       return this.handleStripeError(error);
     }
 
+    // Settlement-specific errors
+    if (context.includes('settlement') || context.includes('settle')) {
+      return this.handleSettlementError(error);
+    }
+
     // GraphQL errors
     if (error.message && typeof error.message === 'string') {
       if (error.message.includes('fetch')) {
         return {
           message: 'Connection failed. Please try again.',
           isRetryable: true,
-          retryDelayMs: 1000
+          retryDelayMs: 1000,
+          errorCode: 'CONNECTION_FAILED',
+          category: 'network',
+          severity: 'medium',
+          userAction: 'Try again in a moment'
         };
       }
 
@@ -46,7 +65,33 @@ export class PaymentErrorHandler {
         return {
           message: 'Request timed out. Please try again.',
           isRetryable: true,
-          retryDelayMs: 2000
+          retryDelayMs: 2000,
+          errorCode: 'TIMEOUT',
+          category: 'network',
+          severity: 'medium',
+          userAction: 'Try again in a moment'
+        };
+      }
+
+      if (error.message.includes('already settled')) {
+        return {
+          message: 'This payment has already been processed successfully.',
+          isRetryable: false,
+          errorCode: 'ALREADY_SETTLED',
+          category: 'validation',
+          severity: 'low',
+          userAction: 'No action needed - payment is complete'
+        };
+      }
+
+      if (error.message.includes('order not found')) {
+        return {
+          message: 'Order not found. Please contact support.',
+          isRetryable: false,
+          errorCode: 'ORDER_NOT_FOUND',
+          category: 'validation',
+          severity: 'high',
+          userAction: 'Contact customer support'
         };
       }
     }
@@ -55,7 +100,11 @@ export class PaymentErrorHandler {
     return {
       message: error.message || 'Payment processing failed. Please try again.',
       isRetryable: true,
-      retryDelayMs: 1000
+      retryDelayMs: 1000,
+      errorCode: 'GENERIC_ERROR',
+      category: 'system',
+      severity: 'medium',
+      userAction: 'Try again or contact support if the problem persists'
     };
   }
 
@@ -99,6 +148,69 @@ export class PaymentErrorHandler {
   }
 
   /**
+   * Handle settlement-specific errors
+   */
+  private handleSettlementError(error: any): PaymentError {
+    const message = error.message?.toLowerCase() || '';
+
+    if (message.includes('payment not found')) {
+      return {
+        message: 'Payment session has expired. Please start over.',
+        isRetryable: false,
+        errorCode: 'PAYMENT_NOT_FOUND',
+        category: 'validation',
+        severity: 'medium',
+        userAction: 'Start a new payment'
+      };
+    }
+
+    if (message.includes('already settled')) {
+      return {
+        message: 'This payment has already been completed successfully.',
+        isRetryable: false,
+        errorCode: 'ALREADY_SETTLED',
+        category: 'validation',
+        severity: 'low',
+        userAction: 'No action needed'
+      };
+    }
+
+    if (message.includes('stripe verification failed')) {
+      return {
+        message: 'Payment verification failed. Please try again or use a different payment method.',
+        isRetryable: true,
+        retryDelayMs: 3000,
+        errorCode: 'VERIFICATION_FAILED',
+        category: 'stripe',
+        severity: 'medium',
+        userAction: 'Try again or use a different payment method'
+      };
+    }
+
+    if (message.includes('payment service not available')) {
+      return {
+        message: 'Payment service is temporarily unavailable. Please try again in a few moments.',
+        isRetryable: true,
+        retryDelayMs: 5000,
+        errorCode: 'SERVICE_UNAVAILABLE',
+        category: 'system',
+        severity: 'medium',
+        userAction: 'Try again in a few moments'
+      };
+    }
+
+    return {
+      message: 'Payment settlement failed. Please try again.',
+      isRetryable: true,
+      retryDelayMs: 2000,
+      errorCode: 'SETTLEMENT_FAILED',
+      category: 'system',
+      severity: 'medium',
+      userAction: 'Try again or contact support'
+    };
+  }
+
+  /**
    * Handle Stripe-specific errors with retry logic
    */
   private handleStripeError(error: any): PaymentError {
@@ -112,10 +224,32 @@ export class PaymentErrorHandler {
                        retryableCodes.includes(error.code) ||
                        (error.type === 'card_error' && error.code === 'authentication_required');
 
+    let category: PaymentError['category'] = 'stripe';
+    let severity: PaymentError['severity'] = 'medium';
+    let userAction = 'Try again or use a different payment method';
+
+    if (error.type === 'card_error') {
+      category = 'user';
+      if (['card_declined', 'insufficient_funds'].includes(error.code)) {
+        severity = 'low';
+        userAction = 'Use a different card or payment method';
+      }
+    } else if (error.type === 'rate_limit_error') {
+      severity = 'low';
+      userAction = 'Wait a moment and try again';
+    } else if (error.type === 'api_error') {
+      category = 'system';
+      userAction = 'Try again in a few moments';
+    }
+
     return {
       message,
       isRetryable,
-      retryDelayMs: error.type === 'rate_limit_error' ? 5000 : 2000
+      retryDelayMs: error.type === 'rate_limit_error' ? 5000 : 2000,
+      errorCode: error.code || error.type,
+      category,
+      severity,
+      userAction
     };
   }
 }

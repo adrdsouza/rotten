@@ -50,22 +50,57 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 					if (activeOrder) {
 						console.log('[Payment] Triggering Stripe payment for order:', activeOrder.code);
 
-						// 🚨 CRITICAL FIX: Handle payment result properly
+						// Handle payment result with new settlement flow
 						try {
 							const paymentResult = await (window as any).confirmStripePreOrderPayment(activeOrder);
 
 							if (paymentResult && !paymentResult.success) {
-								// Payment failed - communicate error back to checkout page
+								// Payment failed - provide specific error feedback
 								console.error('[Payment] Stripe payment failed:', paymentResult.error);
-								_onError$(paymentResult.error || 'Payment failed. Please check your payment details and try again.');
+								
+								// Provide user-friendly error messages based on error type
+								let userMessage = paymentResult.error || 'Payment failed. Please try again.';
+								
+								if (paymentResult.error?.includes('settlement')) {
+									userMessage = 'Payment was processed but settlement failed. Please contact support if you were charged.';
+								} else if (paymentResult.error?.includes('confirmation')) {
+									userMessage = 'Payment confirmation failed. Please check your payment details and try again.';
+								} else if (paymentResult.error?.includes('network') || paymentResult.error?.includes('timeout')) {
+									userMessage = 'Network error occurred. Please check your connection and try again.';
+								}
+								
+								_onError$(userMessage);
 								return;
 							}
 
-							// If we get here, payment was successful (handled by StripePayment component)
+							// Payment was successful - forward to confirmation
+							if (paymentResult && paymentResult.success) {
+								console.log('[Payment] Payment completed successfully:', paymentResult);
+								const orderCode = paymentResult.orderCode || paymentResult.settlement?.orderCode || activeOrder?.code;
+								if (orderCode) {
+									_onForward$(orderCode);
+								} else {
+									console.error('[Payment] No order code available after successful payment');
+									_onError$('Payment completed but order information is missing. Please contact support.');
+								}
+							}
 
 						} catch (paymentError) {
 							console.error('[Payment] Stripe payment error:', paymentError);
-							_onError$(paymentError instanceof Error ? paymentError.message : 'Payment failed. Please try again.');
+							
+							// Provide user-friendly error message for exceptions
+							let errorMessage = 'Payment failed. Please try again.';
+							if (paymentError instanceof Error) {
+								if (paymentError.message.includes('network') || paymentError.message.includes('fetch')) {
+									errorMessage = 'Network error occurred. Please check your connection and try again.';
+								} else if (paymentError.message.includes('timeout')) {
+									errorMessage = 'Payment timed out. Please try again.';
+								} else {
+									errorMessage = paymentError.message;
+								}
+							}
+							
+							_onError$(errorMessage);
 						}
 					} else {
 						console.error('[Payment] No active order found for Stripe payment');

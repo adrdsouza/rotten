@@ -1,4 +1,4 @@
-import { component$, useContext, useStore, useVisibleTask$ } from '@qwik.dev/core';
+import { component$, useContext, useStore, useVisibleTask$, $ } from '@qwik.dev/core';
 import { Link, useLocation } from '@qwik.dev/router';
 import CartContents from '~/components/cart-contents/CartContents';
 import CartTotals from '~/components/cart-totals/CartTotals';
@@ -9,6 +9,8 @@ import { Order } from '~/generated/graphql';
 import { getOrderByCodeQuery } from '~/providers/shop/orders/order';
 import { LocalCartService } from '~/services/LocalCartService';
 import { createSEOHead } from '~/utils/seo';
+import { StripePaymentService } from '~/services/StripePaymentService';
+import { getStripePublishableKeyQuery } from '~/providers/shop/checkout/checkout';
 
 export default component$(() => {
 	const {
@@ -22,6 +24,34 @@ export default component$(() => {
 		error?: string;
 	}>({
 		loading: true,
+	});
+
+	// Handle payment settlement for redirect flows
+	const handlePaymentSettlement = $(async (paymentIntentId: string, orderCode: string) => {
+		try {
+			console.log('[Confirmation] Attempting to settle payment for PaymentIntent:', paymentIntentId);
+			
+			const stripeKey = await getStripePublishableKeyQuery();
+			const stripeService = new StripePaymentService(
+				stripeKey,
+				'/shop-api',
+				$(() => ({}))
+			);
+
+			// Attempt settlement with retry mechanism
+			const settlementResult = await stripeService.retrySettlement(paymentIntentId, 3, 1000);
+
+			if (settlementResult.success) {
+				console.log('[Confirmation] Payment settled successfully');
+			} else {
+				console.error('[Confirmation] Settlement failed:', settlementResult.error);
+				// Don't throw error here as the payment was already confirmed by Stripe
+				// Just log the issue - the order should still be valid
+			}
+		} catch (error) {
+			console.error('[Confirmation] Error during settlement:', error);
+			// Don't throw error here as the payment was already confirmed by Stripe
+		}
 	});
 
 	useVisibleTask$(async () => {
@@ -55,22 +85,13 @@ export default component$(() => {
 
 				// Step 2: Check if payment succeeded
 				if (paymentIntent && paymentIntent.status === 'succeeded') {
-					console.log('[Confirmation] Payment succeeded, adding to order...');
+					console.log('[Confirmation] Payment succeeded - PaymentIntent verified but NOT settling immediately');
+					console.log('[Confirmation] PaymentIntent ID:', paymentIntentId, 'Status:', paymentIntent.status);
 					
-					// Step 3: Add payment to order (only now, after Stripe confirmation)
-					const { addPaymentToOrderMutation } = await import('~/providers/shop/orders/order');
-					
-					const paymentResult = await addPaymentToOrderMutation({
-						method: 'stripe',
-						metadata: {
-							paymentIntentId: paymentIntentId,
-							amount: paymentIntent.amount,
-							currency: paymentIntent.currency,
-							status: paymentIntent.status,
-						}
-					});
-
-					console.log('[Confirmation] Payment added to order successfully:', paymentResult);
+					// NOTE: Settlement should have been handled by the payment flow
+					// If we reach here via redirect, we may need to settle the payment
+					// Check if payment needs settlement and handle it
+					await handlePaymentSettlement(paymentIntentId, orderCode);
 
 					// 🎯 BACKUP: Clear the local cart after successful payment verification
 					// This is a backup mechanism for Stripe redirect flows

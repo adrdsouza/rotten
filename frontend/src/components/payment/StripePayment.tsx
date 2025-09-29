@@ -5,6 +5,8 @@ import {
 } from '~/providers/shop/checkout/checkout';
 import { useLocalCart } from '~/contexts/CartContext';
 import { StripePaymentService } from '~/services/StripePaymentService';
+import { PaymentError } from '~/services/payment-error-handler';
+import PaymentErrorDisplay from './PaymentErrorDisplay';
 
 import XCircleIcon from '../icons/XCircleIcon';
 
@@ -30,8 +32,11 @@ export default component$(() => {
     resolvedStripe: noSerialize({} as Stripe),
     stripeElements: noSerialize({} as StripeElements),
     error: '',
+    paymentError: noSerialize(null as PaymentError | null),
     isProcessing: false,
     debugInfo: 'Initializing...',
+    retryCount: 0,
+    maxRetries: 3,
   });
 
   // Expose functions to window for checkout flow
@@ -44,13 +49,21 @@ export default component$(() => {
 
     console.log('[StripePayment] Setting up window functions...');
     if (typeof window !== 'undefined') {
-      // Function to confirm payment using proper Stripe flow
+      // Function to confirm payment using enhanced error handling
       (window as any).confirmStripePreOrderPayment = async (activeOrder?: any) => {
         console.log('[StripePayment] Starting payment confirmation with order:', activeOrder);
         
         if (!store.resolvedStripe || !store.stripeElements) {
           console.error('[StripePayment] Stripe not initialized');
-          return { success: false, error: 'Payment system not initialized' };
+          const error = { 
+            message: 'Payment system not initialized', 
+            isRetryable: false,
+            category: 'system' as const,
+            severity: 'high' as const,
+            userAction: 'Please refresh the page and try again'
+          };
+          store.paymentError = noSerialize(error);
+          return { success: false, error: error.message };
         }
 
         if (store.isProcessing) {
@@ -60,43 +73,131 @@ export default component$(() => {
 
         store.isProcessing = true;
         store.error = '';
+        store.paymentError = noSerialize(null);
         store.debugInfo = 'Processing payment...';
 
         try {
-          // Get the order code for the return URL
-          const orderCode = activeOrder?.code || 'unknown';
-          console.log('[StripePayment] Using order code for confirmation:', orderCode);
-
-          // CRITICAL FIX: Use stripe.confirmPayment() instead of addPaymentToOrderMutation
-          console.log('[StripePayment] Calling stripe.confirmPayment()...');
+          // Step 1: Confirm payment with Stripe (without redirect)
+          console.log('[StripePayment] Confirming payment with Stripe...');
           
-          const { error: confirmError } = await store.resolvedStripe.confirmPayment({
+          const { error: confirmError, paymentIntent } = await store.resolvedStripe.confirmPayment({
             elements: store.stripeElements,
+            redirect: 'if_required',
             confirmParams: {
-              return_url: `${window.location.origin}/checkout/confirmation/${orderCode}`,
+              return_url: `${window.location.origin}/checkout/confirmation/${activeOrder?.code || 'unknown'}`,
             },
           });
 
           if (confirmError) {
             console.error('[StripePayment] Payment confirmation failed:', confirmError);
-            store.error = confirmError.message || 'Payment confirmation failed';
-            store.debugInfo = `Confirmation error: ${confirmError.message || 'Unknown error'}`;
-            return { success: false, error: confirmError.message };
+            
+            // Create enhanced error object
+            const stripeKey = await getStripePublishableKeyQuery();
+            const stripeService = new StripePaymentService(stripeKey, '/shop-api', $(() => ({})));
+            const errorMessage = stripeService.getErrorMessage(confirmError, 'CONFIRM_PAYMENT');
+            const isRetryable = stripeService.isErrorRetryable(confirmError, 'CONFIRM_PAYMENT');
+            
+            const paymentError: PaymentError = {
+              message: errorMessage,
+              isRetryable,
+              category: 'stripe',
+              severity: confirmError.type === 'card_error' ? 'medium' : 'high',
+              userAction: confirmError.type === 'card_error' ? 
+                'Please check your payment information and try again' : 
+                'Please try again or contact support'
+            };
+            
+            store.paymentError = noSerialize(paymentError);
+            store.error = errorMessage;
+            store.debugInfo = `Confirmation error: ${errorMessage}`;
+            return { success: false, error: errorMessage, paymentError };
           }
 
-          // If we reach here without error, the payment was successful
-          // Stripe will redirect to the return_url automatically
-          console.log('[StripePayment] Payment confirmed successfully, redirecting...');
-          store.debugInfo = 'Payment confirmed! Redirecting...';
-          
-          return { success: true, orderCode };
+          if (!paymentIntent || paymentIntent.status !== 'succeeded') {
+            const errorMsg = `Payment not completed. Status: ${paymentIntent?.status || 'unknown'}`;
+            console.error('[StripePayment]', errorMsg);
+            
+            const paymentError: PaymentError = {
+              message: errorMsg,
+              isRetryable: paymentIntent?.status === 'processing',
+              category: 'stripe',
+              severity: 'medium',
+              userAction: paymentIntent?.status === 'processing' ? 
+                'Please wait a moment and try again' : 
+                'Please try again or use a different payment method'
+            };
+            
+            store.paymentError = noSerialize(paymentError);
+            store.error = errorMsg;
+            store.debugInfo = errorMsg;
+            return { success: false, error: errorMsg, paymentError };
+          }
+
+          console.log('[StripePayment] Payment confirmed with Stripe, now settling...');
+          store.debugInfo = 'Payment confirmed, settling with backend...';
+
+          // Step 2: Settle payment with backend using enhanced retry mechanism
+          const stripeKey = await getStripePublishableKeyQuery();
+          const stripeService = new StripePaymentService(
+            stripeKey,
+            '/shop-api',
+            $(() => ({}))
+          );
+
+          // Attempt settlement with enhanced retry mechanism
+          const settlementResult = await stripeService.retrySettlement(paymentIntent.id, store.maxRetries, 1000);
+
+          if (settlementResult.success) {
+            console.log('[StripePayment] Payment settled successfully');
+            store.debugInfo = 'Payment completed successfully!';
+            store.retryCount = 0; // Reset retry count on success
+            return { 
+              success: true, 
+              orderCode: settlementResult.orderCode || activeOrder?.code,
+              settlement: settlementResult
+            };
+          } else {
+            console.error('[StripePayment] Settlement failed:', settlementResult.error);
+            
+            // Use enhanced error details if available
+            const paymentError = settlementResult.errorDetails || {
+              message: settlementResult.error || 'Payment settlement failed',
+              isRetryable: settlementResult.isRetryable || false,
+              category: 'system' as const,
+              severity: 'medium' as const,
+              userAction: 'Please try again or contact support if the problem persists'
+            };
+            
+            store.paymentError = noSerialize(paymentError);
+            store.error = paymentError.message;
+            store.debugInfo = `Settlement error: ${paymentError.message}`;
+            store.retryCount = settlementResult.attempts || 0;
+            
+            return { 
+              success: false, 
+              error: paymentError.message, 
+              paymentError,
+              canRetry: paymentError.isRetryable && store.retryCount < store.maxRetries
+            };
+          }
 
         } catch (error) {
-          console.error('[StripePayment] Payment confirmation error:', error);
+          console.error('[StripePayment] Payment process error:', error);
+          
           const errorMessage = error instanceof Error ? error.message : 'Payment failed';
+          const paymentError: PaymentError = {
+            message: errorMessage,
+            isRetryable: true,
+            category: 'system',
+            severity: 'high',
+            userAction: 'Please try again or contact support if the problem persists'
+          };
+          
+          store.paymentError = noSerialize(paymentError);
           store.error = errorMessage;
           store.debugInfo = `Error: ${errorMessage}`;
-          return { success: false, error: errorMessage };
+          
+          return { success: false, error: errorMessage, paymentError };
         } finally {
           store.isProcessing = false;
         }
@@ -125,8 +226,28 @@ export default component$(() => {
         }
       };
 
+      // Expose retry function
+      (window as any).retryStripePayment = async (activeOrder?: any) => {
+        if (store.retryCount >= store.maxRetries) {
+          console.log('[StripePayment] Maximum retry attempts reached');
+          return { success: false, error: 'Maximum retry attempts reached' };
+        }
+        
+        store.retryCount++;
+        console.log(`[StripePayment] Retry attempt ${store.retryCount}/${store.maxRetries}`);
+        
+        return await (window as any).confirmStripePreOrderPayment(activeOrder);
+      };
+
+      // Expose error dismissal function
+      (window as any).dismissStripePaymentError = () => {
+        store.paymentError = noSerialize(null);
+        store.error = '';
+      };
+
       console.log('[StripePayment] Window functions set up successfully');
       console.log('[StripePayment] confirmStripePreOrderPayment available:', typeof (window as any).confirmStripePreOrderPayment);
+      console.log('[StripePayment] retryStripePayment available:', typeof (window as any).retryStripePayment);
     }
   });
 
@@ -245,12 +366,37 @@ export default component$(() => {
     }
   });
 
+  // Handler functions for error display
+  const handleRetry = $(() => {
+    if (typeof window !== 'undefined' && (window as any).retryStripePayment) {
+      (window as any).retryStripePayment();
+    }
+  });
+
+  const handleDismissError = $(() => {
+    if (typeof window !== 'undefined' && (window as any).dismissStripePaymentError) {
+      (window as any).dismissStripePaymentError();
+    }
+  });
+
   return (
     <div class="w-full max-w-full">
       <div class="payment-tabs-container relative">
         <div id="payment-form" class="mb-8 w-full max-w-full"></div>
       </div>
-      {store.error !== '' && (
+      
+      {/* Enhanced error display */}
+      <PaymentErrorDisplay
+        error={store.paymentError}
+        onRetry={handleRetry}
+        onDismiss={handleDismissError}
+        showRetryButton={true}
+        autoRetryCountdown={store.paymentError?.isRetryable && store.retryCount < store.maxRetries ? 
+          (store.paymentError.retryDelayMs ? Math.ceil(store.paymentError.retryDelayMs / 1000) : 0) : 0}
+      />
+      
+      {/* Fallback error display for non-enhanced errors */}
+      {store.error !== '' && !store.paymentError && (
         <div class="rounded-md bg-red-50 p-4 mb-8">
           <div class="flex">
             <div class="flex-shrink-0">
@@ -261,6 +407,14 @@ export default component$(() => {
               <p class="text-sm text-red-700 mt-2">{store.error}</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Debug info for development */}
+      {store.debugInfo && process.env.NODE_ENV === 'development' && (
+        <div class="mt-4 p-2 bg-gray-100 rounded text-xs text-gray-600">
+          Debug: {store.debugInfo}
+          {store.retryCount > 0 && ` | Retries: ${store.retryCount}/${store.maxRetries}`}
         </div>
       )}
     </div>
