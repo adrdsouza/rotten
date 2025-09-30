@@ -328,7 +328,7 @@ export default component$(() => {
 			return;
 		}
 
-		// Initialize Stripe Elements
+		// Initialize Stripe Elements 
 		try {
 			store.debugInfo = 'Loading Stripe...';
 			const stripe = await stripePromise;
