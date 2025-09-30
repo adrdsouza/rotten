@@ -69,22 +69,73 @@ export default component$(() => {
 		debugInfo: 'Initializing...',
 	});
 
-	// Function to refresh payment element after errors
-	const refreshPaymentElement = $(() => {
-		console.log('[StripePayment] Refreshing payment element to clear cached state...');
-		if (store.paymentElement && store.stripeElements) {
-			try {
-				// Update the payment element to refresh its internal state
-				// This clears any cached validation errors from previous submissions
-				store.paymentElement.update({
-					// Force a refresh by updating with current options
-					layout: 'tabs',
-					paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal']
-				});
-				console.log('[StripePayment] Payment element refreshed successfully');
-			} catch (updateError) {
-				console.warn('[StripePayment] Failed to refresh payment element:', updateError);
+	// Function to completely recreate payment element after errors
+	const recreatePaymentElement = $(async () => {
+		console.log('[StripePayment] Recreating payment element to clear cached validation state...');
+
+		if (!store.resolvedStripe || !store.stripeElements) {
+			console.warn('[StripePayment] Cannot recreate element - Stripe not initialized');
+			return;
+		}
+
+		try {
+			// 1. Destroy the existing payment element if it exists
+			if (store.paymentElement) {
+				console.log('[StripePayment] Destroying existing payment element...');
+				try {
+					store.paymentElement.destroy();
+				} catch (destroyError) {
+					console.warn('[StripePayment] Error destroying element:', destroyError);
+				}
 			}
+
+			// 2. Create a completely new payment element
+			console.log('[StripePayment] Creating new payment element...');
+			const newPaymentElement = store.stripeElements.create('payment', {
+				layout: 'tabs',
+				paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'],
+				defaultValues: {
+					billingDetails: {
+						name: '',
+						email: '',
+					}
+				}
+			});
+
+			// 3. Store the new element reference
+			store.paymentElement = noSerialize(newPaymentElement);
+
+			// 4. Mount the new element
+			const mountTarget = document.getElementById('payment-form');
+			if (mountTarget) {
+				// Clear the mount target first
+				mountTarget.innerHTML = '';
+
+				await newPaymentElement.mount('#payment-form');
+				console.log('[StripePayment] New payment element mounted successfully');
+
+				// 5. Re-attach event listeners
+				newPaymentElement.on('ready', () => {
+					console.log('[StripePayment] New payment element is ready');
+					store.debugInfo = 'Payment Element recreated and ready!';
+				});
+
+				newPaymentElement.on('change', (event: any) => {
+					if (event.error) {
+						store.error = event.error.message || 'Payment validation error';
+						store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
+					} else {
+						store.error = '';
+						store.debugInfo = 'Payment form is valid and ready!';
+					}
+				});
+
+			} else {
+				console.error('[StripePayment] Mount target #payment-form not found');
+			}
+
+		} catch (recreateError) {
+			console.error('[StripePayment] Failed to recreate payment element:', recreateError);
 		}
 	});
 
@@ -99,9 +150,9 @@ export default component$(() => {
 
 				if (submitError) {
 					console.error('[StripePayment] Elements submit failed:', submitError);
-					// 🎯 CRITICAL FIX: Refresh payment element after validation error
-					// This clears Stripe's internal cached state that causes subsequent valid submissions to fail
-					await refreshPaymentElement();
+					// 🎯 CRITICAL FIX: Recreate payment element after validation error
+					// This completely clears Stripe's internal cached state that causes subsequent valid submissions to fail
+					await recreatePaymentElement();
 					throw new Error(submitError?.message || 'Form validation failed');
 				}
 
@@ -161,8 +212,8 @@ export default component$(() => {
 
 					if (submitError) {
 						logAndStore('[StripePayment] Elements submit failed:', submitError);
-						// 🎯 CRITICAL FIX: Refresh payment element after validation error
-						await refreshPaymentElement();
+						// 🎯 CRITICAL FIX: Recreate payment element after validation error
+						await recreatePaymentElement();
 						throw new Error(submitError?.message || 'Form validation failed');
 					}
 
@@ -195,8 +246,8 @@ export default component$(() => {
 						logAndStore('[StripePayment] Payment confirmation failed:', error);
 						store.error = error?.message || 'Payment confirmation failed';
 						store.isProcessing = false;
-						// 🎯 CRITICAL FIX: Refresh payment element after payment confirmation error
-						await refreshPaymentElement();
+						// 🎯 CRITICAL FIX: Recreate payment element after payment confirmation error
+						await recreatePaymentElement();
 						return {
 							success: false,
 							error: error?.message || 'Payment confirmation failed'
@@ -290,8 +341,8 @@ export default component$(() => {
 					store.error = error instanceof Error ? error.message : 'Payment failed';
 					store.isProcessing = false;
 
-					// 🎯 CRITICAL FIX: Refresh payment element after any payment error
-					await refreshPaymentElement();
+					// 🎯 CRITICAL FIX: Recreate payment element after any payment error
+					await recreatePaymentElement();
 
 					// 🚨 CRITICAL FIX: Don't throw error - let UI recover for retry
 					// Instead, return error result so parent can handle it
@@ -431,9 +482,8 @@ export default component$(() => {
 					if (event.error) {
 						store.error = event.error.message || 'Payment validation error';
 						store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
-						// 🎯 CRITICAL FIX: Refresh payment element when validation errors occur
-						// This ensures the element clears its cached state for the next attempt
-						setTimeout(() => refreshPaymentElement(), 100);
+						// Note: We don't recreate element on change events as it would be too disruptive
+						// Element recreation happens on submit errors instead
 					} else {
 						store.error = '';
 						store.debugInfo = 'Payment form is valid and ready!';
