@@ -15,7 +15,7 @@ import LoginModal from '~/components/auth/LoginModal';
 import MenuIcon from '../icons/MenuIcon';
 import ShoppingBagIcon from '../icons/ShoppingBagIcon';
 import UserIcon from '../icons/UserIcon';
-
+ 
 export default component$(() => {
 	const appState = useContext(APP_STATE);
 	const location = useLocation();
