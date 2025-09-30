@@ -133,13 +133,13 @@ export default component$(() => {
 
 					// Submit elements first (required by newer Stripe API)
 					logAndStore('[StripePayment] Submitting Stripe Elements...');
-					console.log('[StripePayment] Submitting Stripe Elements...:',{ element:store.stripeElements});
-					// const { error: submitError } = await store.stripeElements?.submit() || { error: new Error('Elements not initialized') };
+					console.log('[StripePayment] Submitting Stripe Elements--:',{ element:store.stripeElements});
+					const { error: submitError } = await store.stripeElements?.submit() || { error: new Error('Elements not initialized') };
 
-					// if (submitError) {
-					// 	logAndStore('[StripePayment] Elements submit failed:', submitError);
-					// 	throw new Error(submitError?.message || 'Form validation failed');
-					// }
+					if (submitError) {
+						logAndStore('[StripePayment] Elements submit failed:', submitError);
+						throw new Error(submitError?.message || 'Form validation failed');
+					}
 
 					logAndStore('[StripePayment] Elements submitted successfully');
 
