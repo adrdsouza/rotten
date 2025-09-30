@@ -27,7 +27,7 @@ export default component$(() => {
 	});
 
 	// Handle payment settlement for redirect flows
-	const handlePaymentSettlement = $(async (paymentIntentId: string, orderCode: string) => {
+	const handlePaymentSettlement = $(async (paymentIntentId: string, _orderCode: string) => {
 		try {
 			console.log('[Confirmation] Attempting to settle payment for PaymentIntent:', paymentIntentId);
 			
@@ -91,7 +91,7 @@ export default component$(() => {
 					// NOTE: Settlement should have been handled by the payment flow
 					// If we reach here via redirect, we may need to settle the payment
 					// Check if payment needs settlement and handle it
-					await handlePaymentSettlement(paymentIntentId, orderCode);
+					await handlePaymentSettlement(paymentIntentId, code);
 
 					// 🎯 BACKUP: Clear the local cart after successful payment verification
 					// This is a backup mechanism for Stripe redirect flows

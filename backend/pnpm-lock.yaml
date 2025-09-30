@@ -2453,16 +2453,19 @@ packages:
   '@vendure/asset-server-plugin@3.4.2':
     resolution: {integrity: sha512-yQVtrLsnhDldlS2KktAlOq3GHGYjK4n0UVPAry6WDNgVLAiS3BVAHqe5CUpkwfHeZHWFLO+gw58xUbzADXUHKg==}
 
-  '@vendure/cli@3.4.0-minor-202506250934':
-    resolution: {integrity: sha512-HoU85TUHC0MSc96F+AvF+ix+wYo5/OTMGTzcSO4P42fo1pezKPZj15JV4YBWrqE9S6OHE5aA/GsT378sUKgOPg==}
-    hasBin: true
-
   '@vendure/cli@3.4.2':
     resolution: {integrity: sha512-wD8PLv9njLaIHmHIOWNuSKkGpw3103300k/++RJmJXFw69sQSStFrkHfvLs4IJCWf4ikCUaaCTFiAV9kLrTyIw==}
     hasBin: true
 
+  '@vendure/cli@3.5.0-minor-202509261210':
+    resolution: {integrity: sha512-LuuJ14lJ2RYHEbEfKEKNT7eJsYotiHDIqVvOon8ZZMPb2+kXGP//yqNVzvFObGEfCLhhQvAwPLAJZLcqJaiqEw==}
+    hasBin: true
+
   '@vendure/common@3.4.2':
     resolution: {integrity: sha512-QqO77z9UnZKwNwyQU/S9K5szDbaTW8XxkjMpBKpBxFcnzD4ynBbx92tQ8HWW0/xo5dr9QZ88a45D6OKuL2ZSgw==}
+
+  '@vendure/common@3.5.0-minor-202509261210':
+    resolution: {integrity: sha512-u/RWeLqbiYnpaHQvwWbgyghVIxHX1E1QGqdGefhtdAzyVAp8CKmjv1bX4fY087ZPB6naslpMCKo0DzGZUCigoQ==}
 
   '@vendure/core@3.4.2':
     resolution: {integrity: sha512-s0kbX32IpwrU4tf1Z9Gq3lTQaMRUc+JAbl75TeAtIkIkmxyhl0hsdVL2xaTDH0zIwkkLXnNbj1UaXV2fqp4G9g==}
@@ -9086,24 +9089,6 @@ snapshots:
       fs-extra: 11.3.0
       sharp: 0.33.5
 
-  '@vendure/cli@3.4.0-minor-202506250934(@types/node@24.3.3)(typescript@5.9.2)':
-    dependencies:
-      '@clack/prompts': 0.7.0
-      '@vendure/common': 3.4.2
-      change-case: 4.1.2
-      commander: 11.1.0
-      dotenv: 16.6.1
-      fs-extra: 11.3.0
-      picocolors: 1.1.1
-      ts-morph: 21.0.1
-      ts-node: 10.9.2(@types/node@24.3.3)(typescript@5.9.2)
-      tsconfig-paths: 4.2.0
-    transitivePeerDependencies:
-      - '@swc/core'
-      - '@swc/wasm'
-      - '@types/node'
-      - typescript
-
   '@vendure/cli@3.4.2(@types/node@24.3.3)(typescript@5.9.2)':
     dependencies:
       '@clack/prompts': 0.7.0
@@ -9123,7 +9108,28 @@ snapshots:
       - '@types/node'
       - typescript
 
+  '@vendure/cli@3.5.0-minor-202509261210(@types/node@24.3.3)(typescript@5.9.2)':
+    dependencies:
+      '@clack/prompts': 0.7.0
+      '@vendure/common': 3.5.0-minor-202509261210
+      change-case: 4.1.2
+      commander: 11.1.0
+      dotenv: 16.6.1
+      fs-extra: 11.3.0
+      picocolors: 1.1.1
+      strip-json-comments: 5.0.3
+      ts-morph: 21.0.1
+      ts-node: 10.9.2(@types/node@24.3.3)(typescript@5.9.2)
+      tsconfig-paths: 4.2.0
+    transitivePeerDependencies:
+      - '@swc/core'
+      - '@swc/wasm'
+      - '@types/node'
+      - typescript
+
   '@vendure/common@3.4.2': {}
+
+  '@vendure/common@3.5.0-minor-202509261210': {}
 
   '@vendure/core@3.4.2(@grpc/grpc-js@1.13.4)(@grpc/proto-loader@0.7.15)(@types/express@5.0.3)(encoding@0.1.13)(ioredis@5.7.0)(pg@8.16.3)(ts-morph@21.0.1)(ts-node@10.9.2(@types/node@24.3.3)(typescript@5.9.2))(typescript@5.9.2)':
     dependencies:
@@ -9242,7 +9248,7 @@ snapshots:
   '@vendure/mcp-server@1.0.4-alpha(@types/node@24.3.3)(typescript@5.9.2)':
     dependencies:
       '@modelcontextprotocol/sdk': 1.15.1
-      '@vendure/cli': 3.4.0-minor-202506250934(@types/node@24.3.3)(typescript@5.9.2)
+      '@vendure/cli': 3.5.0-minor-202509261210(@types/node@24.3.3)(typescript@5.9.2)
       dotenv: 16.6.1
       express: 4.21.2
       zod: 3.25.76

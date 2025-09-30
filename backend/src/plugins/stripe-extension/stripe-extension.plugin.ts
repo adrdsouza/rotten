@@ -8,12 +8,17 @@ import {
     TransactionalConnection,
     Payment,
     Refund,
-    OrderService
+    OrderService,
+    Allow,
+    Permission,
+    Ctx
 } from '@vendure/core';
 import { OnApplicationBootstrap } from '@nestjs/common';
 import { Controller, Post, Body, Headers, Res, HttpStatus } from '@nestjs/common';
+import { Resolver, Mutation, Args } from '@nestjs/graphql';
 import { Response } from 'express';
 import Stripe from 'stripe';
+import gql from 'graphql-tag';
 
 /**
  * Webhook controller for handling Stripe refund events
@@ -47,13 +52,70 @@ class StripeRefundWebhookController {
 }
 
 /**
+ * Resolver to override the official Stripe plugin's createStripePaymentIntent
+ * to work with local cart data instead of requiring an active order
+ */
+@Resolver()
+class StripePreOrderResolver {
+    private stripe: Stripe;
+
+    constructor() {
+        const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+        if (!stripeSecretKey) {
+            throw new Error('STRIPE_SECRET_KEY environment variable is not set');
+        }
+        this.stripe = new Stripe(stripeSecretKey, {
+            apiVersion: '2023-08-16',
+        });
+    }
+
+    @Mutation()
+    @Allow(Permission.Public)
+    async createPreOrderPaymentIntent(
+        @Ctx() ctx: RequestContext,
+        @Args('amount') amount?: number,
+        @Args('currency') currency?: string,
+        @Args('cartUuid') cartUuid?: string
+    ): Promise<string> {
+        const amountToUse = amount || 0;
+        const currencyToUse = currency || 'usd';
+        const cartUuidToUse = cartUuid || '';
+
+        Logger.info(`Creating pre-order PaymentIntent for cart ${cartUuidToUse}: ${amountToUse} ${currencyToUse}`, 'StripePreOrder');
+
+        const paymentIntent = await this.stripe.paymentIntents.create({
+            amount: amountToUse,
+            currency: currencyToUse,
+            automatic_payment_methods: { enabled: true },
+            metadata: {
+                cartUuid: cartUuidToUse,
+                channelToken: ctx.channel.token,
+            },
+        });
+
+        Logger.info(`Pre-order PaymentIntent created: ${paymentIntent.id}`, 'StripePreOrder');
+
+        return paymentIntent.client_secret!;
+    }
+}
+
+/**
  * Plugin to capture Stripe payment method information and handle refund webhooks.
  * This extends the official StripePlugin to capture card details, wallet types, and process refunds.
+ * Also overrides createStripePaymentIntent to work with local cart instead of requiring active order.
  */
 @VendurePlugin({
     imports: [PluginCommonModule],
-    providers: [StripeExtensionPlugin],
+    providers: [StripeExtensionPlugin, StripePreOrderResolver],
     controllers: [StripeRefundWebhookController],
+    shopApiExtensions: {
+        resolvers: [StripePreOrderResolver],
+        schema: gql`
+            extend type Mutation {
+                createPreOrderPaymentIntent(amount: Int, currency: String, cartUuid: String): String!
+            }
+        `,
+    },
     compatibility: '^3.0.0',
 })
 export class StripeExtensionPlugin implements OnApplicationBootstrap {

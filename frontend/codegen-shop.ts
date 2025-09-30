@@ -1,5 +1,5 @@
 import type { CodegenConfig } from '@graphql-codegen/cli';
-import { DEV_API, LOCAL_API, PROD_API } from './src/constants';
+import { DEV_API, LOCAL_API, PROD_API } from './src/constants.js';
 
 let GRAPHQL_API = import.meta.env.IS_DEV
 	? DEV_API

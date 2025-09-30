@@ -1,4 +1,4 @@
-import { component$, noSerialize, useSignal, useStore, useVisibleTask$, $ } from '@qwik.dev/core';
+import { component$, noSerialize, useSignal, useStore, useVisibleTask$, $, useContext } from '@qwik.dev/core';
 import { Stripe, StripeElements, loadStripe } from '@stripe/stripe-js';
 import {
   getStripePublishableKeyQuery
@@ -6,7 +6,8 @@ import {
 import { useLocalCart } from '~/contexts/CartContext';
 import { StripePaymentService } from '~/services/StripePaymentService';
 import { PaymentError } from '~/services/payment-error-handler';
-import PaymentErrorDisplay from './PaymentErrorDisplay';
+import { PaymentErrorDisplay } from './PaymentErrorDisplay';
+import { APP_STATE } from '~/constants';
 
 import XCircleIcon from '../icons/XCircleIcon';
 
@@ -21,18 +22,19 @@ function getStripe(publishableKey: string) {
 
 export default component$(() => {
   const localCart = useLocalCart();
+  const appState = useContext(APP_STATE);
   const rerenderElement = useSignal(0);
-  
+
   // Generate cart UUID for tracking
   const cartUuid = useSignal<string>('');
-  
+
   const store = useStore({
     clientSecret: '',
     paymentIntentId: '',
     resolvedStripe: noSerialize({} as Stripe),
     stripeElements: noSerialize({} as StripeElements),
     error: '',
-    paymentError: noSerialize(null as PaymentError | null),
+    paymentError: null as PaymentError | null,
     isProcessing: false,
     debugInfo: 'Initializing...',
     retryCount: 0,
@@ -62,7 +64,7 @@ export default component$(() => {
             severity: 'high' as const,
             userAction: 'Please refresh the page and try again'
           };
-          store.paymentError = noSerialize(error);
+          store.paymentError = error;
           return { success: false, error: error.message };
         }
 
@@ -73,7 +75,7 @@ export default component$(() => {
 
         store.isProcessing = true;
         store.error = '';
-        store.paymentError = noSerialize(null);
+        store.paymentError = null;
         store.debugInfo = 'Processing payment...';
 
         try {
@@ -107,7 +109,7 @@ export default component$(() => {
                 'Please try again or contact support'
             };
             
-            store.paymentError = noSerialize(paymentError);
+            store.paymentError = paymentError;
             store.error = errorMessage;
             store.debugInfo = `Confirmation error: ${errorMessage}`;
             return { success: false, error: errorMessage, paymentError };
@@ -127,7 +129,7 @@ export default component$(() => {
                 'Please try again or use a different payment method'
             };
             
-            store.paymentError = noSerialize(paymentError);
+            store.paymentError = paymentError;
             store.error = errorMsg;
             store.debugInfo = errorMsg;
             return { success: false, error: errorMsg, paymentError };
@@ -144,8 +146,13 @@ export default component$(() => {
             $(() => ({}))
           );
 
-          // Attempt settlement with enhanced retry mechanism
-          const settlementResult = await stripeService.retrySettlement(paymentIntent.id, store.maxRetries, 1000);
+          // Attempt settlement with enhanced retry mechanism, passing cart UUID
+          const settlementResult = await stripeService.retrySettlement(
+            paymentIntent.id, 
+            store.maxRetries, 
+            1000,
+            cartUuid.value // Pass cart UUID to settlement
+          );
 
           if (settlementResult.success) {
             console.log('[StripePayment] Payment settled successfully');
@@ -168,7 +175,7 @@ export default component$(() => {
               userAction: 'Please try again or contact support if the problem persists'
             };
             
-            store.paymentError = noSerialize(paymentError);
+            store.paymentError = paymentError;
             store.error = paymentError.message;
             store.debugInfo = `Settlement error: ${paymentError.message}`;
             store.retryCount = settlementResult.attempts || 0;
@@ -193,7 +200,7 @@ export default component$(() => {
             userAction: 'Please try again or contact support if the problem persists'
           };
           
-          store.paymentError = noSerialize(paymentError);
+          store.paymentError = paymentError;
           store.error = errorMessage;
           store.debugInfo = `Error: ${errorMessage}`;
           
@@ -241,7 +248,7 @@ export default component$(() => {
 
       // Expose error dismissal function
       (window as any).dismissStripePaymentError = () => {
-        store.paymentError = noSerialize(null);
+        store.paymentError = null;
         store.error = '';
       };
 
@@ -283,14 +290,63 @@ export default component$(() => {
         '/shop-api',
         $(() => ({}))
       );
-      const estimatedTotal = localCart.localCart.subTotal;
-      
+
+      // Calculate total including shipping based on shipping address
+      const subtotal = localCart.localCart.subTotal;
+      const discount = localCart.appliedCoupon?.discountAmount || 0;
+      const subtotalAfterDiscount = subtotal - discount;
+
+      // Calculate shipping based on country code (same logic as CartTotals.tsx)
+      let shipping = 0;
+      if (appState.shippingAddress && appState.shippingAddress.countryCode) {
+        if (localCart.appliedCoupon?.freeShipping) {
+          shipping = 0;
+        } else {
+          const countryCode = appState.shippingAddress.countryCode;
+          if (countryCode === 'US' || countryCode === 'PR') {
+            shipping = subtotalAfterDiscount >= 10000 ? 0 : 800;
+          } else {
+            shipping = 2000;
+          }
+        }
+      }
+
+      const estimatedTotal = subtotalAfterDiscount + shipping;
+
+      console.log('[StripePayment] Payment calculation:', {
+        subtotal,
+        discount,
+        subtotalAfterDiscount,
+        shipping,
+        estimatedTotal,
+        countryCode: appState.shippingAddress?.countryCode
+      });
+
       try {
-        const paymentIntentResult = await stripeService.createPaymentIntent(estimatedTotal, 'usd');
+        const paymentIntentResult = await stripeService.createPaymentIntent(estimatedTotal, 'usd', cartUuid.value);
         console.log('[StripePayment] PaymentIntent created:', paymentIntentResult);
         
         store.clientSecret = paymentIntentResult.clientSecret;
         store.paymentIntentId = paymentIntentResult.paymentIntentId;
+        
+        // Create cart mapping first (for pre-order flow)
+        try {
+          await stripeService.createCartMapping(cartUuid.value);
+          console.log('Cart mapping created successfully');
+        } catch (error) {
+          console.warn('Failed to create cart mapping, continuing with payment:', error);
+          // Continue with payment flow even if cart mapping fails
+        }
+        
+        // Update cart mapping with PaymentIntent ID
+        try {
+          await stripeService.updateCartMappingPaymentIntent(cartUuid.value, store.paymentIntentId);
+          console.log('[StripePayment] Cart mapping updated with PaymentIntent ID');
+        } catch (mappingError) {
+          console.warn('[StripePayment] Cart mapping update failed (non-critical):', mappingError);
+          // Don't fail the payment flow if cart mapping fails
+        }
+        
         store.debugInfo = 'PaymentIntent created successfully';
       } catch (paymentIntentError) {
         console.error('[StripePayment] Failed to create PaymentIntent:', paymentIntentError);
@@ -366,19 +422,6 @@ export default component$(() => {
     }
   });
 
-  // Handler functions for error display
-  const handleRetry = $(() => {
-    if (typeof window !== 'undefined' && (window as any).retryStripePayment) {
-      (window as any).retryStripePayment();
-    }
-  });
-
-  const handleDismissError = $(() => {
-    if (typeof window !== 'undefined' && (window as any).dismissStripePaymentError) {
-      (window as any).dismissStripePaymentError();
-    }
-  });
-
   return (
     <div class="w-full max-w-full">
       <div class="payment-tabs-container relative">
@@ -386,14 +429,12 @@ export default component$(() => {
       </div>
       
       {/* Enhanced error display */}
-      <PaymentErrorDisplay
-        error={store.paymentError}
-        onRetry={handleRetry}
-        onDismiss={handleDismissError}
-        showRetryButton={true}
-        autoRetryCountdown={store.paymentError?.isRetryable && store.retryCount < store.maxRetries ? 
-          (store.paymentError.retryDelayMs ? Math.ceil(store.paymentError.retryDelayMs / 1000) : 0) : 0}
-      />
+      {store.paymentError && (
+        <PaymentErrorDisplay
+          error={store.paymentError}
+          isRetrying={store.isProcessing}
+        />
+      )}
       
       {/* Fallback error display for non-enhanced errors */}
       {store.error !== '' && !store.paymentError && (

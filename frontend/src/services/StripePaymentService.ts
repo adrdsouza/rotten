@@ -1,5 +1,5 @@
 import { loadStripe, Stripe, StripeElements, PaymentIntent } from '@stripe/stripe-js';
-import { PaymentErrorHandler } from './payment-error-handler';
+import { PaymentErrorHandler, PaymentError } from './payment-error-handler';
 import { QRL } from '@builder.io/qwik';
 
 export interface PaymentIntentResult {
@@ -81,32 +81,37 @@ export class StripePaymentService {
 
   /**
    * Step 1: Create PaymentIntent for estimated total
-   * UPDATED: Now handles PaymentIntentResult object response
+   * UPDATED: Now passes amount, currency, and cartUuid to work with local cart
    */
-  async createPaymentIntent(estimatedTotal: number, currency = 'usd'): Promise<PaymentIntentResult> {
+  async createPaymentIntent(estimatedTotal: number, currency = 'usd', cartUuid?: string): Promise<PaymentIntentResult> {
     await this.ensureInitialized();
 
     try {
-      console.log(`Creating PaymentIntent for ${estimatedTotal} ${currency}`);
+      const amountInCents = Math.round(estimatedTotal);
+      console.log(`Creating PaymentIntent for ${amountInCents} ${currency}, cartUuid: ${cartUuid}`);
 
       const response = await this.makeGraphQLRequest(`
-        mutation CreateStripePaymentIntent($estimatedTotal: Int!, $currency: String!) {
-          createStripePaymentIntent(estimatedTotal: $estimatedTotal, currency: $currency) {
-            clientSecret
-            paymentIntentId
-            amount
-            currency
-          }
+        mutation CreatePreOrderPaymentIntent($amount: Int, $currency: String, $cartUuid: String) {
+          createPreOrderPaymentIntent(amount: $amount, currency: $currency, cartUuid: $cartUuid)
         }
       `, {
-        estimatedTotal: Math.round(estimatedTotal), // Ensure integer
-        currency
+        amount: amountInCents,
+        currency,
+        cartUuid
       });
 
-      const result = response.data.createStripePaymentIntent;
-      console.log(`PaymentIntent created: ${result.paymentIntentId}`);
+      const clientSecret = response.data.createPreOrderPaymentIntent;
+      const paymentIntentId = this.extractPaymentIntentId(clientSecret);
 
-      return result;
+      console.log(`PaymentIntent created: ${paymentIntentId}`);
+
+      // Return the expected PaymentIntentResult format
+      return {
+        clientSecret,
+        paymentIntentId,
+        amount: amountInCents,
+        currency
+      };
     } catch (error) {
       console.error('Failed to create PaymentIntent:', error);
       throw this.errorHandler.handlePaymentError(error, 'CREATE_PAYMENT_INTENT');
@@ -231,15 +236,15 @@ export class StripePaymentService {
 
   /**
    * Step 3b: Settle payment after Stripe confirmation
-   * UPDATED: Now handles SettlementResult object response
+   * UPDATED: Now includes cart UUID for cart mapping system
    */
-  async settlePayment(paymentIntentId: string): Promise<SettlementResult> {
+  async settlePayment(paymentIntentId: string, cartUuid?: string): Promise<SettlementResult> {
     try {
-      console.log(`Settling payment for PaymentIntent ${paymentIntentId}`);
+      console.log(`Settling payment for PaymentIntent ${paymentIntentId}${cartUuid ? ` with cart UUID ${cartUuid}` : ''}`);
 
       const response = await this.makeGraphQLRequest(`
-        mutation SettleStripePayment($paymentIntentId: String!) {
-          settleStripePayment(paymentIntentId: $paymentIntentId) {
+        mutation SettleStripePayment($paymentIntentId: String!, $cartUuid: String) {
+          settleStripePayment(paymentIntentId: $paymentIntentId, cartUuid: $cartUuid) {
             success
             orderId
             orderCode
@@ -248,7 +253,8 @@ export class StripePaymentService {
           }
         }
       `, {
-        paymentIntentId
+        paymentIntentId,
+        cartUuid
       });
 
       const result = response.data.settleStripePayment;
@@ -280,6 +286,68 @@ export class StripePaymentService {
         isRetryable: handledError.isRetryable,
         retryDelayMs: handledError.retryDelayMs
       };
+    }
+  }
+
+  /**
+   * Create cart mapping to link cart UUID with order
+   */
+  /**
+   * Create cart mapping for pre-order flow (without order initially)
+   */
+  async createCartMapping(cartUuid: string): Promise<boolean> {
+    try {
+      console.log(`Creating cart mapping for cart ${cartUuid}`);
+
+      const response = await this.makeGraphQLRequest(`
+        mutation CreateCartMapping($cartUuid: String!) {
+          createCartMapping(cartUuid: $cartUuid) {
+            id
+            cartUuid
+            createdAt
+          }
+        }
+      `, {
+        cartUuid
+      });
+
+      const result = response.data.createCartMapping;
+      console.log('Cart mapping created successfully:', result);
+      return true;
+
+    } catch (error) {
+      console.error('Failed to create cart mapping:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Update cart mapping with payment intent ID
+   */
+  async updateCartMappingPaymentIntent(cartUuid: string, paymentIntentId: string): Promise<boolean> {
+    try {
+      console.log(`Updating cart mapping ${cartUuid} with payment intent ${paymentIntentId}`);
+
+      const response = await this.makeGraphQLRequest(`
+        mutation UpdateCartMappingPaymentIntent($cartUuid: String!, $paymentIntentId: String!) {
+          updateCartMappingPaymentIntent(cartUuid: $cartUuid, paymentIntentId: $paymentIntentId) {
+            id
+            cartUuid
+            paymentIntentId
+          }
+        }
+      `, {
+        cartUuid,
+        paymentIntentId
+      });
+
+      const result = response.data.updateCartMappingPaymentIntent;
+      console.log('Cart mapping updated successfully:', result);
+      return true;
+
+    } catch (error) {
+      console.error('Failed to update cart mapping:', error);
+      return false;
     }
   }
 
@@ -373,71 +441,73 @@ export class StripePaymentService {
   async retrySettlement(
     paymentIntentId: string,
     maxRetries = 3,
-    baseDelayMs = 1000
+    baseDelayMs = 1000,
+    cartUuid?: string
   ): Promise<SettlementResult & { attempts: number; errorDetails?: PaymentError }> {
-    let lastError: SettlementResult = { success: false, error: 'Settlement failed after retries' };
+    let lastError: any;
+    let attempts = 0;
     let errorDetails: PaymentError | undefined;
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    for (let i = 0; i < maxRetries; i++) {
+      attempts = i + 1;
+      console.log(`Settlement attempt ${attempts}/${maxRetries} for PaymentIntent ${paymentIntentId}`);
+
       try {
-        console.log(`Settlement attempt ${attempt}/${maxRetries} for ${paymentIntentId}`);
-        
-        const result = await this.settlePayment(paymentIntentId);
+        const result = await this.settlePayment(paymentIntentId, cartUuid);
         
         if (result.success) {
-          console.log(`Settlement succeeded on attempt ${attempt}`);
-          return { ...result, attempts: attempt };
+          console.log(`Settlement succeeded on attempt ${attempts}`);
+          return { ...result, attempts };
         }
 
-        // Handle error with enhanced error handler
-        const error = new Error(result.error || 'Settlement failed');
-        errorDetails = this.errorHandler.handlePaymentError(error, 'SETTLE_PAYMENT');
-
-        if (!result.isRetryable || !errorDetails.isRetryable) {
-          console.log(`Settlement failed with non-retryable error: ${result.error}`);
-          return { ...result, attempts: attempt, errorDetails };
-        }
-
-        lastError = result;
-
-        // Use error-specific retry delay if available
-        if (attempt < maxRetries) {
-          const delay = Math.min(
-            errorDetails.retryDelayMs || baseDelayMs * Math.pow(2, attempt - 1), 
-            10000
-          );
-          console.log(`Waiting ${delay}ms before retry (${errorDetails.category} error)...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-
-      } catch (error: any) {
-        errorDetails = this.errorHandler.handlePaymentError(error, 'SETTLE_PAYMENT');
-        lastError = { 
-          success: false, 
-          error: errorDetails.message,
-          isRetryable: errorDetails.isRetryable,
-          retryDelayMs: errorDetails.retryDelayMs
-        };
+        lastError = result.error;
         
-        if (attempt < maxRetries && errorDetails.isRetryable) {
-          const delay = Math.min(
-            errorDetails.retryDelayMs || baseDelayMs * Math.pow(2, attempt - 1), 
-            10000
-          );
-          console.log(`Waiting ${delay}ms before retry...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+        // Create enhanced error details
+        errorDetails = {
+          message: result.error || 'Settlement failed',
+          isRetryable: result.isRetryable !== false, // Default to retryable unless explicitly false
+          category: 'system',
+          severity: 'medium',
+          userAction: result.isRetryable !== false ? 
+            'Please wait a moment and try again' : 
+            'Please contact support if the problem persists'
+        };
+
+        // If not retryable, break early
+        if (result.isRetryable === false) {
+          console.log(`Settlement not retryable, stopping after attempt ${attempts}`);
+          break;
         }
+
+      } catch (error) {
+        console.error(`Settlement attempt ${attempts} failed:`, error);
+        lastError = error;
+        
+        errorDetails = {
+          message: error instanceof Error ? error.message : 'Settlement failed',
+          isRetryable: true,
+          category: 'system',
+          severity: 'high',
+          userAction: 'Please try again or contact support if the problem persists'
+        };
+      }
+
+      // Wait before next attempt (except for last attempt)
+      if (i < maxRetries - 1) {
+        const delay = baseDelayMs * Math.pow(2, i); // Exponential backoff
+        console.log(`Waiting ${delay}ms before next attempt...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
 
-    console.error(`Settlement failed after ${maxRetries} attempts`);
-    return { 
-      ...lastError, 
-      attempts: maxRetries,
-      errorDetails: errorDetails || this.errorHandler.handlePaymentError(
-        new Error(lastError.error || 'Unknown error'), 
-        'SETTLE_PAYMENT'
-      )
+    console.error(`All ${maxRetries} settlement attempts failed. Last error:`, lastError);
+    
+    return {
+      success: false,
+      error: lastError instanceof Error ? lastError.message : (lastError || 'All settlement attempts failed'),
+      isRetryable: false,
+      attempts,
+      errorDetails
     };
   }
 
@@ -445,18 +515,14 @@ export class StripePaymentService {
    * Get user-friendly error message for display
    */
   getErrorMessage(error: any, context: string = 'PAYMENT'): string {
-    return this.errorHandler.getUserMessage ? 
-      this.errorHandler.getUserMessage(error, context) : 
-      this.errorHandler.handlePaymentError(error, context).message;
+    return this.errorHandler.handlePaymentError(error, context).message;
   }
 
   /**
    * Check if an error is retryable
    */
   isErrorRetryable(error: any, context: string = 'PAYMENT'): boolean {
-    return this.errorHandler.isRetryable ? 
-      this.errorHandler.isRetryable(error, context) : 
-      this.errorHandler.handlePaymentError(error, context).isRetryable;
+    return this.errorHandler.handlePaymentError(error, context).isRetryable;
   }
 
   /**
