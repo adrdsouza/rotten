@@ -69,17 +69,50 @@ export default component$(() => {
 		debugInfo: 'Initializing...',
 	});
 
-	// Function to completely recreate payment element after errors
-	const recreatePaymentElement = $(async () => {
-		console.log('[StripePayment] Recreating payment element to clear cached validation state...');
+	// Function to create a fresh PaymentIntent and Elements
+	const createFreshPaymentIntent = $(async () => {
+		console.log('[StripePayment] Creating fresh PaymentIntent to clear validation state...');
 
-		if (!store.resolvedStripe || !store.stripeElements) {
-			console.warn('[StripePayment] Cannot recreate element - Stripe not initialized');
+		try {
+			// 1. Calculate estimated total from local cart
+			const estimatedTotal = calculateCartTotal(localCart);
+			console.log('[StripePayment] Creating new PaymentIntent with estimated total:', estimatedTotal);
+
+			// 2. Create a brand new PaymentIntent
+			const paymentIntentResult = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');
+			console.log('[StripePayment] New PaymentIntent result:', paymentIntentResult);
+
+			// 3. Update store with new PaymentIntent data
+			store.clientSecret = paymentIntentResult.clientSecret;
+			store.paymentIntentId = extractPaymentIntentId(store.clientSecret);
+			console.log('[StripePayment] New PaymentIntent ID:', store.paymentIntentId);
+
+			return true;
+		} catch (error) {
+			console.error('[StripePayment] Failed to create fresh PaymentIntent:', error);
+			store.error = 'Failed to reset payment form. Please refresh the page.';
+			return false;
+		}
+	});
+
+	// Function to completely recreate payment element and PaymentIntent after errors
+	const recreatePaymentSystem = $(async () => {
+		console.log('[StripePayment] Recreating entire payment system to clear cached validation state...');
+
+		if (!store.resolvedStripe) {
+			console.warn('[StripePayment] Cannot recreate payment system - Stripe not initialized');
 			return;
 		}
 
 		try {
-			// 1. Destroy the existing payment element if it exists
+			// 1. Create a fresh PaymentIntent first
+			const paymentIntentCreated = await createFreshPaymentIntent();
+			if (!paymentIntentCreated) {
+				console.error('[StripePayment] Failed to create fresh PaymentIntent, aborting recreation');
+				return;
+			}
+
+			// 2. Destroy the existing payment element if it exists
 			if (store.paymentElement) {
 				console.log('[StripePayment] Destroying existing payment element...');
 				try {
@@ -89,9 +122,33 @@ export default component$(() => {
 				}
 			}
 
-			// 2. Create a completely new payment element
+			// 3. Create new Elements instance with fresh clientSecret
+			console.log('[StripePayment] Creating new Elements instance with fresh PaymentIntent...');
+			const newElements = store.resolvedStripe.elements({
+				clientSecret: store.clientSecret,
+				locale: 'en',
+				appearance: {
+					theme: 'stripe',
+					variables: {
+						colorPrimary: '#8a6d4a',
+						colorBackground: '#ffffff',
+						colorText: '#374151',
+						colorDanger: '#ef4444',
+						colorSuccess: '#10b981',
+						fontFamily: 'system-ui, -apple-system, sans-serif',
+						spacingUnit: '4px',
+						borderRadius: '6px',
+						fontSizeBase: '16px',
+					}
+				}
+			});
+
+			// 4. Update store with new Elements instance
+			store.stripeElements = noSerialize(newElements);
+
+			// 5. Create a completely new payment element
 			console.log('[StripePayment] Creating new payment element...');
-			const newPaymentElement = store.stripeElements.create('payment', {
+			const newPaymentElement = newElements.create('payment', {
 				layout: 'tabs',
 				paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal'],
 				defaultValues: {
@@ -102,22 +159,22 @@ export default component$(() => {
 				}
 			});
 
-			// 3. Store the new element reference
+			// 6. Store the new element reference
 			store.paymentElement = noSerialize(newPaymentElement);
 
-			// 4. Mount the new element
+			// 7. Mount the new element
 			const mountTarget = document.getElementById('payment-form');
 			if (mountTarget) {
 				// Clear the mount target first
 				mountTarget.innerHTML = '';
 
 				await newPaymentElement.mount('#payment-form');
-				console.log('[StripePayment] New payment element mounted successfully');
+				console.log('[StripePayment] New payment system mounted successfully');
 
-				// 5. Re-attach event listeners
+				// 8. Re-attach event listeners
 				newPaymentElement.on('ready', () => {
-					console.log('[StripePayment] New payment element is ready');
-					store.debugInfo = 'Payment Element recreated and ready!';
+					console.log('[StripePayment] New payment system is ready');
+					store.debugInfo = 'Payment system recreated and ready!';
 				});
 
 				newPaymentElement.on('change', (event: any) => {
@@ -135,7 +192,8 @@ export default component$(() => {
 			}
 
 		} catch (recreateError) {
-			console.error('[StripePayment] Failed to recreate payment element:', recreateError);
+			console.error('[StripePayment] Failed to recreate payment system:', recreateError);
+			store.error = 'Failed to reset payment form. Please refresh the page.';
 		}
 	});
 
@@ -150,9 +208,9 @@ export default component$(() => {
 
 				if (submitError) {
 					console.error('[StripePayment] Elements submit failed:', submitError);
-					// 🎯 CRITICAL FIX: Recreate payment element after validation error
-					// This completely clears Stripe's internal cached state that causes subsequent valid submissions to fail
-					await recreatePaymentElement();
+					// 🎯 CRITICAL FIX: Recreate entire payment system after validation error
+					// This creates a fresh PaymentIntent and Elements to completely clear cached state
+					await recreatePaymentSystem();
 					throw new Error(submitError?.message || 'Form validation failed');
 				}
 
@@ -212,8 +270,8 @@ export default component$(() => {
 
 					if (submitError) {
 						logAndStore('[StripePayment] Elements submit failed:', submitError);
-						// 🎯 CRITICAL FIX: Recreate payment element after validation error
-						await recreatePaymentElement();
+						// 🎯 CRITICAL FIX: Recreate entire payment system after validation error
+						await recreatePaymentSystem();
 						throw new Error(submitError?.message || 'Form validation failed');
 					}
 
@@ -246,8 +304,8 @@ export default component$(() => {
 						logAndStore('[StripePayment] Payment confirmation failed:', error);
 						store.error = error?.message || 'Payment confirmation failed';
 						store.isProcessing = false;
-						// 🎯 CRITICAL FIX: Recreate payment element after payment confirmation error
-						await recreatePaymentElement();
+						// 🎯 CRITICAL FIX: Recreate entire payment system after payment confirmation error
+						await recreatePaymentSystem();
 						return {
 							success: false,
 							error: error?.message || 'Payment confirmation failed'
@@ -341,8 +399,8 @@ export default component$(() => {
 					store.error = error instanceof Error ? error.message : 'Payment failed';
 					store.isProcessing = false;
 
-					// 🎯 CRITICAL FIX: Recreate payment element after any payment error
-					await recreatePaymentElement();
+					// 🎯 CRITICAL FIX: Recreate entire payment system after any payment error
+					await recreatePaymentSystem();
 
 					// 🚨 CRITICAL FIX: Don't throw error - let UI recover for retry
 					// Instead, return error result so parent can handle it
