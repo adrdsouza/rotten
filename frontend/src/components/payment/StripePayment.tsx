@@ -1,4 +1,4 @@
-import { component$, noSerialize, useStore, useVisibleTask$ } from '@qwik.dev/core';
+import { component$, noSerialize, useStore, useVisibleTask$, $ } from '@qwik.dev/core';
 import { useLocation } from '@qwik.dev/router';
 import { Stripe, StripeElements, loadStripe } from '@stripe/stripe-js';
 import {
@@ -63,9 +63,29 @@ export default component$(() => {
 		isPreOrder: true, // Flag to track pre-order state
 		resolvedStripe: noSerialize({} as Stripe),
 		stripeElements: noSerialize({} as StripeElements),
+		paymentElement: noSerialize({} as any), // Store reference to payment element for updates
 		error: '',
 		isProcessing: false,
 		debugInfo: 'Initializing...',
+	});
+
+	// Function to refresh payment element after errors
+	const refreshPaymentElement = $(() => {
+		console.log('[StripePayment] Refreshing payment element to clear cached state...');
+		if (store.paymentElement && store.stripeElements) {
+			try {
+				// Update the payment element to refresh its internal state
+				// This clears any cached validation errors from previous submissions
+				store.paymentElement.update({
+					// Force a refresh by updating with current options
+					layout: 'tabs',
+					paymentMethodOrder: ['card', 'apple_pay', 'google_pay', 'paypal']
+				});
+				console.log('[StripePayment] Payment element refreshed successfully');
+			} catch (updateError) {
+				console.warn('[StripePayment] Failed to refresh payment element:', updateError);
+			}
+		}
 	});
 
 	// Expose both submit and payment confirmation functions to window for checkout flow
@@ -79,6 +99,9 @@ export default component$(() => {
 
 				if (submitError) {
 					console.error('[StripePayment] Elements submit failed:', submitError);
+					// 🎯 CRITICAL FIX: Refresh payment element after validation error
+					// This clears Stripe's internal cached state that causes subsequent valid submissions to fail
+					await refreshPaymentElement();
 					throw new Error(submitError?.message || 'Form validation failed');
 				}
 
@@ -138,6 +161,8 @@ export default component$(() => {
 
 					if (submitError) {
 						logAndStore('[StripePayment] Elements submit failed:', submitError);
+						// 🎯 CRITICAL FIX: Refresh payment element after validation error
+						await refreshPaymentElement();
 						throw new Error(submitError?.message || 'Form validation failed');
 					}
 
@@ -170,6 +195,8 @@ export default component$(() => {
 						logAndStore('[StripePayment] Payment confirmation failed:', error);
 						store.error = error?.message || 'Payment confirmation failed';
 						store.isProcessing = false;
+						// 🎯 CRITICAL FIX: Refresh payment element after payment confirmation error
+						await refreshPaymentElement();
 						return {
 							success: false,
 							error: error?.message || 'Payment confirmation failed'
@@ -262,6 +289,9 @@ export default component$(() => {
 					console.error('[StripePayment] Payment confirmation error:', error);
 					store.error = error instanceof Error ? error.message : 'Payment failed';
 					store.isProcessing = false;
+
+					// 🎯 CRITICAL FIX: Refresh payment element after any payment error
+					await refreshPaymentElement();
 
 					// 🚨 CRITICAL FIX: Don't throw error - let UI recover for retry
 					// Instead, return error result so parent can handle it
@@ -385,6 +415,9 @@ export default component$(() => {
 				}
 			});
 
+			// 🎯 CRITICAL: Store payment element reference for updates
+			store.paymentElement = noSerialize(paymentElement);
+
 			try {
 				await paymentElement.mount('#payment-form');
 				store.debugInfo = 'Payment Element with tabs mounted successfully!';
@@ -398,6 +431,9 @@ export default component$(() => {
 					if (event.error) {
 						store.error = event.error.message || 'Payment validation error';
 						store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
+						// 🎯 CRITICAL FIX: Refresh payment element when validation errors occur
+						// This ensures the element clears its cached state for the next attempt
+						setTimeout(() => refreshPaymentElement(), 100);
 					} else {
 						store.error = '';
 						store.debugInfo = 'Payment form is valid and ready!';
