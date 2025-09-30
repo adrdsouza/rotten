@@ -39,7 +39,7 @@ export const Head = component$(() => {
 
 			{/* Privacy-friendly tracking prevention */}
 			<meta name="referrer" content="strict-origin-when-cross-origin" />
-			<meta httpEquiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https://demo.vendure.io;" />
+			<meta httpEquiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com; connect-src 'self' https://demo.vendure.io https://api.stripe.com; frame-src https://js.stripe.com;" />
 
 			{/* Disable problematic features that trigger privacy warnings */}
 			<meta name="apple-touch-fullscreen" content="yes" />
@@ -57,6 +57,11 @@ export const Head = component$(() => {
 			<link rel="preconnect" href="https://rottenhand.com" crossOrigin="" />
 
 			{/* Payment processors - critical for checkout performance */}
+			<link rel="dns-prefetch" href="https://js.stripe.com" />
+			<link rel="preconnect" href="https://js.stripe.com" crossOrigin="" />
+			<link rel="dns-prefetch" href="https://api.stripe.com" />
+			<link rel="preconnect" href="https://api.stripe.com" crossOrigin="" />
+
 			<link rel="dns-prefetch" href="https://secure.nmi.com" />
 			<link rel="preconnect" href="https://secure.nmi.com" crossOrigin="" />
 
