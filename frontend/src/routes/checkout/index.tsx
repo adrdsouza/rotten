@@ -361,8 +361,10 @@ const CheckoutContent = component$(() => {
                       orderDetails={appState.activeOrder ? {
                         id: appState.activeOrder.id,
                         code: appState.activeOrder.code,
-                        totalWithTax: appState.activeOrder.totalWithTax,
-                        customer: appState.activeOrder.customer
+                        totalWithTax: appState.activeOrder.totalWithTax as number,
+                        customer: appState.activeOrder.customer ? {
+                          emailAddress: appState.activeOrder.customer.emailAddress
+                        } : undefined
                       } : null}
                       onForward$={$(async (orderCode: string) => {
                         paymentComplete.value = true;
