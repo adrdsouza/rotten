@@ -360,9 +360,12 @@ const CheckoutContent = component$(() => {
                       hideButton={true}
                       orderDetails={(() => {
                         console.log('[Checkout] 🔍 Building order details from activeOrder:', appState.activeOrder);
+                        console.log('[Checkout] 🔍 ActiveOrder type:', typeof appState.activeOrder);
+                        console.log('[Checkout] 🔍 ActiveOrder keys:', Object.keys(appState.activeOrder || {}));
 
-                        if (!appState.activeOrder) {
-                          console.log('[Checkout] ❌ No active order found, returning null');
+                        // Check if activeOrder is an empty object
+                        if (!appState.activeOrder || Object.keys(appState.activeOrder).length === 0) {
+                          console.log('[Checkout] ❌ ActiveOrder is empty or null, returning null');
                           return null;
                         }
 
@@ -373,6 +376,17 @@ const CheckoutContent = component$(() => {
                           console.log('[Checkout] 🚢 Current shipping address:', appState.shippingAddress);
                           console.log('[Checkout] 🚢 This error occurs when the backend shipping method is not configured for country:', appState.shippingAddress?.countryCode);
                           console.log('[Checkout] 🚢 SOLUTION: Configure backend shipping method eligibility to include country code:', appState.shippingAddress?.countryCode);
+                          return null;
+                        }
+
+                        // Ensure we have a valid order with required fields
+                        if (!appState.activeOrder.id || !appState.activeOrder.code || !appState.activeOrder.totalWithTax) {
+                          console.log('[Checkout] ❌ ActiveOrder missing required fields:', {
+                            hasId: !!appState.activeOrder.id,
+                            hasCode: !!appState.activeOrder.code,
+                            hasTotal: !!appState.activeOrder.totalWithTax,
+                            activeOrder: appState.activeOrder
+                          });
                           return null;
                         }
 
@@ -387,9 +401,9 @@ const CheckoutContent = component$(() => {
 
                         console.log('[Checkout] ✅ Order details built successfully:', orderDetails);
 
-                        // Validate order details before passing to Payment component
+                        // Final validation before returning
                         if (!orderDetails.id || !orderDetails.code || !orderDetails.totalWithTax) {
-                          console.log('[Checkout] ❌ Invalid order details detected:', {
+                          console.log('[Checkout] ❌ Final validation failed - order details invalid:', {
                             missingId: !orderDetails.id,
                             missingCode: !orderDetails.code,
                             missingTotal: !orderDetails.totalWithTax,
@@ -398,6 +412,7 @@ const CheckoutContent = component$(() => {
                             activeOrderType: typeof appState.activeOrder,
                             activeOrderKeys: Object.keys(appState.activeOrder || {})
                           });
+                          return null;
                         }
 
                         return orderDetails;
