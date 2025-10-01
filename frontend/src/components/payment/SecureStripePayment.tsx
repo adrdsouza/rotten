@@ -8,7 +8,7 @@
  * 4. Follows Stripe's recommended security guidelines
  */
 
-import { component$, noSerialize, useStore, useVisibleTask$, $ } from '@qwik.dev/core';
+import { component$, noSerialize, useStore, useVisibleTask$, $, type QRL } from '@qwik.dev/core';
 import { useLocation } from '@qwik.dev/router';
 import { Stripe, StripeElements, loadStripe } from '@stripe/stripe-js';
 import { Order } from '~/generated/graphql';
@@ -19,8 +19,8 @@ import XCircleIcon from '../icons/XCircleIcon';
 
 interface SecureStripePaymentProps {
   order: Order;
-  onSuccess$: (orderCode: string) => void;
-  onError$: (error: string) => void;
+  onSuccess$: QRL<(orderCode: string) => void>;
+  _onError$?: QRL<(error: string) => void>; // Made optional and prefixed with underscore
 }
 
 let _stripe: Promise<Stripe | null>;
@@ -34,8 +34,8 @@ function getStripe(publishableKey: string) {
 const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = getStripe(stripeKey);
 
-export default component$<SecureStripePaymentProps>(({ order, onSuccess$, onError$ }) => {
-  const baseUrl = useLocation().url.origin;
+export default component$<SecureStripePaymentProps>(({ order, onSuccess$, _onError$ }) => {
+  const _baseUrl = useLocation().url.origin; // Prefixed with underscore since it's not used
 
   const store = useStore({
     clientSecret: '',
@@ -219,7 +219,10 @@ export default component$<SecureStripePaymentProps>(({ order, onSuccess$, onErro
       }
 
       // Redirect to confirmation
-      await onSuccess$(order.code);
+      const handleSuccess = $((orderCode: string) => {
+        onSuccess$(orderCode);
+      });
+      await handleSuccess(order.code);
 
     } catch (error) {
       console.error('[SecureStripePayment] Payment processing error:', error);
