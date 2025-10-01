@@ -78,34 +78,31 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 	// Listen for trigger signal to initiate Stripe payment
 	useVisibleTask$(async ({ track }) => {
 		const triggerValue = track(() => _triggerStripeSignal.value);
-		// 🔒 SECURITY FIX: Track orderDetails to ensure we have the latest value
-		const currentOrderDetails = track(() => orderDetails);
 
 		if (triggerValue > 0) {
 			console.log('[Payment] Stripe trigger signal received:', triggerValue);
-			console.log('[Payment] Current order details at trigger time:', currentOrderDetails);
 
 			// 🔒 SECURITY FIX: Use specific order details passed as props instead of global state
-			if (!currentOrderDetails) {
+			if (!orderDetails) {
 				console.log('[Payment] No order details provided for payment');
 				_onError$('Order information missing. Please try again.');
 				return;
 			}
 
 			// Validate order details
-			if (!currentOrderDetails.id || !currentOrderDetails.code || !currentOrderDetails.totalWithTax) {
-				console.log('[Payment] Invalid order details:', currentOrderDetails);
+			if (!orderDetails.id || !orderDetails.code || !orderDetails.totalWithTax) {
+				console.log('[Payment] Invalid order details:', orderDetails);
 				_onError$('Invalid order information. Please try again.');
 				return;
 			}
 
-			console.log('[Payment] Processing payment for specific order:', currentOrderDetails.code, 'with total:', currentOrderDetails.totalWithTax);
+			console.log('[Payment] Processing payment for specific order:', orderDetails.code, 'with total:', orderDetails.totalWithTax);
 
 			// Call the Stripe payment confirmation function
 			if (typeof window !== 'undefined' && (window as any).confirmStripePreOrderPayment) {
 				try {
 					// 🔒 SECURITY FIX: Pass the specific order details instead of querying global state
-					const paymentResult = await (window as any).confirmStripePreOrderPayment(currentOrderDetails);
+					const paymentResult = await (window as any).confirmStripePreOrderPayment(orderDetails);
 
 					if (paymentResult && !paymentResult.success) {
 						// Payment failed - communicate error back to checkout page
