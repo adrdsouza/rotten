@@ -366,6 +366,16 @@ const CheckoutContent = component$(() => {
                           return null;
                         }
 
+                        // Check for shipping method errors
+                        if ('errorCode' in appState.activeOrder && appState.activeOrder.errorCode === 'INELIGIBLE_SHIPPING_METHOD_ERROR') {
+                          console.log('[Checkout] 🚢 SHIPPING METHOD ERROR detected!');
+                          console.log('[Checkout] 🚢 Error details:', appState.activeOrder);
+                          console.log('[Checkout] 🚢 Current shipping address:', appState.shippingAddress);
+                          console.log('[Checkout] 🚢 This error occurs when the backend shipping method is not configured for country:', appState.shippingAddress?.countryCode);
+                          console.log('[Checkout] 🚢 SOLUTION: Configure backend shipping method eligibility to include country code:', appState.shippingAddress?.countryCode);
+                          return null;
+                        }
+
                         const orderDetails = {
                           id: appState.activeOrder.id,
                           code: appState.activeOrder.code,
@@ -379,11 +389,14 @@ const CheckoutContent = component$(() => {
 
                         // Validate order details before passing to Payment component
                         if (!orderDetails.id || !orderDetails.code || !orderDetails.totalWithTax) {
-                          console.error('[Checkout] ❌ Invalid order details detected:', {
+                          console.log('[Checkout] ❌ Invalid order details detected:', {
                             missingId: !orderDetails.id,
                             missingCode: !orderDetails.code,
                             missingTotal: !orderDetails.totalWithTax,
-                            orderDetails
+                            orderDetails,
+                            shippingAddress: appState.shippingAddress,
+                            activeOrderType: typeof appState.activeOrder,
+                            activeOrderKeys: Object.keys(appState.activeOrder || {})
                           });
                         }
 

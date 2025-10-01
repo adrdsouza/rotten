@@ -47,7 +47,7 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 
 		// Check for invalid order information
 		if (!orderDetails.id || !orderDetails.code || !orderDetails.totalWithTax) {
-			console.error('[Payment] INVALID ORDER INFORMATION DETECTED:', {
+			console.log('[Payment] INVALID ORDER INFORMATION DETECTED:', {
 				missingId: !orderDetails.id,
 				missingCode: !orderDetails.code,
 				missingTotal: !orderDetails.totalWithTax,
@@ -84,14 +84,14 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 
 			// 🔒 SECURITY FIX: Use specific order details passed as props instead of global state
 			if (!orderDetails) {
-				console.error('[Payment] No order details provided for payment');
+				console.log('[Payment] No order details provided for payment');
 				_onError$('Order information missing. Please try again.');
 				return;
 			}
 
 			// Validate order details
 			if (!orderDetails.id || !orderDetails.code || !orderDetails.totalWithTax) {
-				console.error('[Payment] Invalid order details:', orderDetails);
+				console.log('[Payment] Invalid order details:', orderDetails);
 				_onError$('Invalid order information. Please try again.');
 				return;
 			}
@@ -106,7 +106,7 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 
 					if (paymentResult && !paymentResult.success) {
 						// Payment failed - communicate error back to checkout page
-						console.error('[Payment] Stripe payment failed:', paymentResult.error);
+						console.log('[Payment] Stripe payment failed:', paymentResult.error);
 						_onError$(paymentResult.error || 'Payment failed. Please check your payment details and try again.');
 						return;
 					}
@@ -114,11 +114,11 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 					// If we get here, payment was successful (handled by StripePayment component)
 
 				} catch (paymentError) {
-					console.error('[Payment] Stripe payment error:', paymentError);
+					console.log('[Payment] Stripe payment error:', paymentError);
 					_onError$(paymentError instanceof Error ? paymentError.message : 'Payment failed. Please try again.');
 				}
 			} else {
-				console.error('[Payment] confirmStripePreOrderPayment function not found');
+				console.log('[Payment] confirmStripePreOrderPayment function not found');
 				_onError$('Payment system not properly initialized');
 			}
 		}

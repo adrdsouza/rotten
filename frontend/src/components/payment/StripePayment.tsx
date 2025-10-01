@@ -174,8 +174,9 @@ export default component$(() => {
 
 		try {
 			// 1. Calculate estimated total from local cart including shipping
+			console.log('[StripePayment] 🚢 Calculating cart total with shipping address:', appState.shippingAddress);
 			const estimatedTotal = calculateCartTotal(localCart, appState.shippingAddress);
-			console.log('[StripePayment] Creating new PaymentIntent with estimated total (including shipping):', estimatedTotal);
+			console.log('[StripePayment] ✅ Creating new PaymentIntent with estimated total (including shipping):', estimatedTotal);
 
 			// 2. Create a brand new PaymentIntent
 			const paymentIntentResult = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');

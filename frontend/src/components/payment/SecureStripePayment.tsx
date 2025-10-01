@@ -169,7 +169,7 @@ export default component$<SecureStripePaymentProps>(({ order, onSuccess$, _onErr
       });
 
     } catch (error) {
-      console.error('[SecureStripePayment] Initialization error:', error);
+      console.log('[SecureStripePayment] Initialization error:', error);
       store.error = error instanceof Error ? error.message : 'Failed to initialize secure payment';
       store.debugInfo = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
@@ -214,7 +214,7 @@ export default component$<SecureStripePaymentProps>(({ order, onSuccess$, _onErr
           hasTotal: !!order?.totalWithTax,
           orderData: order
         })}`;
-        console.error('[SecureStripePayment] ❌', errorMsg);
+        console.log('[SecureStripePayment] ❌', errorMsg);
         throw new Error(errorMsg);
       }
 
@@ -274,7 +274,7 @@ export default component$<SecureStripePaymentProps>(({ order, onSuccess$, _onErr
       await handleSuccess(order.code);
 
     } catch (error) {
-      console.error('[SecureStripePayment] Payment processing error:', error);
+      console.log('[SecureStripePayment] Payment processing error:', error);
       store.error = error instanceof Error ? error.message : 'Payment processing failed';
       store.debugInfo = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
       store.isProcessing = false;

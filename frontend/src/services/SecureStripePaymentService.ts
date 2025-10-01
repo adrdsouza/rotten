@@ -95,7 +95,7 @@ export class SecureStripePaymentService {
       return result.createSecureStripePaymentIntent;
 
     } catch (error) {
-      console.error('[SecureStripePaymentService] Failed to create secure payment intent:', error);
+      console.log('[SecureStripePaymentService] Failed to create secure payment intent:', error);
       throw new Error(`Failed to create payment intent: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -108,7 +108,7 @@ export class SecureStripePaymentService {
     const errors: string[] = [];
 
     if (!order) {
-      console.error('[SecureStripePaymentService] ❌ Order validation failed: Order is null/undefined');
+      console.log('[SecureStripePaymentService] ❌ Order validation failed: Order is null/undefined');
       errors.push('Order is required');
       return { isValid: false, errors };
     }
@@ -126,7 +126,7 @@ export class SecureStripePaymentService {
     });
 
     if (!order.id || !order.code) {
-      console.error('[SecureStripePaymentService] ❌ Order validation failed: Missing ID or code', {
+      console.log('[SecureStripePaymentService] ❌ Order validation failed: Missing ID or code', {
         id: order.id,
         code: order.code
       });
@@ -134,7 +134,7 @@ export class SecureStripePaymentService {
     }
 
     if (!order.totalWithTax || order.totalWithTax <= 0) {
-      console.error('[SecureStripePaymentService] ❌ Order validation failed: Invalid total amount', {
+      console.log('[SecureStripePaymentService] ❌ Order validation failed: Invalid total amount', {
         totalWithTax: order.totalWithTax
       });
       errors.push('Order must have valid total amount');
@@ -203,7 +203,7 @@ export class SecureStripePaymentService {
       }
 
     } catch (error) {
-      console.error('[SecureStripePaymentService] Error validating payment intent:', error);
+      console.log('[SecureStripePaymentService] Error validating payment intent:', error);
       errors.push(`Payment validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
@@ -280,7 +280,7 @@ export class SecureStripePaymentService {
       };
 
     } catch (error) {
-      console.error('[SecureStripePaymentService] Error processing payment:', error);
+      console.log('[SecureStripePaymentService] Error processing payment:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Payment processing failed'
