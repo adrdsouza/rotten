@@ -104,18 +104,39 @@ export class SecureStripePaymentService {
    * 🔒 Validate order data before payment processing
    */
   private validateOrderForPayment(order: Order): PaymentValidationResult {
+    console.log('[SecureStripePaymentService] 🔍 Starting order validation for:', order);
     const errors: string[] = [];
 
     if (!order) {
+      console.error('[SecureStripePaymentService] ❌ Order validation failed: Order is null/undefined');
       errors.push('Order is required');
       return { isValid: false, errors };
     }
 
+    console.log('[SecureStripePaymentService] 🔍 Order structure analysis:', {
+      id: order.id,
+      code: order.code,
+      totalWithTax: order.totalWithTax,
+      state: order.state,
+      currencyCode: order.currencyCode,
+      customer: order.customer,
+      lines: order.lines?.length || 0,
+      shippingAddress: !!order.shippingAddress,
+      billingAddress: !!order.billingAddress
+    });
+
     if (!order.id || !order.code) {
+      console.error('[SecureStripePaymentService] ❌ Order validation failed: Missing ID or code', {
+        id: order.id,
+        code: order.code
+      });
       errors.push('Order must have valid ID and code');
     }
 
     if (!order.totalWithTax || order.totalWithTax <= 0) {
+      console.error('[SecureStripePaymentService] ❌ Order validation failed: Invalid total amount', {
+        totalWithTax: order.totalWithTax
+      });
       errors.push('Order must have valid total amount');
     }
 

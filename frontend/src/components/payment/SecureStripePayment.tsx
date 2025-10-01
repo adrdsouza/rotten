@@ -37,6 +37,19 @@ const stripePromise = getStripe(stripeKey);
 export default component$<SecureStripePaymentProps>(({ order, onSuccess$, _onError$ }) => {
   const _baseUrl = useLocation().url.origin; // Prefixed with underscore since it's not used
 
+  // 🔍 DEBUG LOGGING: Log order details received
+  console.log('[SecureStripePayment] 🔍 Component initialized with order:', order);
+  console.log('[SecureStripePayment] 🔍 Order validation check:', {
+    hasOrder: !!order,
+    orderId: order?.id,
+    orderCode: order?.code,
+    orderTotal: order?.totalWithTax,
+    orderState: order?.state,
+    orderCurrency: order?.currencyCode,
+    orderLines: order?.lines?.length || 0,
+    orderCustomer: order?.customer?.emailAddress
+  });
+
   const store = useStore({
     clientSecret: '',
     paymentIntentId: '',
@@ -166,12 +179,46 @@ export default component$<SecureStripePaymentProps>(({ order, onSuccess$, _onErr
   const processSecurePayment = $(async () => {
     if (store.isProcessing || !store.isInitialized) return;
 
+    console.log('[SecureStripePayment] 🚀 Starting secure payment processing...');
+    console.log('[SecureStripePayment] 🔍 Order details for payment:', {
+      orderId: order.id,
+      orderCode: order.code,
+      orderTotal: order.totalWithTax,
+      orderState: order.state,
+      orderCurrency: order.currencyCode,
+      orderCustomer: order.customer?.emailAddress,
+      orderLines: order.lines?.length || 0
+    });
+
     store.isProcessing = true;
     store.error = '';
     store.debugInfo = 'Processing secure payment...';
 
     try {
-      console.log('[SecureStripePayment] Processing payment for order:', order.code);
+      console.log('[SecureStripePayment] 🚀 Processing payment for order:', order.code);
+      console.log('[SecureStripePayment] 🔍 Order validation before processing:', {
+        hasOrder: !!order,
+        orderId: order?.id,
+        orderCode: order?.code,
+        orderTotal: order?.totalWithTax,
+        orderState: order?.state,
+        orderCurrency: order?.currencyCode
+      });
+
+      // Pre-validate order before processing
+      if (!order || !order.id || !order.code || !order.totalWithTax) {
+        const errorMsg = `Invalid order information for payment processing: ${JSON.stringify({
+          hasOrder: !!order,
+          hasId: !!order?.id,
+          hasCode: !!order?.code,
+          hasTotal: !!order?.totalWithTax,
+          orderData: order
+        })}`;
+        console.error('[SecureStripePayment] ❌', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      console.log('[SecureStripePayment] ✅ Order validation passed, processing payment...');
 
       // Use the secure payment service to process payment
       const result = await secureStripePaymentService.processSecurePayment(
@@ -179,6 +226,8 @@ export default component$<SecureStripePaymentProps>(({ order, onSuccess$, _onErr
         store.resolvedStripe,
         store.stripeElements
       );
+
+      console.log('[SecureStripePayment] 🔍 Payment service result:', result);
 
       if (!result.success) {
         store.error = result.error || 'Payment processing failed';

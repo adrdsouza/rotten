@@ -358,14 +358,37 @@ const CheckoutContent = component$(() => {
                       triggerStripeSignal={stripeTriggerSignal}
                       selectedPaymentMethod={selectedPaymentMethod}
                       hideButton={true}
-                      orderDetails={appState.activeOrder ? {
-                        id: appState.activeOrder.id,
-                        code: appState.activeOrder.code,
-                        totalWithTax: appState.activeOrder.totalWithTax as number,
-                        customer: appState.activeOrder.customer ? {
-                          emailAddress: appState.activeOrder.customer.emailAddress
-                        } : undefined
-                      } : null}
+                      orderDetails={(() => {
+                        console.log('[Checkout] 🔍 Building order details from activeOrder:', appState.activeOrder);
+
+                        if (!appState.activeOrder) {
+                          console.log('[Checkout] ❌ No active order found, returning null');
+                          return null;
+                        }
+
+                        const orderDetails = {
+                          id: appState.activeOrder.id,
+                          code: appState.activeOrder.code,
+                          totalWithTax: appState.activeOrder.totalWithTax as number,
+                          customer: appState.activeOrder.customer ? {
+                            emailAddress: appState.activeOrder.customer.emailAddress
+                          } : undefined
+                        };
+
+                        console.log('[Checkout] ✅ Order details built successfully:', orderDetails);
+
+                        // Validate order details before passing to Payment component
+                        if (!orderDetails.id || !orderDetails.code || !orderDetails.totalWithTax) {
+                          console.error('[Checkout] ❌ Invalid order details detected:', {
+                            missingId: !orderDetails.id,
+                            missingCode: !orderDetails.code,
+                            missingTotal: !orderDetails.totalWithTax,
+                            orderDetails
+                          });
+                        }
+
+                        return orderDetails;
+                      })()}
                       onForward$={$(async (orderCode: string) => {
                         paymentComplete.value = true;
                         navigate(`/checkout/confirmation/${orderCode}`);

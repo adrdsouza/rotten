@@ -1,4 +1,4 @@
-import { component$, noSerialize, useStore, useVisibleTask$, $ } from '@qwik.dev/core';
+import { component$, noSerialize, useStore, useVisibleTask$, $, useContext } from '@qwik.dev/core';
 import { useLocation } from '@qwik.dev/router';
 import { Stripe, StripeElements, loadStripe } from '@stripe/stripe-js';
 import {
@@ -6,6 +6,7 @@ import {
 	linkPaymentIntentToOrderMutation
 } from '~/providers/shop/checkout/checkout';
 import { useLocalCart } from '~/contexts/CartContext';
+import { APP_STATE } from '~/constants';
 
 import XCircleIcon from '../icons/XCircleIcon';
 
@@ -25,9 +26,35 @@ const extractPaymentIntentId = (clientSecret: string): string => {
 	return clientSecret.split('_secret_')[0];
 };
 
-// Utility function to calculate estimated total from local cart
-const calculateCartTotal = (localCart: any): number => {
+// 🚢 SHIPPING CALCULATION: Calculate shipping fee based on country and order total
+const calculateShippingFee = (countryCode: string, orderTotal: number): number => {
+	console.log('[calculateShippingFee] Calculating shipping for country:', countryCode, 'order total:', orderTotal);
+
+	if (!countryCode) {
+		console.log('[calculateShippingFee] No country code, returning $10 default shipping');
+		return 800; // $8 default
+	}
+
+	// US and Puerto Rico shipping logic
+	if (countryCode === 'US' || countryCode === 'PR') {
+		if (orderTotal >= 10000) { // $100 or more
+			console.log('[calculateShippingFee] US/PR order over $100, free shipping');
+			return 0; // Free shipping
+		} else {
+			console.log('[calculateShippingFee] US/PR order under $100, $8 shipping');
+			return 800; // $8 shipping
+		}
+	} else {
+		// International shipping: flat $20
+		console.log('[calculateShippingFee] International shipping, $20 flat rate');
+		return 2000; // $20 shipping
+	}
+};
+
+// Utility function to calculate estimated total from local cart with shipping
+const calculateCartTotal = (localCart: any, shippingAddress?: any): number => {
 	console.log('[calculateCartTotal] Input localCart:', localCart);
+	console.log('[calculateCartTotal] Shipping address:', shippingAddress);
 
 	// Check if cart has items
 	if (!localCart || !localCart.isLocalMode || !localCart.localCart || !localCart.localCart.items || localCart.localCart.items.length === 0) {
@@ -44,13 +71,27 @@ const calculateCartTotal = (localCart: any): number => {
 		return total + itemTotal;
 	}, 0);
 
-	console.log('[calculateCartTotal] Subtotal:', subtotal);
+	console.log('[calculateCartTotal] Subtotal before shipping:', subtotal);
 
-	// Add estimated tax/shipping (10% estimation)
-	const estimatedTotal = Math.round(subtotal * 1.1);
-	console.log('[calculateCartTotal] Final estimated total:', estimatedTotal);
+	// Calculate shipping fee based on country and subtotal
+	const countryCode = shippingAddress?.countryCode || 'US'; // Default to US
+	const shippingFee = calculateShippingFee(countryCode, subtotal);
+	console.log('[calculateCartTotal] Shipping fee:', shippingFee);
 
-	return Math.max(estimatedTotal, 100); // Minimum $1.00
+	// Apply coupon discount if available
+	const couponDiscount = localCart.localCart.appliedCoupon?.discountAmount || 0;
+	console.log('[calculateCartTotal] Coupon discount:', couponDiscount);
+
+	// Calculate final total: subtotal + shipping - discount
+	const finalTotal = subtotal + shippingFee - couponDiscount;
+	console.log('[calculateCartTotal] Final total calculation:', {
+		subtotal,
+		shippingFee,
+		couponDiscount,
+		finalTotal
+	});
+
+	return Math.max(finalTotal, 100); // Minimum $1.00
 };
 
 // 🔒 SECURITY FIX: Utility function to get current payment intent amount for validation
@@ -112,6 +153,7 @@ const validatePaymentIntentMetadata = async (clientSecret: string, stripe: Strip
 export default component$(() => {
 	const baseUrl = useLocation().url.origin;
 	const localCart = useLocalCart();
+	const appState = useContext(APP_STATE);
 
 	const store = useStore({
 		clientSecret: '',
@@ -128,11 +170,12 @@ export default component$(() => {
 	// Function to create a fresh PaymentIntent and Elements
 	const createFreshPaymentIntent = $(async () => {
 		console.log('[StripePayment] Creating fresh PaymentIntent to clear validation state...');
+		console.log('[StripePayment] Current shipping address:', appState.shippingAddress);
 
 		try {
-			// 1. Calculate estimated total from local cart
-			const estimatedTotal = calculateCartTotal(localCart);
-			console.log('[StripePayment] Creating new PaymentIntent with estimated total:', estimatedTotal);
+			// 1. Calculate estimated total from local cart including shipping
+			const estimatedTotal = calculateCartTotal(localCart, appState.shippingAddress);
+			console.log('[StripePayment] Creating new PaymentIntent with estimated total (including shipping):', estimatedTotal);
 
 			// 2. Create a brand new PaymentIntent
 			const paymentIntentResult = await createPreOrderStripePaymentIntentMutation(estimatedTotal, 'usd');

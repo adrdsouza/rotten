@@ -25,6 +25,39 @@ interface PaymentProps {
 export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _onError$, onProcessingChange$: _onProcessingChange$, triggerStripeSignal: _triggerStripeSignal, selectedPaymentMethod: _externalSelectedPaymentMethod, isDisabled, hideButton: _hideButton = false, orderDetails }) => {
 	const paymentMethods = useSignal<EligiblePaymentMethods[]>();
 
+	// 🔍 DEBUG LOGGING: Log all payment component inputs
+	console.log('[Payment] Component initialized with props:', {
+		triggerStripeSignal: !!_triggerStripeSignal,
+		orderDetails,
+		isDisabled,
+		hideButton: _hideButton,
+		selectedPaymentMethod: _externalSelectedPaymentMethod
+	});
+
+	// 🔍 DEBUG LOGGING: Validate order details
+	if (orderDetails) {
+		console.log('[Payment] Order details validation:', {
+			hasId: !!orderDetails.id,
+			hasCode: !!orderDetails.code,
+			hasTotalWithTax: !!orderDetails.totalWithTax,
+			totalWithTax: orderDetails.totalWithTax,
+			hasCustomer: !!orderDetails.customer,
+			customerEmail: orderDetails.customer?.emailAddress
+		});
+
+		// Check for invalid order information
+		if (!orderDetails.id || !orderDetails.code || !orderDetails.totalWithTax) {
+			console.error('[Payment] INVALID ORDER INFORMATION DETECTED:', {
+				missingId: !orderDetails.id,
+				missingCode: !orderDetails.code,
+				missingTotal: !orderDetails.totalWithTax,
+				orderDetails
+			});
+		}
+	} else {
+		console.log('[Payment] No order details provided - using local cart mode');
+	}
+
 	// Use external signal if provided, otherwise use internal signal
 
 	useVisibleTask$(() => {
