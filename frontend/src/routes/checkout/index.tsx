@@ -156,7 +156,7 @@ const CheckoutContent = component$(() => {
         delete (window as any).recordCacheHit;
         delete (window as any).recordCacheMiss;
         delete (window as any).submitCheckoutAddressForm;
-        delete (window as any).submitStripeElements;
+        delete (window as any).submitStripeElements; 
         delete (window as any).confirmStripePreOrderPayment;
       }
     };
