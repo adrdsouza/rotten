@@ -358,6 +358,12 @@ const CheckoutContent = component$(() => {
                       triggerStripeSignal={stripeTriggerSignal}
                       selectedPaymentMethod={selectedPaymentMethod}
                       hideButton={true}
+                      orderDetails={appState.activeOrder ? {
+                        id: appState.activeOrder.id,
+                        code: appState.activeOrder.code,
+                        totalWithTax: appState.activeOrder.totalWithTax,
+                        customer: appState.activeOrder.customer
+                      } : null}
                       onForward$={$(async (orderCode: string) => {
                         paymentComplete.value = true;
                         navigate(`/checkout/confirmation/${orderCode}`);

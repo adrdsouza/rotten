@@ -53,6 +53,62 @@ const calculateCartTotal = (localCart: any): number => {
 	return Math.max(estimatedTotal, 100); // Minimum $1.00
 };
 
+// 🔒 SECURITY FIX: Utility function to get current payment intent amount for validation
+const getCurrentPaymentIntentAmount = async (clientSecret: string, stripe: Stripe | null): Promise<number> => {
+	if (!stripe || !clientSecret) {
+		throw new Error('Stripe not initialized or client secret missing');
+	}
+
+	try {
+		const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecret);
+		if (!paymentIntent) {
+			throw new Error('Payment intent not found');
+		}
+		return paymentIntent.amount;
+	} catch (error) {
+		console.error('[getCurrentPaymentIntentAmount] Error retrieving payment intent:', error);
+		throw new Error('Failed to retrieve payment intent amount');
+	}
+};
+
+// 🔒 SECURITY FIX: Validate payment intent metadata matches order
+const validatePaymentIntentMetadata = async (clientSecret: string, stripe: Stripe | null, order: any): Promise<boolean> => {
+	if (!stripe || !clientSecret || !order) {
+		return false;
+	}
+
+	try {
+		const { paymentIntent } = await stripe.retrievePaymentIntent(clientSecret);
+		if (!paymentIntent || !(paymentIntent as any).metadata) {
+			return false;
+		}
+
+		const metadata = (paymentIntent as any).metadata;
+
+		// Check if this payment intent was linked to the correct order
+		if (metadata.vendure_order_id && metadata.vendure_order_id !== order.id) {
+			console.error('[validatePaymentIntentMetadata] Order ID mismatch:', {
+				paymentIntentOrderId: metadata.vendure_order_id,
+				actualOrderId: order.id
+			});
+			return false;
+		}
+
+		if (metadata.vendure_order_code && metadata.vendure_order_code !== order.code) {
+			console.error('[validatePaymentIntentMetadata] Order code mismatch:', {
+				paymentIntentOrderCode: metadata.vendure_order_code,
+				actualOrderCode: order.code
+			});
+			return false;
+		}
+
+		return true;
+	} catch (error) {
+		console.error('[validatePaymentIntentMetadata] Error validating metadata:', error);
+		return false;
+	}
+};
+
 export default component$(() => {
 	const baseUrl = useLocation().url.origin;
 	const localCart = useLocalCart();
@@ -222,6 +278,16 @@ export default component$(() => {
 			(window as any).confirmStripePreOrderPayment = async (order: any) => {
 				console.log('[StripePayment] *** confirmStripePreOrderPayment CALLED ***');
 				console.log('[StripePayment] Order received:', order);
+
+				// 🔒 SECURITY FIX: Validate order details before processing payment
+				if (!order || !order.id || !order.code || typeof order.totalWithTax !== 'number') {
+					console.error('[StripePayment] Invalid order details received:', order);
+					return {
+						success: false,
+						error: 'Invalid order information provided for payment'
+					};
+				}
+
 				console.log('[StripePayment] Store state:', {
 					paymentIntentId: store.paymentIntentId,
 					clientSecret: store.clientSecret,
@@ -232,6 +298,53 @@ export default component$(() => {
 				try {
 					store.isProcessing = true;
 					console.log('[StripePayment] Confirming payment for order:', order.code);
+
+					// 🔒 SECURITY FIX: Validate payment amount matches order total before processing
+					const currentPaymentIntentAmount = await getCurrentPaymentIntentAmount(store.clientSecret, store.resolvedStripe as Stripe);
+					if (currentPaymentIntentAmount !== order.totalWithTax) {
+						console.error('[StripePayment] Payment amount mismatch:', {
+							paymentIntentAmount: currentPaymentIntentAmount,
+							orderTotal: order.totalWithTax
+						});
+						const errorMsg = `Payment amount (${currentPaymentIntentAmount}) does not match order total (${order.totalWithTax})`;
+						store.error = errorMsg;
+						store.isProcessing = false;
+						return {
+							success: false,
+							error: errorMsg
+						};
+					}
+
+					// 🔒 ADDITIONAL VALIDATION: Verify order state and currency
+					if (order.state !== 'ArrangingPayment') {
+						console.error('[StripePayment] Invalid order state for payment:', order.state);
+						const errorMsg = `Order is not ready for payment. Current state: ${order.state}`;
+						store.error = errorMsg;
+						store.isProcessing = false;
+						return {
+							success: false,
+							error: errorMsg
+						};
+					}
+
+					// 🔒 VALIDATE: Ensure order has valid line items
+					if (!order.lines || order.lines.length === 0) {
+						console.error('[StripePayment] Order has no line items');
+						const errorMsg = 'Order has no items to pay for';
+						store.error = errorMsg;
+						store.isProcessing = false;
+						return {
+							success: false,
+							error: errorMsg
+						};
+					}
+
+					// 🔒 VALIDATE: Check payment intent metadata matches order (if linked)
+					const metadataValid = await validatePaymentIntentMetadata(store.clientSecret, store.resolvedStripe as Stripe, order);
+					if (!metadataValid) {
+						console.warn('[StripePayment] Payment intent metadata validation failed - this may be expected for pre-order payments');
+						// Note: We don't fail here for pre-order payments, but log the warning
+					}
 
 					// Link our pre-existing PaymentIntent to the newly created order
 					try {

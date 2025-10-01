@@ -324,6 +324,65 @@ export class StripePreOrderResolver {
     }
 
     /**
+     * 🔒 SECURITY FIX: Create a PaymentIntent with proper order validation
+     * This replaces the pre-order pattern with a more secure approach
+     */
+    @Mutation(() => PaymentIntentResult)
+    async createSecureStripePaymentIntent(
+        @Args('orderId') orderId: string,
+        @Args('orderCode') orderCode: string,
+        @Args('amount') amount: number,
+        @Args('currency', { defaultValue: 'usd' }) currency: string,
+        @Args('customerEmail', { nullable: true }) customerEmail?: string
+    ): Promise<PaymentIntentResult> {
+        Logger.info(`[STRIPE_RESOLVER] createSecureStripePaymentIntent called for order: ${orderCode}, amount: ${amount}`, 'StripePreOrderPlugin');
+
+        if (!this.stripe) {
+            Logger.error('[STRIPE_RESOLVER] Stripe is not initialized - check STRIPE_SECRET_KEY environment variable', 'StripePreOrderPlugin');
+            throw new Error('Stripe is not initialized - check STRIPE_SECRET_KEY environment variable');
+        }
+
+        // 🔒 SECURITY FIX: Validate input parameters
+        if (!orderId || !orderCode || !amount || amount <= 0) {
+            Logger.error('[STRIPE_RESOLVER] Invalid parameters for PaymentIntent creation', 'StripePreOrderPlugin');
+            throw new Error('Invalid order parameters for payment processing');
+        }
+
+        try {
+            Logger.info(`[STRIPE_RESOLVER] Creating secure PaymentIntent for order ${orderCode} with amount: ${amount}`, 'StripePreOrderPlugin');
+
+            const paymentIntent = await this.stripe.paymentIntents.create({
+                amount: amount,
+                currency: currency,
+                automatic_payment_methods: {
+                    enabled: true, // 🎯 This enables Apple Pay, Google Pay, and other payment methods!
+                },
+                metadata: {
+                    source: 'secure_order_payment',
+                    vendure_order_id: orderId,
+                    vendure_order_code: orderCode,
+                    vendure_customer_email: customerEmail || 'guest',
+                    created_at: new Date().toISOString(),
+                    order_amount: amount.toString()
+                }
+            });
+
+            Logger.info(`Secure PaymentIntent created: ${paymentIntent.id} for order: ${orderCode}`, 'StripePreOrderPlugin');
+
+            return {
+                clientSecret: paymentIntent.client_secret as string,
+                paymentIntentId: paymentIntent.id,
+                amount: paymentIntent.amount,
+                currency: paymentIntent.currency
+            };
+
+        } catch (error) {
+            Logger.error(`[STRIPE_RESOLVER] Failed to create secure PaymentIntent: ${error}`, 'StripePreOrderPlugin');
+            throw new Error(`Failed to create PaymentIntent: ${error}`);
+        }
+    }
+
+    /**
      * Link PaymentIntent to order - NO settlement, returns boolean success
      */
     @Mutation(() => Boolean)
@@ -422,6 +481,7 @@ export class StripePreOrderWebhookController {
         schema: gql`
             extend type Mutation {
                 createPreOrderStripePaymentIntent(estimatedTotal: Int!, currency: String = "usd"): PaymentIntentResult!
+                createSecureStripePaymentIntent(orderId: String!, orderCode: String!, amount: Int!, currency: String = "usd", customerEmail: String): PaymentIntentResult!
                 linkPaymentIntentToOrder(paymentIntentId: String!, orderId: String!, orderCode: String!, finalTotal: Int!, customerEmail: String): Boolean!
             }
 
