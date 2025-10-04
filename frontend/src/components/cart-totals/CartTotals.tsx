@@ -1,4 +1,4 @@
-import { $, component$, useContext, useSignal, useComputed$, useVisibleTask$ } from '@qwik.dev/core';
+import { $, component$, useContext, useSignal, useComputed$, useVisibleTask$, QRL } from '@qwik.dev/core';
 import { APP_STATE } from '~/constants';
 import { validateLocalCartCouponQuery } from '~/providers/shop/orders/order';
 import { formatPrice } from '~/utils';
@@ -10,7 +10,8 @@ export default component$<{
 	order?: any; // Order data for order confirmation
 	readonly?: boolean;
 	localCart?: any; // Local cart data for Local Cart Mode
-}>(({ order, readonly = false, localCart }) => {
+	onTotalCalculated$?: QRL<(total: number) => void>; // Callback to pass calculated total to parent
+}>(({ order, readonly = false, localCart, onTotalCalculated$ }) => {
 	const appState = useContext(APP_STATE);
 	const localCartContext = useLocalCart();
 	const couponCodeSignal = useSignal('');
@@ -60,6 +61,14 @@ export default component$<{
 		const localTotal = orderTotalAfterDiscount.value + shipping.value;
 		// Fallback to active order total for confirmation pages
 		return localTotal || activeOrder.value?.totalWithTax || 0;
+	});
+
+	// Notify parent component when total changes
+	useVisibleTask$(({ track }) => {
+		const currentTotal = track(() => total.value);
+		if (onTotalCalculated$ && currentTotal > 0) {
+			onTotalCalculated$(currentTotal);
+		}
 	});
 
 	const displayDiscount = useComputed$(() => {

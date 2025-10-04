@@ -1,4 +1,4 @@
-import { component$, noSerialize, useStore, useVisibleTask$ } from '@qwik.dev/core';
+import { component$, noSerialize, useStore, useVisibleTask$, Signal, useSignal } from '@qwik.dev/core';
 import { useLocation } from '@qwik.dev/router';
 import { Stripe, StripeElements, loadStripe } from '@stripe/stripe-js';
 import {
@@ -53,10 +53,14 @@ const calculateCartTotal = (localCart: any): number => {
 	return Math.max(estimatedTotal, 100); // Minimum $1.00
 };
 
-export default component$(() => {
+interface StripePaymentProps {
+	calculatedTotal?: Signal<number>; // Pre-calculated total from CartTotals
+}
+
+export default component$<StripePaymentProps>(({ calculatedTotal }) => {
 	const baseUrl = useLocation().url.origin;
 	const localCart = useLocalCart();
-
+	const paymentError = useSignal(0);
 	const store = useStore({
 		clientSecret: '',
 		paymentIntentId: '',
@@ -133,6 +137,7 @@ export default component$(() => {
 
 					// Submit elements first (required by newer Stripe API)
 					logAndStore('[StripePayment] Submitting Stripe Elements...');
+					console.log('[StripePayment] Elements instance:', store.stripeElements);
 					const { error: submitError } = await store.stripeElements?.submit() || { error: new Error('Elements not initialized') };
 
 					if (submitError) {
@@ -169,6 +174,7 @@ export default component$(() => {
 						logAndStore('[StripePayment] Payment confirmation failed:', error);
 						store.error = error?.message || 'Payment confirmation failed';
 						store.isProcessing = false;
+						++paymentError.value
 						return {
 							success: false,
 							error: error?.message || 'Payment confirmation failed'
@@ -276,8 +282,11 @@ export default component$(() => {
 		}
 	});
 
-	useVisibleTask$(async () => {
+	useVisibleTask$(async ({track}) => {
+		track(() => calculatedTotal?.value);
+		track(() => paymentError.value);
 		store.debugInfo = 'Initializing payment form...';
+		console.log("Initializing payment form",calculatedTotal?.value)
 
 		if (!localCart || !localCart.isLocalMode || !localCart.localCart || !localCart.localCart.items || localCart.localCart.items.length === 0) {
 			store.debugInfo = 'Waiting for cart items...';
@@ -286,9 +295,18 @@ export default component$(() => {
 		}
 
 		try {
-			// Calculate estimated total from local cart
-			const estimatedTotal = calculateCartTotal(localCart);
-			store.debugInfo = `Calculating total: $${(estimatedTotal / 100).toFixed(2)} (${localCart.localCart.items.length} items)`;
+			// Use pre-calculated total from CartTotals or fallback to calculation
+			let estimatedTotal: number;
+			if (calculatedTotal && calculatedTotal.value > 0) {
+				estimatedTotal = calculatedTotal.value;
+				store.debugInfo = `Using pre-calculated total: $${(estimatedTotal / 100).toFixed(2)}`;
+				console.log('[StripePayment] Using pre-calculated total from CartTotals:', estimatedTotal);
+			} else {
+				// Fallback to old calculation method if no pre-calculated total available
+				estimatedTotal = calculateCartTotal(localCart);
+				store.debugInfo = `Fallback calculation: $${(estimatedTotal / 100).toFixed(2)} (${localCart.localCart.items.length} items)`;
+				console.log('[StripePayment] Using fallback calculation:', estimatedTotal);
+			}
 
 			// Validate estimated total
 			if (!estimatedTotal || estimatedTotal < 50) {

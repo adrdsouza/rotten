@@ -220,8 +220,8 @@ export default component$(() => {
               class="inline-block bg-[#8a6d4a] text-white px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:scale-105 hover:shadow-xl rounded-lg shadow-lg border border-[#8a6d4a] animate-scale cursor-pointer"
               style="animation-delay: 0.4s;"
             >
-              <div class="text-4xl font-bold uppercase tracking-widest">SHOP</div>
-              <div class="text-xs uppercase tracking-wide mt-1">Our Money Back Guarantee</div>
+              <span class="text-4xl font-bold uppercase tracking-widest">SHOP</span>
+              <span class="text-xs uppercase tracking-wide mt-1">Our Money Back Guarantee</span>
             </button>
           </div>
         </div>
@@ -441,8 +441,8 @@ export default component$(() => {
                   }}
                   class="inline-block bg-[#8a6d4a] text-black px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:text-white hover:scale-105 rounded-lg shadow-lg border border-[#8a6d4a] cursor-pointer"
                 >
-                  <div class="text-4xl font-bold uppercase tracking-widest">SHOP</div>
-                  <div class="text-xs uppercase tracking-wide mt-1">consciously</div>
+                  <span class="text-4xl font-bold uppercase tracking-widest">SHOP</span>
+                  <span class="text-xs uppercase tracking-wide mt-1">consciously</span>
                 </button>
               </div>
             </div>

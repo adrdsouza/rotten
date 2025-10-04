@@ -108,7 +108,14 @@ const CheckoutContent = component$(() => {
   const selectedPaymentMethod = useSignal<string>('stripe');
   const pageLoading = useSignal(true);
   const paymentComplete = useSignal(false);
-  
+  const calculatedTotal = useSignal<number>(0); // Store the calculated total from CartTotals
+
+  // Callback to receive calculated total from CartTotals
+  const handleTotalCalculated = $((total: number) => {
+    calculatedTotal.value = total;
+    console.log('[Checkout] Received calculated total from CartTotals:', total);
+  });
+
   // Fix hydration mismatch by using a signal instead of computed
   const isCartEmpty = useSignal(false);
 
@@ -341,7 +348,10 @@ const CheckoutContent = component$(() => {
                       </div>
                     </div>
                     <div class="p-4">
-                      <CartTotals localCart={localCart.localCart} />
+                      <CartTotals
+                        localCart={localCart.localCart}
+                        onTotalCalculated$={handleTotalCalculated}
+                      />
                     </div>
                   </div>
                 </div>
@@ -358,6 +368,7 @@ const CheckoutContent = component$(() => {
                       triggerStripeSignal={stripeTriggerSignal}
                       selectedPaymentMethod={selectedPaymentMethod}
                       hideButton={true}
+                      calculatedTotal={calculatedTotal}
                       onForward$={$(async (orderCode: string) => {
                         paymentComplete.value = true;
                         navigate(`/checkout/confirmation/${orderCode}`);

@@ -11,9 +11,10 @@ interface PaymentProps {
 	selectedPaymentMethod?: Signal<string>; // Signal to track selected payment method
 	isDisabled?: boolean;
 	hideButton?: boolean;
+	calculatedTotal?: Signal<number>; // Pre-calculated total from CartTotals
 }
 
-export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _onError$, onProcessingChange$: _onProcessingChange$, triggerStripeSignal: _triggerStripeSignal, selectedPaymentMethod: _externalSelectedPaymentMethod, isDisabled, hideButton: _hideButton = false }) => {
+export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _onError$, onProcessingChange$: _onProcessingChange$, triggerStripeSignal: _triggerStripeSignal, selectedPaymentMethod: _externalSelectedPaymentMethod, isDisabled, hideButton: _hideButton = false, calculatedTotal }) => {
 	const paymentMethods = useSignal<EligiblePaymentMethods[]>();
 
 	// Use external signal if provided, otherwise use internal signal
@@ -106,7 +107,7 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 							)}
 							{method.code.includes('stripe') && (
 								<div class="!w-full">
-									<StripePayment />
+									<StripePayment calculatedTotal={calculatedTotal} />
 								</div>
 							)}
 						</div>
