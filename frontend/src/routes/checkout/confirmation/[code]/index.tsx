@@ -27,37 +27,7 @@ export default component$(() => {
 		loading: true,
 	});
 
-<<<<<<< HEAD
 	// ✅ Removed manual settlement - Stripe webhook handles this automatically
-=======
-	// Handle payment settlement for redirect flows
-	const handlePaymentSettlement = $(async (paymentIntentId: string, orderCode: string) => {
-		try {
-			console.log('[Confirmation] Attempting to settle payment for PaymentIntent:', paymentIntentId);
-			
-			const stripeKey = await getStripePublishableKeyQuery();
-			const stripeService = new StripePaymentService(
-				stripeKey,
-				'/shop-api',
-				$(() => ({}))
-			);
-
-			// Attempt settlement with retry mechanism
-			const settlementResult = await stripeService.retrySettlement(paymentIntentId, 3, 1000);
-
-			if (settlementResult.success) {
-				console.log('[Confirmation] Payment settled successfully');
-			} else {
-				console.error('[Confirmation] Settlement failed:', settlementResult.error);
-				// Don't throw error here as the payment was already confirmed by Stripe
-				// Just log the issue - the order should still be valid
-			}
-		} catch (error) {
-			console.error('[Confirmation] Error during settlement:', error);
-			// Don't throw error here as the payment was already confirmed by Stripe
-		}
-	});
->>>>>>> bacb344 (Kiro)
 
 	useVisibleTask$(async () => {
 		const url = new URL(window.location.href);
@@ -92,17 +62,9 @@ export default component$(() => {
 				if (paymentIntent && paymentIntent.status === 'succeeded') {
 					console.log('[Confirmation] Payment succeeded - PaymentIntent verified but NOT settling immediately');
 					console.log('[Confirmation] PaymentIntent ID:', paymentIntentId, 'Status:', paymentIntent.status);
-<<<<<<< HEAD
 
 					// ✅ Payment confirmed by Stripe - webhook will handle settlement automatically
 					console.log('[Confirmation] Payment succeeded - webhook will settle the order');
-=======
-					
-					// NOTE: Settlement should have been handled by the payment flow
-					// If we reach here via redirect, we may need to settle the payment
-					// Check if payment needs settlement and handle it
-					await handlePaymentSettlement(paymentIntentId, orderCode);
->>>>>>> bacb344 (Kiro)
 
 					// 🎯 Clear the local cart and switch to Vendure mode after successful payment
 					// This is where we finally switch modes after payment confirmation

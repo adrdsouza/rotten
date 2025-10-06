@@ -545,4 +545,3 @@ export const head = (): DocumentHead => {
     noindex: true,
     links: []
   });
-};

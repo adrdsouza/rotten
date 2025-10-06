@@ -520,17 +520,12 @@ export class StripePaymentService {
   }
 
   /**
-<<<<<<< HEAD
    * Retry payment with exponential backoff and enhanced error handling
    * Updated to use the new addPaymentToOrder flow
-=======
-   * Retry settlement with exponential backoff and enhanced error handling
->>>>>>> bacb344 (Kiro)
    */
   async retrySettlement(
     paymentIntentId: string,
     maxRetries = 3,
-<<<<<<< HEAD
     baseDelayMs = 1000,
     _cartUuid?: string
   ): Promise<SettlementResult & { attempts: number; errorDetails?: PaymentError }> {
@@ -541,18 +536,11 @@ export class StripePaymentService {
     for (let i = 0; i < maxRetries; i++) {
       attempts = i + 1;
       console.log(`Payment attempt ${attempts}/${maxRetries} for PaymentIntent ${paymentIntentId}`);
-=======
-    baseDelayMs = 1000
-  ): Promise<SettlementResult & { attempts: number; errorDetails?: PaymentError }> {
-    let lastError: SettlementResult = { success: false, error: 'Settlement failed after retries' };
-    let errorDetails: PaymentError | undefined;
->>>>>>> bacb344 (Kiro)
 
       try {
         const result = await this.addPaymentToOrder(paymentIntentId);
 
         if (result.success) {
-<<<<<<< HEAD
           console.log(`Payment succeeded on attempt ${attempts}`);
           return {
             success: true,
@@ -564,20 +552,6 @@ export class StripePaymentService {
         }
 
         lastError = result.error;
-=======
-          console.log(`Settlement succeeded on attempt ${attempt}`);
-          return { ...result, attempts: attempt };
-        }
-
-        // Handle error with enhanced error handler
-        const error = new Error(result.error || 'Settlement failed');
-        errorDetails = this.errorHandler.handlePaymentError(error, 'SETTLE_PAYMENT');
-
-        if (!result.isRetryable || !errorDetails.isRetryable) {
-          console.log(`Settlement failed with non-retryable error: ${result.error}`);
-          return { ...result, attempts: attempt, errorDetails };
-        }
->>>>>>> bacb344 (Kiro)
 
         // Create enhanced error details
         errorDetails = {
@@ -588,7 +562,6 @@ export class StripePaymentService {
           userAction: 'Please wait a moment and try again'
         };
 
-<<<<<<< HEAD
       } catch (error) {
         console.error(`Payment attempt ${attempts} failed:`, error);
         lastError = error;
@@ -618,46 +591,6 @@ export class StripePaymentService {
       isRetryable: false,
       attempts,
       errorDetails
-=======
-        // Use error-specific retry delay if available
-        if (attempt < maxRetries) {
-          const delay = Math.min(
-            errorDetails.retryDelayMs || baseDelayMs * Math.pow(2, attempt - 1), 
-            10000
-          );
-          console.log(`Waiting ${delay}ms before retry (${errorDetails.category} error)...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-
-      } catch (error: any) {
-        errorDetails = this.errorHandler.handlePaymentError(error, 'SETTLE_PAYMENT');
-        lastError = { 
-          success: false, 
-          error: errorDetails.message,
-          isRetryable: errorDetails.isRetryable,
-          retryDelayMs: errorDetails.retryDelayMs
-        };
-        
-        if (attempt < maxRetries && errorDetails.isRetryable) {
-          const delay = Math.min(
-            errorDetails.retryDelayMs || baseDelayMs * Math.pow(2, attempt - 1), 
-            10000
-          );
-          console.log(`Waiting ${delay}ms before retry...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      }
-    }
-
-    console.error(`Settlement failed after ${maxRetries} attempts`);
-    return { 
-      ...lastError, 
-      attempts: maxRetries,
-      errorDetails: errorDetails || this.errorHandler.handlePaymentError(
-        new Error(lastError.error || 'Unknown error'), 
-        'SETTLE_PAYMENT'
-      )
->>>>>>> bacb344 (Kiro)
     };
   }
 
@@ -665,26 +598,14 @@ export class StripePaymentService {
    * Get user-friendly error message for display
    */
   getErrorMessage(error: any, context: string = 'PAYMENT'): string {
-<<<<<<< HEAD
     return this.errorHandler.handlePaymentError(error, context).message;
-=======
-    return this.errorHandler.getUserMessage ? 
-      this.errorHandler.getUserMessage(error, context) : 
-      this.errorHandler.handlePaymentError(error, context).message;
->>>>>>> bacb344 (Kiro)
   }
 
   /**
    * Check if an error is retryable
    */
   isErrorRetryable(error: any, context: string = 'PAYMENT'): boolean {
-<<<<<<< HEAD
     return this.errorHandler.handlePaymentError(error, context).isRetryable;
-=======
-    return this.errorHandler.isRetryable ? 
-      this.errorHandler.isRetryable(error, context) : 
-      this.errorHandler.handlePaymentError(error, context).isRetryable;
->>>>>>> bacb344 (Kiro)
   }
 
   /**
@@ -739,4 +660,3 @@ export class StripePaymentService {
   isInitialized(): boolean {
     return this.initialized && this.stripe !== null;
   }
-}
