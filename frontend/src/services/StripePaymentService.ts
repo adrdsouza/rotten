@@ -660,3 +660,4 @@ export class StripePaymentService {
   isInitialized(): boolean {
     return this.initialized && this.stripe !== null;
   }
+}

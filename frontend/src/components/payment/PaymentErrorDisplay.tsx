@@ -36,3 +36,4 @@ export const PaymentErrorDisplay = component$<PaymentErrorDisplayProps>((props) 
       </div>
     </div>
   );
+});

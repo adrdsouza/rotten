@@ -1,4 +1,4 @@
-import { component$, useContext, useStore, useVisibleTask$, $ } from '@qwik.dev/core';
+import { component$, useContext, useStore, useVisibleTask$ } from '@qwik.dev/core';
 import { Link, useLocation } from '@qwik.dev/router';
 import CartContents from '~/components/cart-contents/CartContents';
 import CartTotals from '~/components/cart-totals/CartTotals';
@@ -9,8 +9,8 @@ import { Order } from '~/generated/graphql';
 import { getOrderByCodeQuery } from '~/providers/shop/orders/order';
 import { LocalCartService } from '~/services/LocalCartService';
 import { createSEOHead } from '~/utils/seo';
-import { StripePaymentService } from '~/services/StripePaymentService';
-import { getStripePublishableKeyQuery } from '~/providers/shop/checkout/checkout';
+import { StripePaymentService as _StripePaymentService } from '~/services/StripePaymentService';
+import { getStripePublishableKeyQuery as _getStripePublishableKeyQuery } from '~/providers/shop/checkout/checkout';
 
 
 export default component$(() => {

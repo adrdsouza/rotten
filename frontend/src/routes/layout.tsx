@@ -218,7 +218,7 @@ export default component$(() => {
 						id: customerData.id,
 						lastName: customerData.lastName,
 						emailAddress: customerData.emailAddress,
-						phoneNumber: sanitizePhoneNumber(customerData.phoneNumber),
+						phoneNumber: '', // Don't set customer phone - let address sync handle it
 					};
 				}
 			} catch (_error) {
@@ -247,6 +247,24 @@ export default component$(() => {
 				await LocalAddressService.syncFromVendure(state.customer.id);
 				const addresses = LocalAddressService.getAddresses();
 				state.addressBook = addresses;
+
+				// IMPORTANT: Always use the phone number from the default shipping address, not the customer's general phone
+				// Each address has its own phone number in Vendure - use it even if empty
+				if (addresses.length > 0) {
+					const defaultShipping = addresses.find(a => a.defaultShippingAddress) || addresses[0];
+					if (defaultShipping) {
+						const shippingPhone = defaultShipping.phoneNumber ? sanitizePhoneNumber(defaultShipping.phoneNumber) : '';
+						state.customer.phoneNumber = shippingPhone;
+						console.log('[Layout] Set customer phone from shipping address:', shippingPhone, 'from address:', defaultShipping.phoneNumber);
+					} else {
+						state.customer.phoneNumber = '';
+						console.log('[Layout] No default shipping address found, cleared phone number');
+					}
+				} else {
+					state.customer.phoneNumber = '';
+					console.log('[Layout] No addresses found, cleared phone number');
+				}
+
 				if (addresses.length > 0 && !state.shippingAddress.streetLine1) {
 					const defaultShipping = addresses.find(a => a.defaultShippingAddress) || addresses[0];
 					if (defaultShipping) {
@@ -270,10 +288,6 @@ export default component$(() => {
 							sessionStorage.setItem('countrySource', 'customer');
 							// console.log('✅ Customer address loaded, saved country to sessionStorage:', defaultShipping.countryCode);
 						}
-
-						// IMPORTANT: Always use the phone number from the default shipping address, not the customer's general phone
-						// Each address has its own phone number in Vendure - use it even if empty
-						state.customer.phoneNumber = defaultShipping.phoneNumber ? sanitizePhoneNumber(defaultShipping.phoneNumber) : '';
 					}
 				}
 			} catch (error) {

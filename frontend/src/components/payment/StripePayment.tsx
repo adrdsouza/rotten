@@ -243,7 +243,7 @@ export default component$(() => {
 
       // Expose error dismissal function
       (window as any).dismissStripePaymentError = () => {
-        store.paymentError = noSerialize(null);
+        store.paymentError = null;
         store.error = '';
       };
 
@@ -440,13 +440,13 @@ export default component$(() => {
   });
 
   // Handler functions for error display
-  const handleRetry = $(() => {
+  const _handleRetry = $(() => {
     if (typeof window !== 'undefined' && (window as any).retryStripePayment) {
       (window as any).retryStripePayment();
     }
   });
 
-  const handleDismissError = $(() => {
+  const _handleDismissError = $(() => {
     if (typeof window !== 'undefined' && (window as any).dismissStripePaymentError) {
       (window as any).dismissStripePaymentError();
     }
