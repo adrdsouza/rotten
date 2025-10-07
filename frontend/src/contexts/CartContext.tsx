@@ -25,6 +25,9 @@ export interface CartContextState {
   // Cart data
   localCart: LocalCart;
 
+  // Cart UUID for payment intent tracking - persists across component remounts
+  cartUuid: string;
+
   // State flags
   isLocalMode: boolean;
   isLoading: boolean;
@@ -37,7 +40,7 @@ export interface CartContextState {
 
   // Applied coupon for local cart mode
   appliedCoupon: AppliedCoupon | null;
-  
+
   // 🚀 OPTIMIZED: Track last stock refresh time to prevent excessive refreshes
   lastStockRefresh: number | null; // Timestamp of last stock refresh
 }
@@ -55,6 +58,8 @@ export const CartProvider = component$(() => {
       subTotal: 0,
       currencyCode: 'USD'
     },
+    // Cart UUID generated on first add to cart - persists across component remounts
+    cartUuid: '',
     isLocalMode: true,
     isLoading: false,
     lastError: null,
@@ -170,6 +175,12 @@ export const refreshCartStock = $(async (cartState: CartContextState) => {
 export const addToLocalCart = $((cartState: CartContextState, item: any) => {
   // 🚀 DEMAND-BASED: Load cart only when add to cart is clicked
   loadCartIfNeeded(cartState);
+
+  // ✅ Generate cartUuid on first add to cart - only when actually needed
+  if (!cartState.cartUuid && typeof crypto !== 'undefined') {
+    cartState.cartUuid = crypto.randomUUID();
+    console.log('[CartContext] Generated cart UUID on first add to cart:', cartState.cartUuid);
+  }
 
   cartState.isLoading = true;
   cartState.lastError = null;

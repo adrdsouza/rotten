@@ -141,6 +141,8 @@ export class StripePaymentService {
     }
   }
 
+
+
   /**
    * Add payment to order using official Vendure Stripe plugin
    * This replaces the old linkPaymentIntentToOrder + settleStripePayment flow
@@ -289,6 +291,8 @@ export class StripePaymentService {
     }
   }
 
+
+
   /**
    * Step 3a: Confirm payment with Stripe (frontend)
    */
@@ -378,20 +382,26 @@ export class StripePaymentService {
   /**
    * Create cart mapping for pre-order flow (without order initially)
    */
-  async createCartMapping(cartUuid: string): Promise<boolean> {
+  async createCartMapping(cartUuid: string, orderId?: string, orderCode?: string, paymentIntentId?: string): Promise<boolean> {
     try {
       console.log(`Creating cart mapping for cart ${cartUuid}`);
 
       const response = await this.makeGraphQLRequest(`
-        mutation CreateCartMapping($cartUuid: String!) {
-          createCartMapping(cartUuid: $cartUuid) {
+        mutation CreateCartMapping($cartUuid: String!, $orderId: String!, $orderCode: String!, $paymentIntentId: String) {
+          createCartMapping(cartUuid: $cartUuid, orderId: $orderId, orderCode: $orderCode, paymentIntentId: $paymentIntentId) {
             id
             cartUuid
+            orderId
+            orderCode
+            paymentIntentId
             createdAt
           }
         }
       `, {
-        cartUuid
+        cartUuid,
+        orderId: orderId || '',
+        orderCode: orderCode || '',
+        paymentIntentId: paymentIntentId || null
       });
 
       const result = response.data.createCartMapping;

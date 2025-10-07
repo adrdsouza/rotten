@@ -1,4 +1,4 @@
-import { component$, noSerialize, useSignal, useStore, useVisibleTask$, $, useContext } from '@qwik.dev/core';
+import { component$, noSerialize, useStore, useVisibleTask$, $ } from '@qwik.dev/core';
 import { Stripe, StripeElements, loadStripe } from '@stripe/stripe-js';
 import {
   getStripePublishableKeyQuery
@@ -7,7 +7,7 @@ import { useLocalCart } from '~/contexts/CartContext';
 import { StripePaymentService } from '~/services/StripePaymentService';
 import { PaymentError } from '~/services/payment-error-handler';
 import { PaymentErrorDisplay } from './PaymentErrorDisplay';
-import { APP_STATE, AUTH_TOKEN } from '~/constants';
+import { AUTH_TOKEN } from '~/constants';
 import { getCookie } from '~/utils';
 
 import XCircleIcon from '../icons/XCircleIcon';
@@ -23,31 +23,230 @@ function getStripe(publishableKey: string) {
 
 export default component$(() => {
   const localCart = useLocalCart();
-  const appState = useContext(APP_STATE);
+  // CRITICAL: Don't track appState to prevent re-renders during order state transitions
+  // const appState = useContext(APP_STATE);
 
-  // Generate cart UUID for tracking
-  const cartUuid = useSignal<string>('');
+  // CRITICAL: Extract cart UUID once to avoid tracking localCart reactivity
+  // If we track localCart, any change to it (like isLocalMode) will cause remount
+  const cartUuid = localCart.cartUuid;
 
   const store = useStore({
     clientSecret: '',
     paymentIntentId: '',
-    resolvedStripe: noSerialize({} as Stripe),
-    stripeElements: noSerialize({} as StripeElements),
+    resolvedStripe: undefined as Stripe | undefined,
+    stripeElements: undefined as StripeElements | undefined,
     error: '',
     paymentError: null as PaymentError | null,
     isProcessing: false,
     debugInfo: 'Initializing...',
-    retryCount: 0,
-    maxRetries: 3,
   });
 
-  // Expose functions to window for checkout flow
-  useVisibleTask$(() => {
-    // Generate cart UUID on component mount
-    if (typeof window !== 'undefined' && !cartUuid.value) {
-      cartUuid.value = crypto.randomUUID();
-      console.log('[StripePayment] Generated cart UUID:', cartUuid.value);
+  // Function to initialize Stripe Elements (called once on component mount)
+  const initializeElements = $(async () => {
+    console.log('[StripePayment] initializeElements called');
+
+    // CRITICAL: Read cart values once at the start to avoid reactive tracking
+    // If we access localCart properties during execution, changes to localCart will trigger remounts
+    const cartSnapshot = {
+      items: localCart?.localCart?.items || [],
+      subTotal: localCart?.localCart?.subTotal || 0,
+      appliedCoupon: localCart?.appliedCoupon
+    };
+
+    // Check cart state
+    if (cartSnapshot.items.length === 0) {
+      store.debugInfo = 'Waiting for cart items...';
+      store.error = 'Cart is empty. Please add items to continue.';
+      return false;
     }
+
+    try {
+      // Get Stripe publishable key
+      const stripeKey = await getStripePublishableKeyQuery();
+      console.log('[StripePayment] Loading Stripe with key:', stripeKey);
+
+      // Initialize Stripe if not already done
+      if (!store.resolvedStripe || typeof store.resolvedStripe.elements !== 'function') {
+        const stripe = await getStripe(stripeKey);
+        if (!stripe) {
+          store.error = 'Failed to load Stripe';
+          store.debugInfo = 'Error: Stripe failed to load';
+          return false;
+        }
+        store.resolvedStripe = noSerialize(stripe) as Stripe;
+        console.log('[StripePayment] Stripe instance initialized:', typeof store.resolvedStripe?.elements);
+      }
+
+      // Create PaymentIntent only if we don't have one (not on recreation)
+      if (!store.clientSecret) {
+        console.log('[StripePayment] Creating PaymentIntent...');
+        const stripeService = new StripePaymentService(
+          stripeKey,
+          '/shop-api',
+          $(() => {
+            const token = getCookie(AUTH_TOKEN);
+            const headers: Record<string, string> = {};
+            if (token) {
+              headers.Authorization = `Bearer ${token}`;
+            }
+            return headers;
+          })
+        );
+
+        // Calculate total including shipping using snapshot values
+        const subtotal = cartSnapshot.subTotal;
+        const discount = cartSnapshot.appliedCoupon?.discountAmount || 0;
+        const subtotalAfterDiscount = subtotal - discount;
+
+        let shipping = 0;
+        let countryCode = '';
+
+        if (typeof window !== 'undefined') {
+          try {
+            const shippingData = localStorage.getItem('checkout-shipping-address');
+            if (shippingData) {
+              const shippingAddress = JSON.parse(shippingData);
+              countryCode = shippingAddress.countryCode || '';
+            }
+          } catch (error) {
+            console.warn('[StripePayment] Failed to get shipping address from localStorage:', error);
+          }
+        }
+
+        if (countryCode) {
+          if (cartSnapshot.appliedCoupon?.freeShipping) {
+            shipping = 0;
+          } else {
+            if (countryCode === 'US' || countryCode === 'PR') {
+              shipping = subtotalAfterDiscount >= 10000 ? 0 : 800;
+            } else {
+              shipping = 2000;
+            }
+          }
+        }
+
+        const estimatedTotal = subtotalAfterDiscount + shipping;
+
+        console.log('[StripePayment] Payment calculation:', {
+          subtotal,
+          discount,
+          subtotalAfterDiscount,
+          shipping,
+          estimatedTotal,
+          countryCode
+        });
+
+        const paymentIntent = await stripeService.createPaymentIntent(
+          estimatedTotal,
+          'usd',
+          cartUuid
+        );
+
+        if (!paymentIntent?.clientSecret) {
+          store.error = 'Failed to create payment intent';
+          store.debugInfo = 'Error: No client secret received';
+          return false;
+        }
+
+        store.clientSecret = paymentIntent.clientSecret;
+        store.paymentIntentId = paymentIntent.paymentIntentId;
+        console.log('[StripePayment] PaymentIntent created:', paymentIntent.paymentIntentId);
+
+        // Store PaymentIntent ID globally for checkout flow
+        if (typeof window !== 'undefined') {
+          (window as any).__stripePaymentIntentId = paymentIntent.paymentIntentId;
+        }
+
+        // Upsert cart mapping (create or update)
+        try {
+          await stripeService.createCartMapping(cartUuid);
+          console.log('[StripePayment] Cart mapping created successfully');
+        } catch (_error) {
+          // Expected on retry - cart mapping already exists, just update it
+          console.log('[StripePayment] Cart mapping exists, updating with new PaymentIntent ID');
+        }
+
+        // Update cart mapping with PaymentIntent ID
+        try {
+          await stripeService.updateCartMappingPaymentIntent(cartUuid, store.paymentIntentId);
+          console.log('[StripePayment] Cart mapping updated with PaymentIntent ID');
+        } catch (mappingError) {
+          console.warn('[StripePayment] Cart mapping update failed (non-critical):', mappingError);
+        }
+      }
+
+      // Create Elements
+      console.log('[StripePayment] Creating Stripe Elements...');
+      if (!store.resolvedStripe) {
+        store.error = 'Stripe not initialized';
+        return false;
+      }
+
+      const elements = store.resolvedStripe.elements({
+        clientSecret: store.clientSecret,
+        appearance: {
+          theme: 'stripe',
+          variables: {
+            colorPrimary: '#937237',
+            colorBackground: '#ffffff',
+            colorText: '#1a1a1a',
+            colorDanger: '#df1b41',
+            fontFamily: 'system-ui, sans-serif',
+            spacingUnit: '4px',
+            borderRadius: '8px',
+          },
+        },
+      });
+
+      store.stripeElements = noSerialize(elements) as StripeElements;
+
+      // Mount payment element
+      const paymentElement = elements.create('payment', {
+        layout: {
+          type: 'tabs',
+          defaultCollapsed: false,
+        },
+      });
+
+      // Use static ID since cart UUID is now stable across remounts
+      const formId = 'payment-form';
+      const paymentFormElement = document.getElementById(formId);
+      if (!paymentFormElement) {
+        store.error = 'Payment form element not found';
+        console.error('[StripePayment] Could not find element with ID:', formId);
+        return false;
+      }
+
+      paymentElement.mount(`#${formId}`);
+      console.log('[StripePayment] Payment Element mounted successfully to:', formId);
+
+      // Wait for Payment Element to be ready before proceeding
+      return new Promise((resolve) => {
+        paymentElement.on('ready', () => {
+          console.log('[StripePayment] Payment Element is ready to accept input');
+          console.log('[StripePayment] Elements instance type:', typeof store.stripeElements?.submit);
+          store.debugInfo = 'Payment form ready';
+          resolve(true);
+        });
+
+        // Fallback timeout in case ready event doesn't fire
+        setTimeout(() => {
+          console.warn('[StripePayment] Payment Element ready timeout, proceeding anyway');
+          resolve(true);
+        }, 5000);
+      });
+
+    } catch (error) {
+      console.error('[StripePayment] Error initializing Elements:', error);
+      store.error = error instanceof Error ? error.message : 'Failed to initialize payment form';
+      store.debugInfo = `Error: ${store.error}`;
+      return false;
+    }
+  });
+
+  useVisibleTask$(async ({ cleanup }) => {
+    // Cart UUID is now managed by CartContext - no need to generate here
+    console.log('[StripePayment] Using cart UUID from context:', cartUuid);
 
     console.log('[StripePayment] Setting up window functions...');
     if (typeof window !== 'undefined') {
@@ -80,52 +279,30 @@ export default component$(() => {
 
         try {
           // CRITICAL: Must call submit() first to validate and prepare payment data
-          console.log('[StripePayment] Submitting payment form...');
+          // This MUST happen before any async work per Stripe requirements
+          console.log('[StripePayment] Submitting Elements for validation...');
+          const submitResult = await store.stripeElements.submit();
 
-          const submitResult = await store.stripeElements?.submit();
           if (submitResult?.error) {
-            console.error('[StripePayment] Form submission failed:', submitResult.error);
-            console.error('[StripePayment] Error type:', submitResult.error.type);
-            console.error('[StripePayment] Error code:', submitResult.error.code);
-            console.error('[StripePayment] Error message:', submitResult.error.message);
-
-            const stripeKey = await getStripePublishableKeyQuery();
-            const stripeService = new StripePaymentService(
-              stripeKey,
-              '/shop-api',
-              $(() => {
-                const token = getCookie(AUTH_TOKEN);
-                const headers: Record<string, string> = {};
-                if (token) {
-                  headers.Authorization = `Bearer ${token}`;
-                }
-                return headers;
-              })
-            );
-            const errorMessage = stripeService.getErrorMessage(submitResult.error, 'CONFIRM_PAYMENT');
-            const isRetryable = stripeService.isErrorRetryable(submitResult.error, 'CONFIRM_PAYMENT');
-
-            const paymentError: PaymentError = {
-              message: errorMessage,
-              isRetryable,
-              category: 'stripe',
-              severity: submitResult.error.type === 'card_error' ? 'medium' : 'high',
-              userAction: submitResult.error.type === 'card_error' ?
-                'Please check your payment information and try again' :
-                'Please try again or contact support'
+            console.error('[StripePayment] Elements validation failed:', submitResult.error);
+            const error = {
+              message: submitResult.error.message || 'Payment validation failed',
+              isRetryable: true,
+              category: 'validation' as const,
+              severity: 'medium' as const,
+              userAction: 'Please check your payment details and try again'
             };
-
-            store.paymentError = paymentError;
-            store.error = errorMessage;
-            store.debugInfo = `Form submission error: ${errorMessage}`;
-            return { success: false, error: errorMessage, paymentError };
+            store.paymentError = error;
+            store.error = error.message;
+            store.debugInfo = `Validation error: ${error.message}`;
+            return { success: false, error: error.message, paymentError: error };
           }
 
-          console.log('[StripePayment] Form submitted successfully, confirming payment with Stripe...');
+          console.log('[StripePayment] Elements validated successfully, confirming payment...');
 
           const result = await store.resolvedStripe.confirmPayment({
             elements: store.stripeElements,
-            redirect: 'if_required',
+            clientSecret: store.clientSecret,
             confirmParams: {
               return_url: `${window.location.origin}/checkout/confirmation/${activeOrder?.code || 'unknown'}`,
             },
@@ -165,6 +342,10 @@ export default component$(() => {
             store.paymentError = paymentError;
             store.error = errorMessage;
             store.debugInfo = `Confirmation error: ${errorMessage}`;
+
+            // Payment.tsx will handle remounting this component to get fresh Stripe Elements
+            console.log('[StripePayment] Payment failed - parent component will remount for fresh retry');
+
             return { success: false, error: errorMessage, paymentError };
           }
 
@@ -209,253 +390,86 @@ export default component$(() => {
         return true;
       };
 
-      // Expose retry function
-      (window as any).retryStripePayment = async (activeOrder?: any) => {
-        if (store.retryCount >= store.maxRetries) {
-          console.log('[StripePayment] Maximum retry attempts reached');
-          return { success: false, error: 'Maximum retry attempts reached' };
-        }
-        
-        store.retryCount++;
-        console.log(`[StripePayment] Retry attempt ${store.retryCount}/${store.maxRetries}`);
-        
-        return await (window as any).confirmStripePreOrderPayment(activeOrder);
-      };
-
-      // Expose error dismissal function
-      (window as any).dismissStripePaymentError = () => {
-        store.paymentError = null;
-        store.error = '';
-      };
-
-      // Expose retry function
-      (window as any).retryStripePayment = async (activeOrder?: any) => {
-        if (store.retryCount >= store.maxRetries) {
-          console.log('[StripePayment] Maximum retry attempts reached');
-          return { success: false, error: 'Maximum retry attempts reached' };
-        }
-        
-        store.retryCount++;
-        console.log(`[StripePayment] Retry attempt ${store.retryCount}/${store.maxRetries}`);
-        
-        return await (window as any).confirmStripePreOrderPayment(activeOrder);
-      };
-
-      // Expose error dismissal function
-      (window as any).dismissStripePaymentError = () => {
-        store.paymentError = null;
-        store.error = '';
-      };
-
       console.log('[StripePayment] Window functions set up successfully');
       console.log('[StripePayment] confirmStripePreOrderPayment available:', typeof (window as any).confirmStripePreOrderPayment);
-      console.log('[StripePayment] retryStripePayment available:', typeof (window as any).retryStripePayment);
     }
-  });
-
-  useVisibleTask$(async () => {
     console.log('[StripePayment] Initializing payment form...');
 
-    // CRITICAL: Check if Elements are already mounted to prevent clearing user input
+    // CRITICAL: Reset error state at the start of initialization
+    // This ensures a fresh start even if store persists across key changes
+    store.error = '';
+    store.paymentError = null;
+    store.isProcessing = false;
+    console.log('[StripePayment] Error state cleared for fresh initialization');
+
+    // NUCLEAR OPTION: Always recreate Elements on component mount for clean retry
+    // This ensures corrupted Elements after payment failure are always replaced with fresh ones
     const paymentFormElement = document.getElementById('payment-form');
-    if (paymentFormElement && paymentFormElement.children.length > 0 && store.stripeElements) {
-      console.log('[StripePayment] Elements already mounted, skipping re-initialization');
-      return;
+    if (paymentFormElement) {
+      paymentFormElement.innerHTML = '';
+      console.log('[StripePayment] Cleared DOM for fresh Elements creation');
     }
 
-    // Check cart state without tracking it (read once, don't react to changes)
-    const cartItems = localCart?.localCart?.items;
-    if (!cartItems || cartItems.length === 0) {
-      store.debugInfo = 'Waiting for cart items...';
-      store.error = 'Cart is empty. Please add items to continue.';
-      return;
-    }
+    // Reset store state for fresh creation
+    store.clientSecret = '';
+    store.paymentIntentId = '';
+    store.resolvedStripe = undefined;
+    store.stripeElements = undefined;
+    console.log('[StripePayment] Store state reset for fresh Elements creation');
 
-    try {
-      // Get Stripe publishable key
-      const stripeKey = await getStripePublishableKeyQuery();
-      console.log('[StripePayment] Loading Stripe with key:', stripeKey);
+    // Call the centralized initialization function
+    await initializeElements();
 
-      // Initialize Stripe
-      const stripe = await getStripe(stripeKey);
-      if (!stripe) {
-        store.error = 'Failed to load Stripe';
-        store.debugInfo = 'Error: Stripe failed to load';
-        return;
-      }
+    // ✅ CLEANUP: Properly unmount Payment Element when component unmounts
+    cleanup(() => {
+      console.log('[StripePayment] Component unmounting, cleaning up Payment Element...');
 
-      store.resolvedStripe = noSerialize(stripe);
-
-      // Create PaymentIntent for the estimated total using StripePaymentService
-      console.log('[StripePayment] Creating PaymentIntent for estimated total...');
-      const stripeService = new StripePaymentService(
-        stripeKey,
-        '/shop-api',
-        $(() => {
-          const token = getCookie(AUTH_TOKEN);
-          const headers: Record<string, string> = {};
-          if (token) {
-            headers.Authorization = `Bearer ${token}`;
-          }
-          return headers;
-        })
-      );
-
-      // Calculate total including shipping based on shipping address
-      const subtotal = localCart.localCart.subTotal;
-      const discount = localCart.appliedCoupon?.discountAmount || 0;
-      const subtotalAfterDiscount = subtotal - discount;
-
-      // Calculate shipping based on country code (same logic as CartTotals.tsx)
-      let shipping = 0;
-      if (appState.shippingAddress && appState.shippingAddress.countryCode) {
-        if (localCart.appliedCoupon?.freeShipping) {
-          shipping = 0;
-        } else {
-          const countryCode = appState.shippingAddress.countryCode;
-          if (countryCode === 'US' || countryCode === 'PR') {
-            shipping = subtotalAfterDiscount >= 10000 ? 0 : 800;
-          } else {
-            shipping = 2000;
-          }
-        }
-      }
-
-      const estimatedTotal = subtotalAfterDiscount + shipping;
-
-      console.log('[StripePayment] Payment calculation:', {
-        subtotal,
-        discount,
-        subtotalAfterDiscount,
-        shipping,
-        estimatedTotal,
-        countryCode: appState.shippingAddress?.countryCode
-      });
-
-      try {
-        // Create PaymentIntent with the actual calculated total
-        // This ensures the payment amount is correct from the start
-        const paymentIntentResult = await stripeService.createPaymentIntent(estimatedTotal, 'usd', cartUuid.value);
-        console.log('[StripePayment] PaymentIntent created:', paymentIntentResult);
-        
-        store.clientSecret = paymentIntentResult.clientSecret;
-        store.paymentIntentId = paymentIntentResult.paymentIntentId;
-
-        // Store PaymentIntent ID globally for checkout flow to access
-        if (typeof window !== 'undefined') {
-          (window as any).__stripePaymentIntentId = paymentIntentResult.paymentIntentId;
-        }
-        
-        // Create cart mapping first (for pre-order flow)
+      // Properly unmount Stripe Elements first
+      if (store.stripeElements) {
         try {
-          await stripeService.createCartMapping(cartUuid.value);
-          console.log('Cart mapping created successfully');
+          console.log('[StripePayment] Unmounting Stripe Elements...');
+          // Note: Unfortunately Stripe doesn't expose individual elements for unmounting
+          // But clearing DOM after this should be safe
         } catch (error) {
-          console.warn('Failed to create cart mapping, continuing with payment:', error);
-          // Continue with payment flow even if cart mapping fails
+          console.warn('[StripePayment] Error during Stripe Elements cleanup:', error);
         }
-        
-        // Update cart mapping with PaymentIntent ID
-        try {
-          await stripeService.updateCartMappingPaymentIntent(cartUuid.value, store.paymentIntentId);
-          console.log('[StripePayment] Cart mapping updated with PaymentIntent ID');
-        } catch (mappingError) {
-          console.warn('[StripePayment] Cart mapping update failed (non-critical):', mappingError);
-          // Don't fail the payment flow if cart mapping fails
-        }
-        
-        store.debugInfo = 'PaymentIntent created successfully';
-      } catch (paymentIntentError) {
-        console.error('[StripePayment] Failed to create PaymentIntent:', paymentIntentError);
-        store.error = 'Failed to initialize payment. Please try again.';
-        store.debugInfo = `PaymentIntent error: ${paymentIntentError instanceof Error ? paymentIntentError.message : 'Unknown error'}`;
-        return;
       }
 
-      // Create elements with the client secret
-      const elements = stripe.elements({
-        clientSecret: store.clientSecret,
-        locale: 'en',
-        appearance: {
-          theme: 'stripe',
-          variables: {
-            colorPrimary: '#8a6d4a',
-            colorBackground: '#ffffff',
-            colorText: '#374151',
-            colorDanger: '#ef4444',
-            colorSuccess: '#10b981',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            spacingUnit: '4px',
-            borderRadius: '6px',
-            fontSizeBase: '16px',
-          }
-        }
-      });
-
-      store.stripeElements = noSerialize(elements);
-      store.debugInfo = 'Mounting payment element...';
-
-      // Mount payment element
-      const mountTarget = document.getElementById('payment-form');
-      if (!mountTarget) {
-        store.error = 'Payment form mount target not found';
-        store.debugInfo = 'Error: #payment-form element missing';
-        return;
+      // Clear the payment form DOM to ensure fresh mount on remount
+      const paymentFormElement = document.getElementById('payment-form');
+      if (paymentFormElement) {
+        paymentFormElement.innerHTML = '';
+        console.log('[StripePayment] Payment form DOM cleared');
+      }
+      
+      // Clean up global window functions
+      if (typeof window !== 'undefined') {
+        delete (window as any).confirmStripePreOrderPayment;
+        delete (window as any).linkPaymentIntentToOrder;
+        delete (window as any).__stripePaymentIntentId;
+        console.log('[StripePayment] Global window functions cleaned up');
       }
 
-      const paymentElement = elements.create('payment', {
-        layout: 'tabs',
-        paymentMethodOrder: ['card', 'apple_pay', 'google_pay'],
-        defaultValues: {
-          billingDetails: {
-            name: '',
-            email: '',
-          }
-        }
-      });
-
-      await paymentElement.mount('#payment-form');
-
-      // Add event listeners
-      paymentElement.on('ready', () => {
-        store.debugInfo = 'Payment Element is ready!';
-      });
-
-      paymentElement.on('change', (event: any) => {
-        if (event.error) {
-          store.error = event.error.message || 'Payment validation error';
-          store.debugInfo = `Payment error: ${event.error.message || 'Unknown error'}`;
-        } else {
-          store.error = '';
-          store.debugInfo = 'Payment form is valid and ready!';
-        }
-      });
-
-      store.debugInfo = 'Payment Element mounted successfully!';
-    } catch (error) {
-      console.error('[StripePayment] Initialization error:', error);
-      store.error = error instanceof Error ? error.message : 'Failed to initialize payment form';
-      store.debugInfo = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
-    }
-  });
-
-  // Handler functions for error display
-  const _handleRetry = $(() => {
-    if (typeof window !== 'undefined' && (window as any).retryStripePayment) {
-      (window as any).retryStripePayment();
-    }
-  });
-
-  const _handleDismissError = $(() => {
-    if (typeof window !== 'undefined' && (window as any).dismissStripePaymentError) {
-      (window as any).dismissStripePaymentError();
-    }
+      // Reset ALL store state for fresh remount
+      store.clientSecret = '';
+      store.paymentIntentId = '';
+      store.resolvedStripe = undefined;
+      store.stripeElements = undefined;
+      store.error = '';
+      store.paymentError = null;
+      store.isProcessing = false;
+      store.debugInfo = 'Component unmounted';
+      console.log('[StripePayment] Store state fully reset for fresh remount');
+    });
   });
 
   return (
     <div class="w-full max-w-full">
       <div class="payment-tabs-container relative">
-        <div id="payment-form" class="mb-8 w-full max-w-full"></div>
+        <div
+          id="payment-form"
+          class="mb-8 w-full max-w-full"
+        ></div>
       </div>
       
       {/* Enhanced error display */}
@@ -485,7 +499,6 @@ export default component$(() => {
       {store.debugInfo && process.env.NODE_ENV === 'development' && (
         <div class="mt-4 p-2 bg-gray-100 rounded text-xs text-gray-600">
           Debug: {store.debugInfo}
-          {store.retryCount > 0 && ` | Retries: ${store.retryCount}/${store.maxRetries}`}
         </div>
       )}
     </div>

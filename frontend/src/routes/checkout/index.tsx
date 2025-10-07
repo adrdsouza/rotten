@@ -118,6 +118,8 @@ const CheckoutContent = component$(() => {
 
   const stripeTriggerSignal = useSignal(0);
   const selectedPaymentMethod = useSignal<string>('stripe');
+
+  // Use cart UUID from CartContext - no need to generate here
   const pageLoading = useSignal(true);
   const paymentComplete = useSignal(false);
   
@@ -291,8 +293,9 @@ const CheckoutContent = component$(() => {
 
         // Only trigger payment if we haven't already triggered it for this order
         // This prevents multiple payment attempts on the same order
-        if (selectedPaymentMethod.value === 'stripe' && stripeTriggerSignal.value === 0) {
+        if (selectedPaymentMethod.value === 'stripe') {
           stripeTriggerSignal.value++;
+          console.log('[Checkout] Payment triggered, signal value:', stripeTriggerSignal.value);
         }
       } else {
         throw new Error('Order is not ready for payment. Please try again.');
@@ -401,6 +404,7 @@ const CheckoutContent = component$(() => {
                         state.error = errorMessage || 'Payment processing failed. Please check your details and try again.';
                         isOrderProcessing.value = false;
                         stripeTriggerSignal.value = 0;
+                        console.log('[Checkout] Payment error, signal reset to:', stripeTriggerSignal.value);
 
                         // 🚨 CRITICAL FIX: Restore cart to local mode after payment failure
                         // This ensures the cart remains functional for retry attempts

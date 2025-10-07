@@ -1,7 +1,7 @@
 import { component$, QRL, useSignal, useVisibleTask$, Signal, $ } from '@qwik.dev/core';
 import { EligiblePaymentMethods } from '~/types';
 
-import StripePayment from './StripePayment';
+import StripePaymentV2 from './StripePaymentV2';
 
 interface PaymentProps {
 	onForward$: QRL<(orderCode: string) => void>; // Expects orderCode from payment methods
@@ -15,6 +15,9 @@ interface PaymentProps {
 
 export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _onError$, onProcessingChange$: _onProcessingChange$, triggerStripeSignal: _triggerStripeSignal, selectedPaymentMethod: _externalSelectedPaymentMethod, isDisabled, hideButton: _hideButton = false }) => {
 	const paymentMethods = useSignal<EligiblePaymentMethods[]>();
+
+	// Reactive signal to control StripePayment lifecycle - follows Qwik best practices
+	const stripePaymentKey = useSignal<number>(0);
 
 	// Use external signal if provided, otherwise use internal signal
 
@@ -57,10 +60,10 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 							if (paymentResult && !paymentResult.success) {
 								// Payment failed - provide specific error feedback
 								console.error('[Payment] Stripe payment failed:', paymentResult.error);
-								
+
 								// Provide user-friendly error messages based on error type
 								let userMessage = paymentResult.error || 'Payment failed. Please try again.';
-								
+
 								if (paymentResult.error?.includes('settlement')) {
 									userMessage = 'Payment was processed but settlement failed. Please contact support if you were charged.';
 								} else if (paymentResult.error?.includes('confirmation')) {
@@ -68,7 +71,11 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 								} else if (paymentResult.error?.includes('network') || paymentResult.error?.includes('timeout')) {
 									userMessage = 'Network error occurred. Please check your connection and try again.';
 								}
-								
+
+								// Force StripePayment component remount to get fresh Stripe Elements
+								console.log('[Payment] Incrementing stripePaymentKey to force component remount');
+								stripePaymentKey.value++;
+
 								_onError$(userMessage);
 								return;
 							}
@@ -87,7 +94,7 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 
 						} catch (paymentError) {
 							console.error('[Payment] Stripe payment error:', paymentError);
-							
+
 							// Provide user-friendly error message for exceptions
 							let errorMessage = 'Payment failed. Please try again.';
 							if (paymentError instanceof Error) {
@@ -99,7 +106,9 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 									errorMessage = paymentError.message;
 								}
 							}
-							
+
+							// NOTE: Key increment happens above in the paymentResult failure case
+							// Don't increment again here to avoid double remount
 							_onError$(errorMessage);
 						}
 					} else {
@@ -141,7 +150,8 @@ export default component$<PaymentProps>(({ onForward$: _onForward$, onError$: _o
 							)}
 							{method.code.includes('stripe') && (
 								<div class="!w-full">
-									<StripePayment />
+									{/* Feature flag: Use V2 (refactored) component */}
+									<StripePaymentV2 key={stripePaymentKey.value} />
 								</div>
 							)}
 						</div>

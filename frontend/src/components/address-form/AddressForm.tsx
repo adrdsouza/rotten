@@ -221,63 +221,65 @@ export default component$<IProps>(({ shippingAddress, formApi, isReviewMode, onU
 		}
 	});
 
-	// Complete form validation and sync to app state
-	const validateAndSync$ = $(() => {
-		// Merge local form data with shipping address
-		const mergedAddress = {
-			...shippingAddress,
-			...localFormData.value,
-		};
+// Complete form validation and sync to app state - MOVED BEFORE FIRST USAGE
+const validateAndSync$ = $(() => {
+	// Merge local form data with shipping address
+	const mergedAddress = {
+		...shippingAddress,
+		...localFormData.value,
+	};
 
-		// console.log('[AddressForm] Validating complete address for country:', mergedAddress.countryCode);
+	// console.log('[AddressForm] Validating complete address for country:', mergedAddress.countryCode);
 
-		// Apply local normalization for India
-		if (mergedAddress.countryCode === 'IN') {
-			const cityKey = (mergedAddress.city || '').trim().toLowerCase();
-			const provinceKey = (mergedAddress.province || '').trim().toLowerCase();
-			
-			if (IN_CITY_MAP[cityKey]) mergedAddress.city = IN_CITY_MAP[cityKey];
-			if (IN_STATE_MAP[provinceKey]) mergedAddress.province = IN_STATE_MAP[provinceKey];
-			
-			// Capitalize first letter if not in mapping
-			if (!IN_CITY_MAP[cityKey] && mergedAddress.city) {
-				mergedAddress.city = mergedAddress.city.charAt(0).toUpperCase() + mergedAddress.city.slice(1);
-			}
-			if (!IN_STATE_MAP[provinceKey] && mergedAddress.province) {
-				mergedAddress.province = mergedAddress.province.charAt(0).toUpperCase() + mergedAddress.province.slice(1);
-			}
+	// Apply local normalization for India
+	if (mergedAddress.countryCode === 'IN') {
+		const cityKey = (mergedAddress.city || '').trim().toLowerCase();
+		const provinceKey = (mergedAddress.province || '').trim().toLowerCase();
+
+		if (IN_CITY_MAP[cityKey]) mergedAddress.city = IN_CITY_MAP[cityKey];
+		if (IN_STATE_MAP[provinceKey]) mergedAddress.province = IN_STATE_MAP[provinceKey];
+
+		// Capitalize first letter if not in mapping
+		if (!IN_CITY_MAP[cityKey] && mergedAddress.city) {
+			mergedAddress.city = mergedAddress.city.charAt(0).toUpperCase() + mergedAddress.city.slice(1);
 		}
-
-		// Validate all required fields using the same validation functions as individual fields
-		const streetResult = validateAddress(mergedAddress.streetLine1 || '', 'Street address');
-		const cityResult = validateName(mergedAddress.city || '', 'City');
-		const provinceResult = validateStateProvince(mergedAddress.province || '', mergedAddress.countryCode || 'US', 'State/Province');
-		const postalResult = validatePostalCode(mergedAddress.postalCode || '', mergedAddress.countryCode || 'US');
-		const customerValid = isActiveCustomerValid(appState.customer);
-
-		const addressValid = streetResult.isValid && cityResult.isValid && provinceResult.isValid && postalResult.isValid;
-		const overallValid = addressValid && customerValid;
-
-		// console.log('[AddressForm] Validation results:', {
-		// 	street: streetResult.isValid,
-		// 	city: cityResult.isValid,
-		// 	province: provinceResult.isValid,
-		// 	postal: postalResult.isValid,
-		// 	customer: customerValid,
-		// 	overall: overallValid
-		// });
-
-		// Update form validity state
-		isFormValid.value = overallValid;
-
-		// Sync to app state if everything is valid
-		if (overallValid) {
-			// console.log('[AddressForm] All validation passed, syncing to appState');
-			appState.shippingAddress = { ...mergedAddress };
-		} else {
-			// console.log('[AddressForm] Validation failed, not syncing to appState');
+		if (!IN_STATE_MAP[provinceKey] && mergedAddress.province) {
+			mergedAddress.province = mergedAddress.province.charAt(0).toUpperCase() + mergedAddress.province.slice(1);
 		}
-	});
+	}
+
+	// Validate all required fields using the same validation functions as individual fields
+	const streetResult = validateAddress(mergedAddress.streetLine1 || '', 'Street address');
+	const cityResult = validateName(mergedAddress.city || '', 'City');
+	const provinceResult = validateStateProvince(mergedAddress.province || '', mergedAddress.countryCode || 'US', 'State/Province');
+	const postalResult = validatePostalCode(mergedAddress.postalCode || '', mergedAddress.countryCode || 'US');
+	const customerValid = isActiveCustomerValid(appState.customer);
+
+	const addressValid = streetResult.isValid && cityResult.isValid && provinceResult.isValid && postalResult.isValid;
+	const overallValid = addressValid && customerValid;
+
+	// console.log('[AddressForm] Validation results:', {
+	// 	street: streetResult.isValid,
+	// 	city: cityResult.isValid,
+	// 	province: provinceResult.isValid,
+	// 	postal: postalResult.isValid,
+	// 	customer: customerValid,
+	// 	overall: overallValid
+	// });
+
+	// Update form validity state
+	isFormValid.value = overallValid;
+
+	// Sync to app state if everything is valid
+	if (overallValid) {
+		// console.log('[AddressForm] All validation passed, syncing to appState');
+		appState.shippingAddress = { ...mergedAddress };
+	} else {
+		// console.log('[AddressForm] Validation failed, not syncing to appState');
+	}
+});
+
+
 
 	// Handle field blur events
 	const handleFieldBlur$ = $((fieldName: string, value: string) => {
