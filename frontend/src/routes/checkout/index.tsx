@@ -126,6 +126,7 @@ const CheckoutContent = component$(() => {
 
   const isOrderProcessing = useSignal(false);
   const showProcessingModal = useSignal(false);
+  const modalError = useSignal<string | null>(null);
 
   // Initial page loading task with proper cleanup
   useVisibleTask$(async () => {
@@ -218,8 +219,8 @@ const CheckoutContent = component$(() => {
         }
         appState.activeOrder = vendureOrder;
       } catch (conversionError) {
-        state.error = conversionError instanceof Error ? conversionError.message : 'An unknown error occurred while creating your order.';
-        showProcessingModal.value = false;
+        const errorMessage = conversionError instanceof Error ? conversionError.message : 'An unknown error occurred while creating your order.';
+        modalError.value = errorMessage;
         isOrderProcessing.value = false;
         return;
       }
@@ -298,8 +299,8 @@ const CheckoutContent = component$(() => {
         throw new Error('Order is not ready for payment. Please try again.');
       }
     } catch (error) {
-      state.error = error instanceof Error ? error.message : 'An unknown error occurred. Please check your information and try again.';
-      showProcessingModal.value = false;
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred. Please check your information and try again.';
+      modalError.value = errorMessage;
       isOrderProcessing.value = false;
     }
   });
@@ -326,8 +327,9 @@ const CheckoutContent = component$(() => {
         </div>
       ) : (
         <div class="bg-gradient-to-br from-gray-50 via-white to-gray-100 min-h-screen">
-          <OrderProcessingModal 
+          <OrderProcessingModal
             visible={showProcessingModal.value}
+            error={modalError.value}
           />
           
           <div class="max-w-7xl mx-auto pt-4 mb-12 px-4 sm:px-6 lg:px-8">
@@ -397,42 +399,14 @@ const CheckoutContent = component$(() => {
                         state.loading = true;
                       })}
                       onError$={$(async (errorMessage: string) => {
-                        showProcessingModal.value = false;
-                        state.error = errorMessage || 'Payment processing failed. Please check your details and try again.';
+                        console.error('[CHECKOUT] Payment error:', errorMessage);
+
+                        // 🔄 SNAPPY UX: Show error in modal with countdown, then refresh
+                        modalError.value = errorMessage || 'Payment processing failed. Please check your details and try again.';
                         isOrderProcessing.value = false;
                         stripeTriggerSignal.value = 0;
 
-                        // 🚨 CRITICAL FIX: Restore cart to local mode after payment failure
-                        // This ensures the cart remains functional for retry attempts
-                        console.log('[Checkout] Payment failed, restoring cart state for retry...');
-                        localCart.isLocalMode = true;
-
-                        // Ensure cart data is still available (it should be since we don't clear it until payment succeeds)
-                        try {
-                          const currentCart = LocalCartService.getCart();
-                          if (currentCart.items.length > 0) {
-                            console.log('[Checkout] Cart data preserved for retry:', currentCart.items.length, 'items');
-                            // Trigger cart update to refresh UI
-                            if (typeof window !== 'undefined') {
-                              window.dispatchEvent(new CustomEvent('cart-updated', {
-                                detail: { totalQuantity: currentCart.totalQuantity }
-                              }));
-                            }
-                          } else {
-                            console.warn('[Checkout] Cart appears to be empty after payment failure - this should not happen');
-                          }
-                        } catch (cartError) {
-                          console.error('[Checkout] Error checking cart state after payment failure:', cartError);
-                        }
-
-                        // Try to transition order back to AddingItems state for retry
-                        try {
-                          await transitionOrderToStateMutation('AddingItems');
-                          console.log('[Checkout] Order transitioned back to AddingItems state for retry');
-                        } catch (transitionError) {
-                          console.error('[Checkout] Failed to transition order back to AddingItems state:', transitionError);
-                          // This is not critical - user can still retry payment
-                        }
+                        console.log('[CHECKOUT] Payment failed - modal will show error and refresh page');
                       })}
                       onProcessingChange$={$(async (isProcessing: boolean) => {
                         state.loading = isProcessing;

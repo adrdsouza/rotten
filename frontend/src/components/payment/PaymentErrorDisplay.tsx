@@ -1,4 +1,4 @@
-import { component$ } from '@qwik.dev/core';
+import { component$, useSignal, useVisibleTask$ } from '@qwik.dev/core';
 import { PaymentError } from '~/services/payment-error-handler';
 import XCircleIcon from '../icons/XCircleIcon';
 
@@ -8,6 +8,26 @@ interface PaymentErrorDisplayProps {
 }
 
 export const PaymentErrorDisplay = component$<PaymentErrorDisplayProps>((props) => {
+  const countdown = useSignal(3);
+  const isRefreshing = useSignal(false);
+
+  // Check if this is a page refresh error message
+  const isPageRefreshError = props.error.message.includes('Refreshing page for retry');
+
+  useVisibleTask$(({ cleanup }) => {
+    if (isPageRefreshError) {
+      isRefreshing.value = true;
+      const timer = setInterval(() => {
+        countdown.value--;
+        if (countdown.value <= 0) {
+          clearInterval(timer);
+        }
+      }, 1000);
+
+      cleanup(() => clearInterval(timer));
+    }
+  });
+
   return (
     <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
       <div class="flex items-start">
@@ -30,6 +50,12 @@ export const PaymentErrorDisplay = component$<PaymentErrorDisplayProps>((props) 
           {props.isRetrying && (
             <div class="mt-3 text-sm text-red-600">
               <p>Retrying payment...</p>
+            </div>
+          )}
+
+          {isRefreshing.value && countdown.value > 0 && (
+            <div class="mt-3 text-sm text-red-600">
+              <p>Refreshing page in {countdown.value} seconds...</p>
             </div>
           )}
         </div>

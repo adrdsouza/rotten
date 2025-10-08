@@ -118,6 +118,10 @@ export default component$(() => {
             store.paymentError = paymentError;
             store.error = errorMessage;
             store.debugInfo = `Form submission error: ${errorMessage}`;
+
+            // Error will be handled by the modal in checkout page
+            console.log('[StripePayment] Payment failed - error will be shown in modal');
+
             return { success: false, error: errorMessage, paymentError };
           }
 
@@ -165,6 +169,10 @@ export default component$(() => {
             store.paymentError = paymentError;
             store.error = errorMessage;
             store.debugInfo = `Confirmation error: ${errorMessage}`;
+
+            // Error will be handled by the modal in checkout page
+            console.log('[StripePayment] Payment confirmation failed - error will be shown in modal');
+
             return { success: false, error: errorMessage, paymentError };
           }
 
@@ -189,11 +197,14 @@ export default component$(() => {
             severity: 'high',
             userAction: 'Please try again or contact support if the problem persists'
           };
-          
+
           store.paymentError = paymentError;
           store.error = errorMessage;
           store.debugInfo = `Error: ${errorMessage}`;
-          
+
+          // Error will be handled by the modal in checkout page
+          console.log('[StripePayment] Payment process error - error will be shown in modal');
+
           return { success: false, error: errorMessage, paymentError };
         } finally {
           store.isProcessing = false;
