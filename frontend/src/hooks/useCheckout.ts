@@ -17,25 +17,25 @@ export const useCheckout = () => {
   });
 
   /**
-   * Converts the local cart to a Vendure order and updates the app's mode.
-   * Does NOT clear the cart items.
+   * Converts the local cart to a Vendure order.
+   * Does NOT clear the cart items or change isLocalMode.
+   * Cart is only cleared after successful payment confirmation.
    */
   const convertLocalCartToVendureOrder = $(async () => {
     checkoutState.isLoading = true;
     checkoutState.error = null;
-    
+
     try {
       const stockValidation = LocalCartService.validateStock();
       if (!stockValidation.valid) {
         throw new Error(`Stock validation failed: ${stockValidation.errors.join(', ')}`);
       }
-      
+
       const order = await _convertLocalCartToVendureOrder(cartState);
-      
+
       if (order) {
-        // This is the critical fix: update the app's mode immediately
-        // to prevent the UI from incorrectly re-rendering.
-        cartState.isLocalMode = false;
+        // Keep isLocalMode = true until payment succeeds
+        // Cart will be cleared only after successful payment confirmation
         return order;
       } else {
         throw new Error('Failed to create Vendure order from the cart.');

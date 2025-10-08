@@ -38,19 +38,13 @@ const getAuthHeaders = $(() => {
   return headers;
 });
 
+// No need for routeLoader - we ALWAYS use local cart mode until payment succeeds
+// The order is only created when user clicks "Place Order"
 export const useCheckoutLoader = routeLoader$(async () => {
-  try {
-    const order = await getActiveOrderQuery();
-    return {
-      order,
-      error: null
-    };
-  } catch (error) {
-    return {
-      order: null,
-      error: error instanceof Error ? error.message : 'Failed to load checkout data'
-    };
-  }
+  return {
+    order: null,
+    error: null
+  };
 });
 
 const prefetchOrderConfirmation = $((orderCode: string) => {
@@ -131,29 +125,43 @@ const CheckoutContent = component$(() => {
   // Initial page loading task with proper cleanup
   useVisibleTask$(async () => {
     if (pageLoading.value) {
+      const checkoutStartTime = performance.now();
+      console.log('🚀 [CHECKOUT TIMING] Starting checkout page initialization...');
+
       try {
+        const clearCacheStart = performance.now();
         clearAllValidationCache();
         appState.showCart = false;
-        
+        console.log(`⏱️ [CHECKOUT TIMING] Clear cache: ${(performance.now() - clearCacheStart).toFixed(2)}ms`);
+
         // Initialize active order from loader data if available
+        const loaderStart = performance.now();
         if (loaderData.value.order && !loaderData.value.error) {
           appState.activeOrder = loaderData.value.order;
         }
-        
+        console.log(`⏱️ [CHECKOUT TIMING] Loader data init: ${(performance.now() - loaderStart).toFixed(2)}ms`);
+
+        const loadCartStart = performance.now();
         await loadCartIfNeeded(localCart);
-        
+        console.log(`⏱️ [CHECKOUT TIMING] Load cart: ${(performance.now() - loadCartStart).toFixed(2)}ms`);
+
         if (localCart.localCart.items.length > 0) {
           try {
+            const stockRefreshStart = performance.now();
             await refreshCartStock(localCart);
+            console.log(`⏱️ [CHECKOUT TIMING] Stock refresh: ${(performance.now() - stockRefreshStart).toFixed(2)}ms`);
           } catch (error) {
             console.error('Checkout: Failed to refresh stock levels:', error);
           }
         }
-        
+
         // Update cart empty state
-        isCartEmpty.value = localCart.localCart.items.length === 0 && 
+        const emptyCheckStart = performance.now();
+        isCartEmpty.value = localCart.localCart.items.length === 0 &&
           (!appState.activeOrder || !appState.activeOrder.lines || appState.activeOrder.lines.length === 0);
-        
+        console.log(`⏱️ [CHECKOUT TIMING] Empty check: ${(performance.now() - emptyCheckStart).toFixed(2)}ms`);
+
+        console.log(`✅ [CHECKOUT TIMING] TOTAL checkout initialization: ${(performance.now() - checkoutStartTime).toFixed(2)}ms`);
       } catch (error) {
         console.error('[Checkout] Error during checkout initialization:', error);
         state.error = 'Failed to load checkout. Please try again.';

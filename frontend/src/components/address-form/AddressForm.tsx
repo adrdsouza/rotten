@@ -86,14 +86,51 @@ export default component$<IProps>(({ shippingAddress, formApi, isReviewMode, onU
 	// Track if user has interacted with form
 	const hasUserInteracted = useSignal(false);
 
-	// Force update country code from sessionStorage if it exists - moved to useVisibleTask for proper timing
+	// Load guest address from sessionStorage and country code - moved to useVisibleTask for proper timing
 	useVisibleTask$(() => {
 		if (typeof sessionStorage !== 'undefined') {
-			const storedCountry = sessionStorage.getItem('countryCode');
-			if (storedCountry && storedCountry !== appState.shippingAddress.countryCode) {
-				// console.log(`🔄 AddressForm: Updating country from sessionStorage: ${storedCountry}`);
-				appState.shippingAddress.countryCode = storedCountry;
-				localCountryCode.value = storedCountry; // Also update the local signal for dropdown UI
+			// First, try to load complete guest address data
+			const storedGuestAddress = sessionStorage.getItem('guestShippingAddress');
+			if (storedGuestAddress) {
+				try {
+					const guestData = JSON.parse(storedGuestAddress);
+					// Always load guest data - UX trumps staleness concerns
+					if (guestData) {
+						// console.log('🔄 AddressForm: Loading guest address from sessionStorage');
+						// Load customer details
+						appState.customer = {
+							...appState.customer,
+							firstName: guestData.firstName || '',
+							lastName: guestData.lastName || '',
+							emailAddress: guestData.emailAddress || ''
+						};
+						// Load shipping address details
+						appState.shippingAddress = {
+							...appState.shippingAddress,
+							streetLine1: guestData.streetLine1 || '',
+							streetLine2: guestData.streetLine2 || '',
+							city: guestData.city || '',
+							province: guestData.province || '',
+							postalCode: guestData.postalCode || '',
+							countryCode: guestData.countryCode || '',
+							phoneNumber: guestData.phoneNumber || ''
+						};
+						localCountryCode.value = guestData.countryCode || '';
+						// console.log('[AddressForm] Restored guest address from sessionStorage');
+					}
+				} catch (error) {
+					console.warn('[AddressForm] Failed to parse guest address from sessionStorage:', error);
+				}
+			}
+
+			// Fallback: Load just country code if no complete address data
+			if (!storedGuestAddress) {
+				const storedCountry = sessionStorage.getItem('countryCode');
+				if (storedCountry && storedCountry !== appState.shippingAddress.countryCode) {
+					// console.log(`🔄 AddressForm: Updating country from sessionStorage: ${storedCountry}`);
+					appState.shippingAddress.countryCode = storedCountry;
+					localCountryCode.value = storedCountry; // Also update the local signal for dropdown UI
+				}
 			}
 		}
 	});
@@ -274,6 +311,30 @@ export default component$<IProps>(({ shippingAddress, formApi, isReviewMode, onU
 		if (overallValid) {
 			// console.log('[AddressForm] All validation passed, syncing to appState');
 			appState.shippingAddress = { ...mergedAddress };
+
+			// Save guest address to sessionStorage for persistence across page refreshes
+			// This ensures guest users don't lose their address data on payment failure
+			if (typeof sessionStorage !== 'undefined') {
+				try {
+					const guestAddressData = {
+						firstName: appState.customer.firstName || '',
+						lastName: appState.customer.lastName || '',
+						emailAddress: appState.customer.emailAddress || '',
+						streetLine1: mergedAddress.streetLine1,
+						streetLine2: mergedAddress.streetLine2,
+						city: mergedAddress.city,
+						province: mergedAddress.province,
+						postalCode: mergedAddress.postalCode,
+						countryCode: mergedAddress.countryCode,
+						phoneNumber: mergedAddress.phoneNumber,
+						lastUpdated: Date.now()
+					};
+					sessionStorage.setItem('guestShippingAddress', JSON.stringify(guestAddressData));
+					// console.log('[AddressForm] Saved guest address to sessionStorage for persistence');
+				} catch (error) {
+					console.warn('[AddressForm] Failed to save guest address to sessionStorage:', error);
+				}
+			}
 		} else {
 			// console.log('[AddressForm] Validation failed, not syncing to appState');
 		}

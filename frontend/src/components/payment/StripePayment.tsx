@@ -9,6 +9,7 @@ import { PaymentError } from '~/services/payment-error-handler';
 import { PaymentErrorDisplay } from './PaymentErrorDisplay';
 import { APP_STATE, AUTH_TOKEN } from '~/constants';
 import { getCookie } from '~/utils';
+import { useCheckoutValidation } from '~/contexts/CheckoutValidationContext';
 
 import XCircleIcon from '../icons/XCircleIcon';
 
@@ -24,9 +25,14 @@ function getStripe(publishableKey: string) {
 export default component$(() => {
   const localCart = useLocalCart();
   const appState = useContext(APP_STATE);
+  const validation = useCheckoutValidation();
 
   // Generate cart UUID for tracking
   const cartUuid = useSignal<string>('');
+
+  // Track Stripe loading state
+  const isStripeLoaded = useSignal(false);
+  const isExpanded = useSignal(false);
 
   const store = useStore({
     clientSecret: '',
@@ -41,7 +47,7 @@ export default component$(() => {
     maxRetries: 3,
   });
 
-  // Expose functions to window for checkout flow
+  // Lazy load Stripe after FCP (First Contentful Paint)
   useVisibleTask$(() => {
     // Generate cart UUID on component mount
     if (typeof window !== 'undefined' && !cartUuid.value) {
@@ -49,6 +55,40 @@ export default component$(() => {
       console.log('[StripePayment] Generated cart UUID:', cartUuid.value);
     }
 
+    // Wait for FCP before loading Stripe
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      console.log('[StripePayment] Scheduling Stripe lazy load after FCP...');
+      requestIdleCallback(() => {
+        console.log('[StripePayment] Starting lazy Stripe initialization...');
+        isStripeLoaded.value = true;
+      }, { timeout: 2000 }); // Fallback after 2s if idle callback doesn't fire
+    } else {
+      // Fallback for browsers without requestIdleCallback
+      setTimeout(() => {
+        console.log('[StripePayment] Starting lazy Stripe initialization (fallback)...');
+        isStripeLoaded.value = true;
+      }, 500);
+    }
+  });
+
+  // Watch for validation state to expand payment section and enable interaction
+  useVisibleTask$(({ track }) => {
+    const paymentReady = track(() => validation.isPaymentReady);
+
+    // Expand section when validation passes
+    if (paymentReady && !isExpanded.value) {
+      console.log('[StripePayment] Validation passed - expanding payment section');
+      isExpanded.value = true;
+    }
+
+    // Log when Stripe becomes interactive
+    if (paymentReady && isExpanded.value && isStripeLoaded.value) {
+      console.log('[StripePayment] Stripe Elements now interactive - validation passed');
+    }
+  });
+
+  // Setup window functions for checkout flow
+  useVisibleTask$(() => {
     console.log('[StripePayment] Setting up window functions...');
     if (typeof window !== 'undefined') {
       // Function to confirm payment using enhanced error handling
@@ -264,8 +304,15 @@ export default component$(() => {
     }
   });
 
-  useVisibleTask$(async () => {
-    console.log('[StripePayment] Initializing payment form...');
+  useVisibleTask$(async ({ track }) => {
+    // Wait for Stripe to be lazy loaded
+    const loaded = track(() => isStripeLoaded.value);
+    if (!loaded) {
+      console.log('[StripePayment] Waiting for lazy load...');
+      return;
+    }
+
+    console.log('[StripePayment] Initializing payment form after lazy load...');
 
     // CRITICAL: Check if Elements are already mounted to prevent clearing user input
     const paymentFormElement = document.getElementById('payment-form');
@@ -356,25 +403,11 @@ export default component$(() => {
         if (typeof window !== 'undefined') {
           (window as any).__stripePaymentIntentId = paymentIntentResult.paymentIntentId;
         }
-        
-        // Create cart mapping first (for pre-order flow)
-        try {
-          await stripeService.createCartMapping(cartUuid.value);
-          console.log('Cart mapping created successfully');
-        } catch (error) {
-          console.warn('Failed to create cart mapping, continuing with payment:', error);
-          // Continue with payment flow even if cart mapping fails
-        }
-        
-        // Update cart mapping with PaymentIntent ID
-        try {
-          await stripeService.updateCartMappingPaymentIntent(cartUuid.value, store.paymentIntentId);
-          console.log('[StripePayment] Cart mapping updated with PaymentIntent ID');
-        } catch (mappingError) {
-          console.warn('[StripePayment] Cart mapping update failed (non-critical):', mappingError);
-          // Don't fail the payment flow if cart mapping fails
-        }
-        
+
+        // Note: Cart mapping is not needed for payment flow
+        // The PaymentIntent already contains cartUuid in metadata
+        // which is sufficient for tracking and webhook processing
+
         store.debugInfo = 'PaymentIntent created successfully';
       } catch (paymentIntentError) {
         console.error('[StripePayment] Failed to create PaymentIntent:', paymentIntentError);
@@ -465,10 +498,49 @@ export default component$(() => {
 
   return (
     <div class="w-full max-w-full">
+      {/* Always render the payment form container, but show/hide content */}
       <div class="payment-tabs-container relative">
-        <div id="payment-form" class="mb-8 w-full max-w-full"></div>
+        {/* Collapsed state - show placeholder until validation passes */}
+        {!isExpanded.value && (
+          <div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-6 text-center">
+            <div class="flex items-center justify-center space-x-2 text-gray-500">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <span class="text-sm font-medium">
+                {isStripeLoaded.value ? 'Complete address details to proceed with payment' : 'Loading payment options...'}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Expanded state - show Stripe payment form */}
+        {isExpanded.value && (
+          <>
+            {/* Overlay to disable interaction until validation passes */}
+            {!validation.isPaymentReady && (
+              <div class="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
+                <div class="text-center p-4">
+                  <div class="flex items-center justify-center space-x-2 text-gray-500 mb-2">
+                    <svg class="h-5 w-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <span class="text-sm font-medium">Finalizing details...</span>
+                  </div>
+                  <p class="text-xs text-gray-400">Complete shipping information above</p>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Always render payment-form div for Stripe to mount to */}
+        <div
+          id="payment-form"
+          class={`mb-8 w-full max-w-full ${!isExpanded.value ? 'hidden' : ''}`}
+        ></div>
       </div>
-      
+
       {/* Enhanced error display */}
       {store.paymentError && (
         <PaymentErrorDisplay
@@ -476,7 +548,7 @@ export default component$(() => {
           isRetrying={store.isProcessing}
         />
       )}
-      
+
       {/* Fallback error display for non-enhanced errors */}
       {store.error !== '' && !store.paymentError && (
         <div class="rounded-md bg-red-50 p-4 mb-8">

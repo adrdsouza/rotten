@@ -1,0 +1,307 @@
+import { $, component$, useContext, useSignal, useComputed$, useVisibleTask$ } from '@qwik.dev/core';
+import { Order } from '~/generated/graphql'; // Removed unused AdjustmentType
+
+import { APP_STATE } from '~/constants';
+import { applyCouponCodeMutation, removeCouponCodeMutation, validateLocalCartCouponQuery } from '~/providers/shop/orders/order';
+import { formatPrice } from '~/utils';
+import TrashIcon from '../icons/TrashIcon';
+import Alert from '../alert/Alert';
+import { useLocalCart } from '~/contexts/CartContext';
+
+export default component$<{
+	order?: Order; // order prop might become redundant if we solely rely on appState.activeOrder
+	readonly?: boolean;
+	localCart?: any; // Local cart data for Local Cart Mode
+}>(({ order, readonly = false, localCart }) => {
+	const appState = useContext(APP_STATE);
+	const localCartContext = useLocalCart();
+	const couponCodeSignal = useSignal('');
+	const errorSignal = useSignal('');
+
+	// Use passed order prop if available, otherwise fall back to appState.activeOrder
+	const activeOrder = useComputed$(() => order || appState.activeOrder);
+
+
+
+	const activeCouponCode = useComputed$(() => {
+		// Use the applied coupon from local cart context
+		if (localCartContext.appliedCoupon) {
+			return localCartContext.appliedCoupon.code;
+		}
+		// Fallback to active order coupon for confirmation pages
+		return activeOrder.value?.couponCodes?.[0];
+	});
+	const subtotal = useComputed$(() => {
+		// Use local cart data or fallback to order data for confirmation pages
+		const sub = (localCart?.localCart?.subTotal || localCart?.subTotal || activeOrder.value?.subTotalWithTax || 0);
+		return sub;
+	});
+	// Calculate order total after discount (but before shipping) for free shipping eligibility
+	const orderTotalAfterDiscount = useComputed$(() => {
+		let total = subtotal.value;
+		// Apply discount if a coupon is active
+		if (localCartContext.appliedCoupon) {
+			total -= localCartContext.appliedCoupon.discountAmount;
+		}
+		// Fallback to order calculation for confirmation pages
+		if (total === 0 && activeOrder.value) {
+			total = (activeOrder.value.totalWithTax || 0) - (activeOrder.value.shippingWithTax || 0);
+		}
+		return total;
+	});
+
+	const shipping = useComputed$(() => {
+		if (appState.shippingAddress && appState.shippingAddress.countryCode) {
+			// Check if coupon provides free shipping
+			if (localCartContext.appliedCoupon?.freeShipping) {
+				return 0;
+			}
+
+			const countryCode = appState.shippingAddress.countryCode;
+			// Use order total after discount for free shipping eligibility
+			const orderTotal = orderTotalAfterDiscount.value;
+			if (countryCode === 'US' || countryCode === 'PR') {
+				const ship = orderTotal >= 10000 ? 0 : 800; // Free shipping over $100 after discount, otherwise $8
+				return ship;
+			}
+			return 2000; // International shipping $20
+		}
+		// Fallback to active order shipping for confirmation pages
+		const ship = activeOrder.value?.shippingWithTax || 0;
+		return ship;
+	});
+	const total = useComputed$(() => {
+		// Use the order total after discount plus shipping
+		const localTotal = orderTotalAfterDiscount.value + shipping.value;
+		// Fallback to active order total for confirmation pages
+		const tot = localTotal || activeOrder.value?.totalWithTax || 0;
+		return tot;
+	});
+
+	// Ensure coupon display updates
+	const displayDiscount = useComputed$(() => {
+		// Use the applied coupon discount from local cart context
+		if (localCartContext.appliedCoupon) {
+			return localCartContext.appliedCoupon.discountAmount;
+		}
+		// Fallback to active order discount for confirmation pages
+		if (activeOrder.value?.discounts && activeOrder.value.discounts.length > 0) {
+			const discount = activeOrder.value.discounts[0].amountWithTax || 0;
+			return discount;
+		}
+		return 0;
+	});
+
+	const handleInput$ = $((_event: Event, element: HTMLInputElement) => { // Changed event type to general Event as event arg is not used
+		couponCodeSignal.value = element.value;
+		errorSignal.value = '';
+	});
+
+	const applyCoupon$ = $(async () => {
+		if (!couponCodeSignal.value) return;
+		errorSignal.value = '';
+
+		// Use local cart coupon validation in local cart mode
+		if (localCartContext.isLocalMode) {
+			try {
+				const cartItems = localCartContext.localCart.items.map(item => ({
+					productVariantId: item.productVariantId,
+					quantity: item.quantity,
+					unitPrice: item.productVariant.price
+				}));
+
+				const result = await validateLocalCartCouponQuery({
+					couponCode: couponCodeSignal.value,
+					cartTotal: localCartContext.localCart.subTotal,
+					cartItems,
+					customerId: appState.customer?.id
+				});
+
+				if (result.isValid) {
+					// Store coupon validation result for display
+					localCartContext.appliedCoupon = {
+						code: result.appliedCouponCode || couponCodeSignal.value,
+						discountAmount: result.discountAmount,
+						discountPercentage: result.discountPercentage,
+						freeShipping: result.freeShipping,
+						promotionName: result.promotionName,
+						promotionDescription: result.promotionDescription
+					};
+					couponCodeSignal.value = ''; // Clear input after successful validation
+					errorSignal.value = '';
+				} else {
+					errorSignal.value = result.validationErrors.join(', ');
+				}
+			} catch (error) {
+				console.error('Error validating coupon:', error);
+				errorSignal.value = 'Failed to validate coupon. Please try again.';
+			}
+			return;
+		}
+
+		const res = await applyCouponCodeMutation(couponCodeSignal.value);
+		if (res.__typename === 'Order') {
+			appState.activeOrder = res as Order;
+			couponCodeSignal.value = ''; // Clear input after successful application
+		} else {
+			errorSignal.value = res.message;
+		}
+	});
+
+	const removeCoupon$ = $(async (code: string) => {
+		// Handle coupon removal in local cart mode
+		if (localCartContext.isLocalMode) {
+			localCartContext.appliedCoupon = null;
+			errorSignal.value = '';
+			return;
+		}
+
+		const res = await removeCouponCodeMutation(code);
+		if (res && res.__typename === 'Order') {
+			appState.activeOrder = res as Order;
+			errorSignal.value = '';
+		}
+	});
+
+	// Clear error message after a delay
+	useVisibleTask$(({ track }) => {
+		track(() => errorSignal.value);
+		if (errorSignal.value) {
+			const timer = setTimeout(() => {
+				errorSignal.value = '';
+			}, 3000);
+			return () => clearTimeout(timer);
+		}
+	});
+
+	// Re-validate coupon when cart changes in local mode
+	useVisibleTask$(async ({ track }) => {
+		// Track dependencies for re-validation
+		track(() => localCartContext.localCart.items);
+		track(() => localCartContext.localCart.subTotal);
+
+		// Only run if in local mode and a coupon is applied
+		if (localCartContext.isLocalMode && localCartContext.appliedCoupon) {
+			try {
+				const cartItems = localCartContext.localCart.items.map(item => ({
+					productVariantId: item.productVariantId,
+					quantity: item.quantity,
+					unitPrice: item.productVariant.price
+				}));
+
+				const result = await validateLocalCartCouponQuery({
+					couponCode: localCartContext.appliedCoupon.code, // Use the applied coupon code
+					cartTotal: localCartContext.localCart.subTotal,
+					cartItems,
+					customerId: appState.customer?.id
+				});
+
+				if (result.isValid) {
+					// Update the applied coupon details in case discount amount changed
+					localCartContext.appliedCoupon = {
+						code: result.appliedCouponCode || localCartContext.appliedCoupon.code,
+						discountAmount: result.discountAmount,
+						discountPercentage: result.discountPercentage,
+						freeShipping: result.freeShipping,
+						promotionName: result.promotionName,
+						promotionDescription: result.promotionDescription
+					};
+				} else {
+					// Coupon is no longer valid, remove it and show an error
+					errorSignal.value = result.validationErrors.join(', ');
+					localCartContext.appliedCoupon = null;
+				}
+			} catch (error) {
+				console.error('Error re-validating coupon:', error);
+				errorSignal.value = 'Failed to re-validate coupon.';
+				localCartContext.appliedCoupon = null; // Remove on error
+			}
+		}
+	});
+
+	return (
+		<dl class="border-t mt-6 border-gray-200 py-6 space-y-4"> {/* Reduced space-y for tighter layout if needed */}
+      {/* Subtotal */}
+      <div class="flex items-center justify-between">
+        <dt>{`Subtotal`}</dt>
+        <dd class="font-medium text-gray-900">{formatPrice(subtotal.value, localCart?.currencyCode || activeOrder.value?.currencyCode || 'USD')}</dd>
+      </div>
+
+      {/* Shipping Fee */}
+      <div class="flex items-center justify-between">
+        <dt>{`Shipping fee`}</dt>
+        <dd class="font-medium text-gray-900">{formatPrice(shipping.value, localCart?.currencyCode || activeOrder.value?.currencyCode || 'USD')}</dd>
+      </div>
+
+      {/* Coupon Section - New Implementation */}
+      {!readonly && (
+        <div class="space-y-1">
+          <div class="flex items-center justify-between">
+            {activeCouponCode.value ? (
+              <div class="flex items-center justify-between w-full">
+                <div class="flex items-center">
+                  <span>{activeCouponCode.value}</span>
+                  <button
+                    onClick$={() => removeCoupon$(activeCouponCode.value!)}
+                    title={`Remove coupon`}
+                    class="p-1 ml-2"
+                  >
+                    <TrashIcon forcedClass="h-4 w-4 text-red-500 hover:text-red-700" />
+                  </button>
+                </div>
+                <dd class="font-medium text-green-600 whitespace-nowrap">
+                  {displayDiscount.value > 0
+                    ? '-' + formatPrice(displayDiscount.value, localCart?.currencyCode || activeOrder.value?.currencyCode || 'USD').substring(1)
+                    : '-' + formatPrice(0, localCart?.currencyCode || activeOrder.value?.currencyCode || 'USD').substring(1)}
+                </dd>
+              </div>
+            ) : (
+              <div class="flex items-center justify-between w-full">
+                <div class="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    placeholder={`Enter coupon`}
+                    value={couponCodeSignal.value}
+                    onInput$={handleInput$}
+                    onKeyDown$={async (event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        if (couponCodeSignal.value.length > 0) {
+                          await applyCoupon$();
+                        }
+                      }
+                    }}
+                    class="w-40 py-1 px-2 border border-gray-300 rounded-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-hidden"
+                  />
+                  <button 
+                    onClick$={applyCoupon$}
+                    class="btn-primary px-3 py-1 rounded-sm"
+                    disabled={couponCodeSignal.value.length === 0}
+                  >
+                    {`Apply`}
+                  </button>
+                </div>
+                <dd class="font-medium text-primary-600 whitespace-nowrap">
+                  {displayDiscount.value > 0
+                    ? '-' + formatPrice(displayDiscount.value, localCart?.currencyCode || activeOrder.value?.currencyCode || 'USD').substring(1)
+                    : '-' + formatPrice(0, localCart?.currencyCode || activeOrder.value?.currencyCode || 'USD').substring(1)}
+                </dd>
+              </div>
+            )}
+          </div>
+          {/* Error Message Area (Alert component) */}
+          {errorSignal.value && (
+            <div class="text-right mt-1">
+             <Alert message={errorSignal.value} />
+            </div>
+          )}
+        </div>
+      )}
+      {/* Total */}
+			<div class="flex items-center justify-between border-t border-gray-200 pt-6">
+				<dt class="font-medium">{`Total`}</dt>
+				<dd class="font-medium text-gray-900">{formatPrice(total.value, localCart?.currencyCode || activeOrder.value?.currencyCode || 'USD')}</dd>
+			</div>
+		</dl>
+	);
+});

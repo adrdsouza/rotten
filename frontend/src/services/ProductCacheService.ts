@@ -31,7 +31,7 @@ class ProductCacheService {
   private constructor(config?: Partial<ProductCacheConfig>) {
     this.config = {
       staticDataTTL: config?.staticDataTTL || 10 * 60 * 1000,      // 10 minutes
-      stockLevelsTTL: config?.stockLevelsTTL || 30 * 1000,         // 30 seconds
+      stockLevelsTTL: config?.stockLevelsTTL || 0,                 // No stock caching - always fresh
       assetsTTL: config?.assetsTTL || 15 * 60 * 1000,              // 15 minutes
       maxSize: config?.maxSize || 50                               // 50 entries max
     };

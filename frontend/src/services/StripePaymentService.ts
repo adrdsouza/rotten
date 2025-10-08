@@ -373,68 +373,6 @@ export class StripePaymentService {
   }
 
   /**
-   * Create cart mapping to link cart UUID with order
-   */
-  /**
-   * Create cart mapping for pre-order flow (without order initially)
-   */
-  async createCartMapping(cartUuid: string): Promise<boolean> {
-    try {
-      console.log(`Creating cart mapping for cart ${cartUuid}`);
-
-      const response = await this.makeGraphQLRequest(`
-        mutation CreateCartMapping($cartUuid: String!) {
-          createCartMapping(cartUuid: $cartUuid) {
-            id
-            cartUuid
-            createdAt
-          }
-        }
-      `, {
-        cartUuid
-      });
-
-      const result = response.data.createCartMapping;
-      console.log('Cart mapping created successfully:', result);
-      return true;
-
-    } catch (error) {
-      console.error('Failed to create cart mapping:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Update cart mapping with payment intent ID
-   */
-  async updateCartMappingPaymentIntent(cartUuid: string, paymentIntentId: string): Promise<boolean> {
-    try {
-      console.log(`Updating cart mapping ${cartUuid} with payment intent ${paymentIntentId}`);
-
-      const response = await this.makeGraphQLRequest(`
-        mutation UpdateCartMappingPaymentIntent($cartUuid: String!, $paymentIntentId: String!) {
-          updateCartMappingPaymentIntent(cartUuid: $cartUuid, paymentIntentId: $paymentIntentId) {
-            id
-            cartUuid
-            paymentIntentId
-          }
-        }
-      `, {
-        cartUuid,
-        paymentIntentId
-      });
-
-      const result = response.data.updateCartMappingPaymentIntent;
-      console.log('Cart mapping updated successfully:', result);
-      return true;
-
-    } catch (error) {
-      console.error('Failed to update cart mapping:', error);
-      return false;
-    }
-  }
-
-  /**
    * Complete payment flow: Confirm with Stripe → Add payment to order
    * This is the new recommended flow using the official Vendure Stripe plugin
    */

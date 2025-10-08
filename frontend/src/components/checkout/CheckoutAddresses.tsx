@@ -25,7 +25,7 @@ import { useLoginModalActions } from '~/contexts/LoginModalContext';
 import { addressState } from '~/utils/checkout-state';
 import { useCheckoutAddressState } from '~/contexts/CheckoutAddressContext';
 import { CheckoutOptimizationService } from '~/services/CheckoutOptimizationService';
-import { LocalAddressService } from '~/services/LocalAddressService';
+
 
 
 // Interfaces for the component
@@ -76,14 +76,14 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
       firstName: appState.customer?.firstName || '',
       lastName: appState.customer?.lastName || '',
       emailAddress: appState.customer?.emailAddress || '',
-      phoneNumber: appState.customer?.phoneNumber || '',
+      phoneNumber: appState.shippingAddress?.phoneNumber || '',
     };
     
     // Individual validations
     const firstNameResult = validateName(customer.firstName, 'First name');
     const lastNameResult = validateName(customer.lastName, 'Last name');
     const emailResult = validateEmail(customer.emailAddress);
-    const phoneResult = validatePhone(customer.phoneNumber, countryCode, isPhoneOptional);
+    const phoneResult = validatePhone(appState.shippingAddress?.phoneNumber || '', countryCode, isPhoneOptional);
     
     // Customer validation using utility with proper ActiveCustomer object
     const customerForValidation = {
@@ -253,7 +253,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     track(() => appState.customer?.emailAddress);
     track(() => appState.customer?.firstName);
     track(() => appState.customer?.lastName);
-    track(() => appState.customer?.phoneNumber);
+    track(() => appState.shippingAddress?.phoneNumber);
     
     // Clear validation errors for fields that now have valid data from login
     if (appState.customer?.emailAddress && !emailTouched.value) {
@@ -265,7 +265,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     if (appState.customer?.lastName && !lastNameTouched.value) {
       lastNameValidationError.value = '';
     }
-    if (appState.customer?.phoneNumber && !phoneTouched.value) {
+    if (appState.shippingAddress?.phoneNumber && !phoneTouched.value) {
       phoneValidationError.value = '';
     }
   });
@@ -280,18 +280,18 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     track(() => appState.shippingAddress?.province);
     track(() => appState.shippingAddress?.postalCode);
     track(() => appState.shippingAddress?.countryCode);
-    track(() => appState.customer?.phoneNumber);
+    track(() => appState.shippingAddress?.phoneNumber);
 
     // When shipping address is populated (e.g., after login), update form validation state
     // This ensures the address fields are properly validated and the form can proceed
     if (appState.shippingAddress?.streetLine1) {
       // Mark phone as touched if it has a value from login, so validation errors show
-      if (appState.customer?.phoneNumber && !phoneTouched.value) {
+      if (appState.shippingAddress?.phoneNumber && !phoneTouched.value) {
         phoneTouched.value = true;
         // Immediately validate the phone number with the current country
         const countryCode = appState.shippingAddress.countryCode || 'US';
         const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
-        const phoneResult = validatePhone(appState.customer.phoneNumber, countryCode, isPhoneOptional);
+        const phoneResult = validatePhone(appState.shippingAddress.phoneNumber, countryCode, isPhoneOptional);
         if (!phoneResult.isValid) {
           phoneValidationError.value = phoneResult.message || 'Invalid phone number';
         }
@@ -334,7 +334,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
     // Immediately re-validate phone when country changes (no debounce for country changes)
     const countryCode = appState.shippingAddress.countryCode || 'US';
     const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
-    const customerPhoneNumber = (appState.customer?.phoneNumber || '') as string;
+    const customerPhoneNumber = (appState.shippingAddress?.phoneNumber || '') as string;
 
     console.log(`📍 [CheckoutAddresses] Country changed to: ${countryCode}, Phone optional: ${isPhoneOptional}`);
 
@@ -370,7 +370,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
         firstName: appState.customer?.firstName || '',
         lastName: appState.customer?.lastName || '',
         emailAddress: appState.customer?.emailAddress || '',
-        phoneNumber: appState.customer?.phoneNumber || '',
+        phoneNumber: appState.shippingAddress?.phoneNumber || '',
         id: appState.customer?.id || '',
         title: appState.customer?.title || '',
       };
@@ -408,7 +408,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
                 emailAddress: appState.customer.emailAddress || '',
                 firstName: appState.customer.firstName || '',
                 lastName: appState.customer.lastName || '',
-                phoneNumber: appState.customer.phoneNumber || '',
+                phoneNumber: appState.shippingAddress.phoneNumber || '',
               };
               // console.log('Attempting to set customer for order (guest checkout) with data:', customerData);
               const customerResult = await setCustomerForOrderMutation(customerData);
@@ -475,7 +475,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
           province: appState.shippingAddress.province || '',
           postalCode: appState.shippingAddress.postalCode || '',
           countryCode: appState.shippingAddress.countryCode,
-          phoneNumber: appState.customer.phoneNumber || '',
+          phoneNumber: appState.shippingAddress.phoneNumber || '',
           company: appState.shippingAddress.company || ''
         };
 
@@ -530,7 +530,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
               province: appState.shippingAddress.province || '',
               postalCode: appState.shippingAddress.postalCode || '',
               countryCode: appState.shippingAddress.countryCode || '',
-              phoneNumber: appState.customer.phoneNumber || '',
+              phoneNumber: appState.shippingAddress.phoneNumber || '',
               company: appState.shippingAddress.company || '',
               defaultShippingAddress: true,
               defaultBillingAddress: !useDifferentBilling.value,
@@ -585,102 +585,10 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
 
       // console.log('✅ All addresses set successfully');
 
-      // Save addresses to LocalAddressService after successful submission
-      try {
-        // Determine source based on customer login status
-        const isLoggedIn = appState.customer?.id && appState.customer.id !== CUSTOMER_NOT_DEFINED_ID;
-
-        if (appState.shippingAddress.streetLine1) {
-          const savedShippingAddress = isLoggedIn
-            ? LocalAddressService.saveOrUpdateDefaultShippingAddress({
-                firstName: appState.customer?.firstName || '',
-                lastName: appState.customer?.lastName || '',
-                fullName: `${appState.customer?.firstName || ''} ${appState.customer?.lastName || ''}`.trim(),
-                company: appState.shippingAddress.company || '',
-                streetLine1: appState.shippingAddress.streetLine1 || '',
-                streetLine2: appState.shippingAddress.streetLine2 || '',
-                city: appState.shippingAddress.city || '',
-                province: appState.shippingAddress.province || '',
-                postalCode: appState.shippingAddress.postalCode || '',
-                countryCode: appState.shippingAddress.countryCode || '',
-                phoneNumber: appState.customer?.phoneNumber || '',
-                defaultShippingAddress: true,
-                defaultBillingAddress: !useDifferentBilling.value, // Set as billing address if not using separate billing
-                source: 'customer'
-              })
-            : LocalAddressService.saveAddress({
-                firstName: appState.customer?.firstName || '',
-                lastName: appState.customer?.lastName || '',
-                fullName: `${appState.customer?.firstName || ''} ${appState.customer?.lastName || ''}`.trim(),
-                company: appState.shippingAddress.company || '',
-                streetLine1: appState.shippingAddress.streetLine1 || '',
-                streetLine2: appState.shippingAddress.streetLine2 || '',
-                city: appState.shippingAddress.city || '',
-                province: appState.shippingAddress.province || '',
-                postalCode: appState.shippingAddress.postalCode || '',
-                countryCode: appState.shippingAddress.countryCode || '',
-                phoneNumber: appState.customer?.phoneNumber || '',
-                defaultShippingAddress: true,
-                defaultBillingAddress: false,
-                source: 'checkout'
-              });
-
-          // If customer is logged in, sync to Vendure
-          if (isLoggedIn) {
-            LocalAddressService.syncToVendure(savedShippingAddress).catch(error => {
-              console.warn('Failed to sync shipping address to Vendure:', error);
-            });
-          }
-        }
-
-        if (useDifferentBilling.value && appState.billingAddress?.streetLine1) {
-          const savedBillingAddress = isLoggedIn
-            ? LocalAddressService.saveOrUpdateDefaultBillingAddress({
-                firstName: appState.billingAddress.firstName || '',
-                lastName: appState.billingAddress.lastName || '',
-                fullName: `${appState.billingAddress.firstName || ''} ${appState.billingAddress.lastName || ''}`.trim(),
-                company: '',
-                streetLine1: appState.billingAddress.streetLine1 || '',
-                streetLine2: appState.billingAddress.streetLine2 || '',
-                city: appState.billingAddress.city || '',
-                province: appState.billingAddress.province || '',
-                postalCode: appState.billingAddress.postalCode || '',
-                countryCode: appState.billingAddress.countryCode || '',
-                phoneNumber: '',
-                defaultShippingAddress: false,
-                defaultBillingAddress: true,
-                source: 'customer'
-              })
-            : LocalAddressService.saveAddress({
-                firstName: appState.billingAddress.firstName || '',
-                lastName: appState.billingAddress.lastName || '',
-                fullName: `${appState.billingAddress.firstName || ''} ${appState.billingAddress.lastName || ''}`.trim(),
-                company: '',
-                streetLine1: appState.billingAddress.streetLine1 || '',
-                streetLine2: appState.billingAddress.streetLine2 || '',
-                city: appState.billingAddress.city || '',
-                province: appState.billingAddress.province || '',
-                postalCode: appState.billingAddress.postalCode || '',
-                countryCode: appState.billingAddress.countryCode || '',
-                phoneNumber: '',
-                defaultShippingAddress: false,
-                defaultBillingAddress: true,
-                source: 'checkout'
-              });
-
-          // If customer is logged in, sync to Vendure
-          if (isLoggedIn) {
-            LocalAddressService.syncToVendure(savedBillingAddress).catch(error => {
-              console.warn('Failed to sync billing address to Vendure:', error);
-            });
-          }
-        }
-
-        // console.log('✅ Addresses saved to LocalAddressService');
-      } catch (addressSaveError) {
-        console.error('Failed to save addresses to LocalAddressService:', addressSaveError);
-        // Don't fail the entire process for address saving issues
-      }
+      // ✅ SIMPLIFIED: Forms already handle persistence to sessionStorage for both guest and auth users
+      // No need for duplicate saving here - addresses are already persisted by AddressForm and BillingAddressForm
+      // Vendure sync will happen only during place order, not here
+      // console.log('✅ Addresses submitted - already persisted by forms');
 
       // Notify parent component that addresses have been submitted
       if (onAddressesSubmitted$) {
@@ -807,8 +715,8 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
   const handlePhoneChange$ = $((value: string) => {
     // Filter input to only allow valid phone characters
     const filteredValue = filterPhoneInput(sanitizePhoneNumber(value));
-    appState.customer = { ...appState.customer, phoneNumber: filteredValue };
-    
+    appState.shippingAddress = { ...appState.shippingAddress, phoneNumber: filteredValue };
+
     if (phoneTouched.value) {
       const countryCode = appState.shippingAddress.countryCode || 'US';
       const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
@@ -823,7 +731,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
 
   const handlePhoneBlur$ = $(() => {
     phoneTouched.value = true;
-    const phoneNumber = appState.customer?.phoneNumber || '';
+    const phoneNumber = appState.shippingAddress?.phoneNumber || '';
     const countryCode = appState.shippingAddress.countryCode || 'US';
     const isPhoneOptional = countryCode === 'US' || countryCode === 'PR';
     const phoneResult = validatePhone(phoneNumber, countryCode, isPhoneOptional);
@@ -890,7 +798,7 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
             <div>
               <input
                 type="tel"
-                value={sanitizePhoneNumber(appState.customer?.phoneNumber)}
+                value={sanitizePhoneNumber(appState.shippingAddress?.phoneNumber)}
                 placeholder={phonePlaceholder.value}
                 onChange$={(_, el) => handlePhoneChange$(el.value)}
                 onBlur$={handlePhoneBlur$}

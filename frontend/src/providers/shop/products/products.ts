@@ -416,8 +416,8 @@ export const getStockLevelsOnly = async () => {
 	const cachedShortSleeve = productCache.getStockLevels('shortsleeveshirt');
 	const cachedLongSleeve = productCache.getStockLevels('longsleeveshirt');
 	
-	// Use more aggressive caching for stock levels (30 seconds)
-	const STOCK_CACHE_DURATION = 30 * 1000; // 30 seconds
+	// No stock caching - always query fresh for e-commerce accuracy
+	const STOCK_CACHE_DURATION = 0; // No caching
 	
 	if (cachedShortSleeve && cachedLongSleeve) {
 		const now = Date.now();
@@ -649,15 +649,17 @@ const singleProductStockQuery = gql`
 
 // 🚀 OPTIMIZED: Fetch stock levels only for a single product (used in cart validation)
 export const getProductStockLevelsOnly = async (slug: string) => {
-  console.log(`🚀 Loading stock levels only for product: ${slug}`);
-  
+  const funcStartTime = performance.now();
+  console.log(`🚀 [GRAPHQL TIMING] getProductStockLevelsOnly for: ${slug}`);
+
   try {
-    const startTime = Date.now();
+    const requestStart = performance.now();
     const result: any = await requester(singleProductStockQuery, { slug });
-    
-    const loadTime = Date.now() - startTime;
-    console.log(`✅ Stock levels loaded for ${slug} in ${loadTime}ms - payload ~98% smaller than full product`);
-    
+    const requestTime = performance.now() - requestStart;
+
+    console.log(`⏱️ [GRAPHQL TIMING] GraphQL request for ${slug}: ${requestTime.toFixed(2)}ms`);
+    console.log(`✅ [GRAPHQL TIMING] TOTAL getProductStockLevelsOnly for ${slug}: ${(performance.now() - funcStartTime).toFixed(2)}ms`);
+
     return result;
   } catch (error) {
     console.error(`❌ Failed to load stock levels for ${slug}:`, error);

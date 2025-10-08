@@ -21,12 +21,12 @@ export interface AppliedCoupon {
 }
 
 // Cart Context Interface - Only store data, not functions
+// We're ALWAYS in local cart mode until payment succeeds
 export interface CartContextState {
   // Cart data
   localCart: LocalCart;
 
   // State flags
-  isLocalMode: boolean;
   isLoading: boolean;
   lastError: string | null;
   hasLoadedOnce: boolean; // Track if cart has been loaded from localStorage
@@ -37,7 +37,7 @@ export interface CartContextState {
 
   // Applied coupon for local cart mode
   appliedCoupon: AppliedCoupon | null;
-  
+
   // 🚀 OPTIMIZED: Track last stock refresh time to prevent excessive refreshes
   lastStockRefresh: number | null; // Timestamp of last stock refresh
 }
@@ -47,7 +47,7 @@ export const CartContextId = createContextId<CartContextState>('cart-context');
 
 // Context Provider Component
 export const CartProvider = component$(() => {
-  // Initialize cart state
+  // Initialize cart state - always in local cart mode
   const cartState = useStore<CartContextState>({
     localCart: {
       items: [],
@@ -55,7 +55,6 @@ export const CartProvider = component$(() => {
       subTotal: 0,
       currencyCode: 'USD'
     },
-    isLocalMode: true,
     isLoading: false,
     lastError: null,
     hasLoadedOnce: false,
@@ -129,11 +128,18 @@ export const loadCartIfNeeded = $((cartState: CartContextState) => {
 
 // 🚀 NEW: Refresh stock levels when cart is opened
 export const refreshCartStock = $(async (cartState: CartContextState) => {
+  const refreshStartTime = performance.now();
+  console.log('🚀 [STOCK TIMING] Starting stock refresh...');
+
   // Only refresh if we have items in cart
-  if (!cartState.localCart.items.length) return;
+  if (!cartState.localCart.items.length) {
+    console.log('⏭️ [STOCK TIMING] Skipping - no items in cart');
+    return;
+  }
 
   // Prevent duplicate refreshes - if already refreshing, skip
   if (cartState.isRefreshingStock) {
+    console.log('⏭️ [STOCK TIMING] Skipping - already refreshing');
     return;
   }
 
@@ -141,9 +147,9 @@ export const refreshCartStock = $(async (cartState: CartContextState) => {
   const lastRefresh = cartState.lastStockRefresh || 0;
   const now = Date.now();
   const FIVE_MINUTES = 5 * 60 * 1000; // 5 minutes
-  
+
   if (now - lastRefresh < FIVE_MINUTES) {
-    // console.log('⏭️ CartContext: Skipping stock refresh - last refresh was less than 5 minutes ago');
+    console.log(`⏭️ [STOCK TIMING] Skipping - last refresh was ${((now - lastRefresh) / 1000).toFixed(0)}s ago (< 5min)`);
     return;
   }
 
@@ -152,11 +158,14 @@ export const refreshCartStock = $(async (cartState: CartContextState) => {
     cartState.isRefreshingStock = true;
 
     // Get fresh stock data for all cart items
+    const apiCallStart = performance.now();
     const updatedCart = await LocalCartService.refreshAllStockLevels();
+    console.log(`⏱️ [STOCK TIMING] API call: ${(performance.now() - apiCallStart).toFixed(2)}ms`);
+
     cartState.localCart = updatedCart;
     cartState.lastStockRefresh = now; // Record the refresh time
 
-    // console.log('✅ CartContext: Stock levels refreshed');
+    console.log(`✅ [STOCK TIMING] TOTAL stock refresh: ${(performance.now() - refreshStartTime).toFixed(2)}ms`);
   } catch (error) {
     console.error('❌ CartContext: Failed to refresh stock levels:', error);
     cartState.lastError = 'Failed to refresh stock levels';

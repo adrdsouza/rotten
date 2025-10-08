@@ -617,8 +617,8 @@ export const ShopComponent = component$<ShopComponentProps>((props) => {
 
         if (allVariants.length === 0) return;
 
-        // Check if we're in local cart mode or have loaded cart context
-        if (localCart.isLocalMode && localCart.hasLoadedOnce) {
+        // Always in local cart mode
+        if (localCart.hasLoadedOnce) {
           // Use loaded cart context data
           const result: Record<string, number> = {};
           allVariants.forEach((variantId) => {
@@ -628,19 +628,9 @@ export const ShopComponent = component$<ShopComponentProps>((props) => {
             result[variantId] = localItem?.quantity || 0;
           });
           quantitySignal.value = result;
-        } else if (localCart.isLocalMode) {
+        } else {
           // Use lightweight localStorage check (no context loading)
           quantitySignal.value = LocalCartService.getItemQuantitiesFromStorage(allVariants);
-        } else {
-          // Fallback to Vendure order (checkout mode)
-          const result: Record<string, number> = {};
-          allVariants.forEach((variantId) => {
-            const orderLine = (appState.activeOrder?.lines || []).find(
-              (l: any) => l.productVariant.id === variantId
-            );
-            result[variantId] = orderLine?.quantity || 0;
-          });
-          quantitySignal.value = result;
         }
       };
 

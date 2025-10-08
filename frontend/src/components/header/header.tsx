@@ -52,13 +52,8 @@ export default component$(() => {
 	// 🚀 OPTIMIZED: Only access cart context when actually needed (for operations)
 	const localCart = useLocalCart();
 
-	// 🚀 OPTIMIZED: Always use cartQuantitySignal for badge display (lightweight)
-	const totalQuantity =
-		localCart.isLocalMode
-			? cartQuantitySignal.value // Always use lightweight localStorage value
-			: appState.activeOrder?.state !== 'PaymentAuthorized'
-			? appState.activeOrder?.totalQuantity || 0
-			: 0;
+	// Always use local cart quantity from lightweight localStorage
+	const totalQuantity = cartQuantitySignal.value;
 	// Check if we're on checkout or confirmation pages
 	const isOnCheckoutPage = isCheckoutPage(location.url.toString());
 	const isOnConfirmationPage = location.url.pathname.includes('/checkout/confirmation/');

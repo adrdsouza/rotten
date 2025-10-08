@@ -75,10 +75,8 @@ export default component$<{
 
 	// 🚀 OPTIMIZED: Process new line items only when cart contents actually change
 	useVisibleTask$(async ({ track }) => {
-		// Track cart changes to only run when items actually change
-		const _cartItems = localCart.isLocalMode
-			? track(() => localCart.localCart.items)
-			: track(() => appState.activeOrder?.lines || []);
+		// Always track local cart items
+		const _cartItems = track(() => localCart.localCart.items);
 
 		// Get current lines directly
 		const lines = order?.lines || appState.activeOrder?.lines || [];
@@ -146,8 +144,8 @@ export default component$<{
 	return (
 		<div class="flow-root mx-auto w-full">
 			<ul class="-my-6 divide-y divide-gray-200 mx-auto w-full">
-				{/* Render local cart items when in local mode */}
-				{localCart.isLocalMode && localCart.localCart.items.map((item) => {
+				{/* Always render local cart items */}
+				{localCart.localCart.items.map((item) => {
 					const productSlug = item.productVariant.product?.slug || '';
 					const productName = item.productVariant.product?.name || 
 						productNameCache.value[productSlug] || 
@@ -304,8 +302,8 @@ export default component$<{
 					);
 				})}
 
-				{/* Render Vendure order lines when in Vendure mode OR when explicit order prop is passed */}
-				{(!localCart.isLocalMode || order) && (order?.lines || appState.activeOrder?.lines || []).map((line) => {
+				{/* Render Vendure order lines only when explicit order prop is passed (e.g., confirmation page) */}
+				{order && order.lines.map((line) => {
 					const { linePriceWithTax } = line;
 					
 					// Get product name directly without computed signal

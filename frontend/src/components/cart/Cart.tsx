@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from '@qwik.dev/router';
 import { APP_STATE } from '~/constants';
 import { isCheckoutPage } from '~/utils';
 import CartContents from '../cart-contents/CartContents';
-import CartPrice from '../cart-totals/CartPrice';
 import FreeShippingProgress from '../free-shipping-progress/FreeShippingProgress';
 import { EligibleShippingMethods } from '~/types';
 import { formatPrice } from '~/utils';
@@ -54,8 +53,32 @@ export default component$(() => {
 	// Local state for country code to ensure UI reactivity
 	const countryCodeSignal = useSignal(appState.shippingAddress.countryCode);
 
+	// Prefetch checkout route when cart opens for faster navigation
+	useVisibleTask$(({ track }) => {
+		track(() => appState.showCart);
+
+		if (appState.showCart) {
+			// Delay prefetch slightly to avoid blocking cart render
+			setTimeout(() => {
+				// Prefetch the checkout route for instant navigation
+				if (typeof document !== 'undefined') {
+					const existingLink = document.querySelector('link[rel="prefetch"][href="/checkout/"]');
+					if (!existingLink) {
+						const link = document.createElement('link');
+						link.rel = 'prefetch';
+						link.href = '/checkout/';
+						link.as = 'document';
+						document.head.appendChild(link);
+						console.log('🚀 [CART] Prefetching checkout route for faster navigation');
+					}
+				}
+			}, 100);
+		}
+	});
+
 	const hasOutOfStockItems = $(() => {
-		const items = localCart.isLocalMode ? localCart.localCart.items : appState.activeOrder?.lines || [];
+		// Always use local cart items
+		const items = localCart.localCart.items;
 		return items.some(
 			(item: any) => item.productVariant.stockLevel === 'OUT_OF_STOCK' || item.productVariant.stockLevel <= 0
 		);
@@ -105,21 +128,15 @@ export default component$(() => {
 	const shippingResource = useResource$(async ({ track }) => {
 		const countryCode = track(() => appState.shippingAddress.countryCode);
 		const cartVisible = track(() => appState.showCart);
-		
-		// Get subtotal based on cart mode
-		const subTotal = localCart.isLocalMode 
-			? track(() => localCart.localCart.subTotal)
-			: track(() => appState.activeOrder?.subTotalWithTax || 0);
-		
-		// Get applied coupon discount for local cart mode
-		const appliedCoupon = localCart.isLocalMode 
-			? track(() => localCart.appliedCoupon)
-			: null;
-		
+
+		// Always use local cart subtotal
+		const subTotal = track(() => localCart.localCart.subTotal);
+
+		// Always use local cart applied coupon
+		const appliedCoupon = track(() => localCart.appliedCoupon);
+
 		// Calculate order total after discount for shipping eligibility
-		const orderTotalAfterDiscount = localCart.isLocalMode
-			? subTotal - (appliedCoupon?.discountAmount || 0)
-			: subTotal; // For server mode, use subtotal as-is (discount already considered in backend)
+		const orderTotalAfterDiscount = subTotal - (appliedCoupon?.discountAmount || 0);
 		
 		// Only calculate when cart is visible and we have valid data
 		if (!cartVisible || !countryCode || subTotal === 0) {
@@ -287,14 +304,11 @@ export default component$(() => {
 				}
 				
 				// Calculate shipping after debounce - check local cart mode
-				const subtotal = localCart.isLocalMode 
-					? localCart.localCart.subTotal 
-					: appState.activeOrder?.subTotalWithTax || 0;
-				
+				// Always use local cart subtotal
+				const subtotal = localCart.localCart.subTotal;
+
 				// Calculate order total after discount for shipping eligibility
-				const orderTotalAfterDiscount = localCart.isLocalMode
-					? subtotal - (localCart.appliedCoupon?.discountAmount || 0)
-					: subtotal; // For server mode, use subtotal as-is (discount already considered in backend)
+				const orderTotalAfterDiscount = subtotal - (localCart.appliedCoupon?.discountAmount || 0);
 				
 				if (subtotal > 0) {
 					calculateShipping(finalCountryCode, orderTotalAfterDiscount);
@@ -331,10 +345,8 @@ export default component$(() => {
 											<p class="text-slate-500">Please wait while we verify product availability</p>
 										</div>
 									) : (
-										/* Check total quantity based on current mode and if cart is loaded */
-										(localCart.isLocalMode
-											? (localCart.hasLoadedOnce && localCart.localCart.totalQuantity > 0)
-											: (appState.activeOrder?.totalQuantity || 0) > 0) ? (
+										/* Always use local cart */
+										(localCart.hasLoadedOnce && localCart.localCart.totalQuantity > 0) ? (
 											<>
 												<CartContents />
 											</>
@@ -372,26 +384,19 @@ export default component$(() => {
 										</div>
 									</div>
 									{/* Show cart totals and checkout button if we have items */}
-									{(localCart.isLocalMode
-										? (localCart.hasLoadedOnce && localCart.localCart.totalQuantity > 0)
-										: (appState.activeOrder?.totalQuantity || 0) > 0) && isInEditableUrl && (
+									{/* Always use local cart */}
+									{(localCart.hasLoadedOnce && localCart.localCart.totalQuantity > 0) && isInEditableUrl && (
 										<div class="border-t border-slate-200 bg-[#F5F5F5] py-6 px-6 w-full rounded-lg">
 											{/* Free Shipping Progress Bar */}
-											<FreeShippingProgress 
+											<FreeShippingProgress
 												countryCode={appState.shippingAddress.countryCode}
-												orderTotalAfterDiscount={localCart.isLocalMode 
-													? localCart.localCart.subTotal - (localCart.appliedCoupon?.discountAmount || 0)
-													: appState.activeOrder?.subTotalWithTax || 0}
+												orderTotalAfterDiscount={localCart.localCart.subTotal - (localCart.appliedCoupon?.discountAmount || 0)}
 												currencyCode={'USD'}
 											/>
 											<div class="flex justify-between text-lg font-semibold text-slate-900 mb-2">
 												<p>Subtotal</p>
 												<p>
-													{localCart.isLocalMode ? (
-														formatPrice(localCart.localCart.subTotal, 'USD')
-													) : (
-														<CartPrice field={'subTotalWithTax'} order={appState.activeOrder} />
-													)}
+													{formatPrice(localCart.localCart.subTotal, 'USD')}
 												</p>
 											</div>
 											
@@ -439,10 +444,8 @@ export default component$(() => {
 															<p class="text-slate-700">Shipping: {method.name}</p>
 															<p class="text-slate-900">
 																{formatPrice(
-																	method.priceWithTax, 
-																	localCart.isLocalMode 
-																		? localCart.localCart.currencyCode 
-																		: appState.activeOrder?.currencyCode || 'USD'
+																	method.priceWithTax,
+																	localCart.localCart.currencyCode
 																)}
 															</p>
 														</div>
@@ -496,13 +499,9 @@ export default component$(() => {
 												<div class="flex justify-between text-lg font-bold text-slate-900 mb-2 pt-2 border-t border-slate-200">
 													<p>Total</p>
 													<p>
-														{localCart.isLocalMode ? (
-															formatPrice(
-																localCart.localCart.subTotal + shippingState.selectedMethod.priceWithTax, 
-																'USD'
-															)
-														) : (
-															<CartPrice field={'totalWithTax'} order={appState.activeOrder} />
+														{formatPrice(
+															localCart.localCart.subTotal + shippingState.selectedMethod.priceWithTax,
+															'USD'
 														)}
 													</p>
 												</div>
@@ -513,42 +512,36 @@ export default component$(() => {
 															// Prevent multiple clicks
 															if (isNavigatingToCheckout.value) return;
 															isNavigatingToCheckout.value = true;
-															
-															// Track checkout navigation performance - DISABLED
-															// const checkoutTimer = await performanceTracking.trackCheckoutStep$('navigate-to-checkout');
-															
+
+															const navStartTime = performance.now();
+															console.log('🚀 [CART TIMING] Starting checkout navigation...');
+
 															try {
-																// Check if we have the required data
-																// In local cart mode, we don't need activeOrder.id yet (will be created during checkout)
-																if (!localCart.isLocalMode && !appState.activeOrder?.id) {
-																	console.error('Missing order data for Vendure mode');
-																	return;
-																}
-																
-																// In local cart mode, check if we have items
-																if (localCart.isLocalMode && localCart.localCart.items.length === 0) {
+																// Always in local cart mode - just check if we have items
+																if (localCart.localCart.items.length === 0) {
 																	console.error('No items in local cart');
 																	return;
 																}
-																
+
 																if (!shippingState.selectedMethod) {
 																	console.error('No shipping method selected');
 																	return;
 																}
-																
+
 																if (!appState.shippingAddress.countryCode) {
 																	console.error('No country selected');
 																	return;
 																}
 
-																// console.log('Navigating to checkout, no backend updates at this stage. All data managed in localStorage until final order placement. Mode:', localCart.isLocalMode ? 'Local Cart Mode' : 'Vendure Mode');
+																console.log(`⏱️ [CART TIMING] Pre-navigation checks: ${(performance.now() - navStartTime).toFixed(2)}ms`);
 
 																// Navigate to checkout page without backend updates
+																const navigateStart = performance.now();
 																await navigate('/checkout/');
-																// await checkoutTimer.end$(); // Track successful checkout navigation - DISABLED
+																console.log(`⏱️ [CART TIMING] Navigation call: ${(performance.now() - navigateStart).toFixed(2)}ms`);
+																console.log(`✅ [CART TIMING] TOTAL cart to checkout: ${(performance.now() - navStartTime).toFixed(2)}ms`);
 															} catch (error) {
 																console.error('Error navigating to checkout:', error);
-																// await checkoutTimer.end$(); // Track failed checkout navigation - DISABLED
 																// Reopen cart if navigation fails
 																appState.showCart = true;
 															} finally {

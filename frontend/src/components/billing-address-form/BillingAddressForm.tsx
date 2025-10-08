@@ -1,4 +1,4 @@
-import { component$, useContext, $, useSignal, type QRL } from '@builder.io/qwik';
+import { component$, useContext, $, useSignal, type QRL, useVisibleTask$ } from '@builder.io/qwik';
 import { APP_STATE } from '~/constants';
 import type { BillingAddress } from '~/types';
 import { 
@@ -31,6 +31,35 @@ const BillingAddressForm = component$<BillingAddressFormProps>(({ billingAddress
   const validationTimer = useSignal<ReturnType<typeof setTimeout> | null>(null);
    // Track if user has interacted with form
   const hasUserInteracted = useSignal(false);
+
+  // Load billing address from sessionStorage on component initialization (both guest and authenticated users)
+  useVisibleTask$(() => {
+    if (typeof sessionStorage !== 'undefined') {
+      const storedGuestBilling = sessionStorage.getItem('guestBillingAddress');
+      if (storedGuestBilling) {
+        try {
+          const guestData = JSON.parse(storedGuestBilling);
+          // Always load data - UX trumps staleness concerns (for both guest and authenticated users)
+          if (guestData) {
+            // console.log('🔄 BillingAddressForm: Loading billing address from sessionStorage');
+            appState.billingAddress = {
+              firstName: guestData.firstName || '',
+              lastName: guestData.lastName || '',
+              streetLine1: guestData.streetLine1 || '',
+              streetLine2: guestData.streetLine2 || '',
+              city: guestData.city || '',
+              province: guestData.province || '',
+              postalCode: guestData.postalCode || '',
+              countryCode: guestData.countryCode || ''
+            };
+            // console.log('[BillingAddressForm] Restored guest billing address from sessionStorage');
+          }
+        } catch (error) {
+          console.warn('[BillingAddressForm] Failed to parse guest billing address from sessionStorage:', error);
+        }
+      }
+    }
+  });
 
   // Handle field blur events
   const handleFieldBlur$ = $((fieldName: string, value: string) => {
@@ -310,6 +339,28 @@ const BillingAddressForm = component$<BillingAddressFormProps>(({ billingAddress
       ...appState.billingAddress,
       [field]: value
     };
+
+    // Save billing address to sessionStorage for persistence across page refreshes
+    // This ensures both guest and authenticated users don't lose their billing address data on payment failure
+    if (typeof sessionStorage !== 'undefined' && appState.billingAddress) {
+      try {
+        const guestBillingData = {
+          firstName: appState.billingAddress.firstName || '',
+          lastName: appState.billingAddress.lastName || '',
+          streetLine1: appState.billingAddress.streetLine1 || '',
+          streetLine2: appState.billingAddress.streetLine2 || '',
+          city: appState.billingAddress.city || '',
+          province: appState.billingAddress.province || '',
+          postalCode: appState.billingAddress.postalCode || '',
+          countryCode: appState.billingAddress.countryCode || '',
+          lastUpdated: Date.now()
+        };
+        sessionStorage.setItem('guestBillingAddress', JSON.stringify(guestBillingData));
+        // console.log('[BillingAddressForm] Saved billing address to sessionStorage (guest and authenticated)');
+      } catch (error) {
+        console.warn('[BillingAddressForm] Failed to save guest billing address to sessionStorage:', error);
+      }
+    }
     
     // If the field has been touched, validate on change
     if (touchedFields.value.has(field)) {

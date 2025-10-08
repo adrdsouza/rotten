@@ -159,7 +159,8 @@ export default component$<{
 		track(() => localCartContext.localCart.items);
 		track(() => localCartContext.localCart.subTotal);
 
-		if (localCartContext.isLocalMode && localCartContext.appliedCoupon) {
+		// Always in local cart mode
+		if (localCartContext.appliedCoupon) {
 			try {
 				const cartItems = localCartContext.localCart.items.map(item => ({
 					productVariantId: item.productVariantId,

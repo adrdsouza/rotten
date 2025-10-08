@@ -52,7 +52,7 @@ export interface ValidationErrors {
 // LocalCart Service
 export class LocalCartService {
   private static readonly CART_KEY = 'vendure_local_cart';
-  private static readonly STOCK_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  private static readonly STOCK_CACHE_DURATION = 0; // No stock caching - always fresh for e-commerce
 
   // 🚀 OPTIMIZED: In-memory cache to reduce localStorage reads
   private static cartCache: LocalCart | null = null;
@@ -366,26 +366,37 @@ export class LocalCartService {
 
   // 🚀 OPTIMIZED: Refresh stock levels using lightweight stock-only queries for better performance
   static async refreshAllStockLevels(): Promise<LocalCart> {
+    const serviceStartTime = performance.now();
+    console.log('🚀 [SERVICE TIMING] LocalCartService.refreshAllStockLevels starting...');
+
     const cart = this.getCart();
 
     if (!cart.items.length) {
+      console.log('⏭️ [SERVICE TIMING] No items in cart');
       return cart;
     }
 
     try {
       // Import GraphQL function dynamically to avoid circular dependencies
+      const importStart = performance.now();
       const { getProductStockLevelsOnly } = await import('~/providers/shop/products/products');
+      console.log(`⏱️ [SERVICE TIMING] Dynamic import: ${(performance.now() - importStart).toFixed(2)}ms`);
 
       // Get unique product slugs from cart items
+      const slugsStart = performance.now();
       const productSlugs = [...new Set(cart.items.map(item => item.productVariant.product.slug))];
+      console.log(`⏱️ [SERVICE TIMING] Extract slugs: ${(performance.now() - slugsStart).toFixed(2)}ms`);
 
       console.log(`🚀 Refreshing stock for ${productSlugs.length} unique products using lightweight stock queries`);
 
       // Fetch only stock levels for all products (much faster, smaller payload)
+      const fetchStart = performance.now();
       const stockResults = await Promise.all(
         productSlugs.map(async (slug) => {
+          const slugStart = performance.now();
           try {
             const stockData = await getProductStockLevelsOnly(slug);
+            console.log(`⏱️ [SERVICE TIMING] Fetched ${slug}: ${(performance.now() - slugStart).toFixed(2)}ms`);
             return { slug, data: stockData?.product, error: null };
           } catch (error) {
             console.error(`❌ Failed to fetch stock levels for ${slug}:`, error);
@@ -393,8 +404,10 @@ export class LocalCartService {
           }
         })
       );
+      console.log(`⏱️ [SERVICE TIMING] All fetches: ${(performance.now() - fetchStart).toFixed(2)}ms`);
 
       // Update stock levels for all items
+      const updateStart = performance.now();
       let updatedItemCount = 0;
       cart.items.forEach((item) => {
         const stockResult = stockResults.find(result => result.slug === item.productVariant.product.slug);
@@ -418,14 +431,19 @@ export class LocalCartService {
         }
         // If no data and no error, keep existing stock level
       });
+      console.log(`⏱️ [SERVICE TIMING] Update items: ${(performance.now() - updateStart).toFixed(2)}ms`);
 
       console.log(`✅ Stock refreshed for ${updatedItemCount}/${cart.items.length} cart items using lightweight queries`);
 
       // Note: Items with zero stock are kept in cart for user visibility
       // The UI should display warnings for out-of-stock items
 
+      const recalcStart = performance.now();
       this.recalculateTotals(cart);
       this.saveCart(cart);
+      console.log(`⏱️ [SERVICE TIMING] Recalc & save: ${(performance.now() - recalcStart).toFixed(2)}ms`);
+
+      console.log(`✅ [SERVICE TIMING] TOTAL LocalCartService.refreshAllStockLevels: ${(performance.now() - serviceStartTime).toFixed(2)}ms`);
       return cart;
     } catch (error) {
       console.error('❌ LocalCartService: Failed to refresh stock levels:', error);

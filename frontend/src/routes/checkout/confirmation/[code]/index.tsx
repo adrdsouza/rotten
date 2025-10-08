@@ -66,11 +66,9 @@ export default component$(() => {
 					// ✅ Payment confirmed by Stripe - webhook will handle settlement automatically
 					console.log('[Confirmation] Payment succeeded - webhook will settle the order');
 
-					// 🎯 Clear the local cart and switch to Vendure mode after successful payment
-					// This is where we finally switch modes after payment confirmation
+					// 🎯 Clear the local cart after successful payment
 					try {
 						localCart.localCart = LocalCartService.clearCart();
-						localCart.isLocalMode = false; // NOW we switch to Vendure mode after successful payment
 
 						// Trigger cart update event for UI consistency
 						if (typeof window !== 'undefined') {
@@ -79,7 +77,7 @@ export default component$(() => {
 							}));
 						}
 
-						console.log('[Confirmation] Local cart cleared and switched to Vendure mode after payment verification');
+						console.log('[Confirmation] Local cart cleared after successful payment');
 					} catch (clearCartError) {
 						console.error('[Confirmation] Failed to clear local cart:', clearCartError);
 						// Don't fail the confirmation process if cart clearing fails
@@ -102,7 +100,15 @@ export default component$(() => {
 
 		// Normal order loading flow
 		try {
+			console.log('[Confirmation] Attempting to fetch order with code:', code);
+			console.log('[Confirmation] Current authentication state:', {
+				hasAuthToken: !!document.cookie.includes('authToken'),
+				hasVendureSession: !!document.cookie.includes('__vendure_session'),
+				cookies: document.cookie
+			});
+
 			store.order = await getOrderByCodeQuery(code);
+			console.log('[Confirmation] Order query result:', store.order);
 
 			if (store.order?.id) {
 				appState.activeOrder = {
@@ -117,8 +123,8 @@ export default component$(() => {
 					payments: []
 				} as Order;
 
+				// Clear cart (always in local cart mode)
 				localCart.localCart = LocalCartService.clearCart();
-				localCart.isLocalMode = true;
 
 				store.loading = false;
 			} else {
@@ -139,6 +145,13 @@ export default component$(() => {
 				store.loading = false;
 			}
 		} catch (error) {
+			console.error('[Confirmation] Order query failed with error:', error);
+			console.error('[Confirmation] Error details:', {
+				message: error instanceof Error ? error.message : 'Unknown error',
+				stack: error instanceof Error ? error.stack : undefined,
+				orderCode: code
+			});
+
 			// Check localStorage fallback on error too
 			const paymentInfo = localStorage.getItem('stripe_payment_success');
 			if (paymentInfo) {
@@ -149,7 +162,7 @@ export default component$(() => {
 					return;
 				}
 			}
-			
+
 			store.error = `Failed to load order: ${error}`;
 			store.loading = false;
 		}
