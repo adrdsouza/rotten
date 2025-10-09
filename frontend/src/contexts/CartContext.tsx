@@ -177,31 +177,45 @@ export const refreshCartStock = $(async (cartState: CartContextState) => {
 
 // Helper functions that can be called from components
 export const addToLocalCart = $((cartState: CartContextState, item: any) => {
+  const contextStartTime = performance.now();
+  console.log('🚀 [CART CONTEXT TIMING] Starting addToLocalCart...');
+
   // 🚀 DEMAND-BASED: Load cart only when add to cart is clicked
+  const loadCartStart = performance.now();
   loadCartIfNeeded(cartState);
+  console.log(`⏱️ [CART CONTEXT TIMING] Load cart: ${(performance.now() - loadCartStart).toFixed(2)}ms`);
 
   cartState.isLoading = true;
   cartState.lastError = null;
 
   try {
+    const serviceCallStart = performance.now();
     const result = LocalCartService.addItem(item);
+    console.log(`⏱️ [CART CONTEXT TIMING] LocalCartService.addItem: ${(performance.now() - serviceCallStart).toFixed(2)}ms`);
+
+    const stateUpdateStart = performance.now();
     cartState.localCart = result.cart;
     cartState.lastStockValidation[item.productVariantId] = result.stockResult;
 
     if (!result.stockResult.success) {
       cartState.lastError = result.stockResult.error || 'Stock validation failed';
     }
+    console.log(`⏱️ [CART CONTEXT TIMING] State updates: ${(performance.now() - stateUpdateStart).toFixed(2)}ms`);
 
     // 🚀 OPTIMIZED: Trigger header badge update via custom event
+    const eventDispatchStart = performance.now();
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('cart-updated', {
         detail: { totalQuantity: result.cart.totalQuantity }
       }));
     }
+    console.log(`⏱️ [CART CONTEXT TIMING] Event dispatch: ${(performance.now() - eventDispatchStart).toFixed(2)}ms`);
   } catch (error) {
     cartState.lastError = error instanceof Error ? error.message : 'Failed to add item to cart';
+    console.error('❌ [CART CONTEXT TIMING] Error in addToLocalCart:', error);
   } finally {
     cartState.isLoading = false;
+    console.log(`✅ [CART CONTEXT TIMING] TOTAL addToLocalCart: ${(performance.now() - contextStartTime).toFixed(2)}ms`);
   }
 });
 

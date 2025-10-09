@@ -81,9 +81,15 @@ declare module "~/media/homelast.png?format=webp&url" {
   export default src;
 }
 
-// Shop image optimized formats
+// Shop image optimized formats - multiple sizes and qualities
 declare module "~/media/shop.jpg?format=avif&width=800&quality=85&url" { const src: string; export default src; }
 declare module "~/media/shop.jpg?format=webp&width=800&quality=85&url" { const src: string; export default src; }
+
+// Shop image with quality=80 (used in index.tsx)
+declare module "~/media/shop.jpg?format=avif&width=800&quality=80" { const src: string; export default src; }
+declare module "~/media/shop.jpg?format=avif&width=1200&quality=80" { const src: string; export default src; }
+declare module "~/media/shop.jpg?format=webp&width=800&quality=80" { const src: string; export default src; }
+declare module "~/media/shop.jpg?format=webp&width=1200&quality=80" { const src: string; export default src; }
 
 // Pattern background image optimized formats
 declare module "~/media/pattern.jpg?format=avif&quality=85&url" { const src: string; export default src; }

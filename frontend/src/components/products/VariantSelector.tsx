@@ -72,13 +72,11 @@ const isSizeAvailable = useComputed$(() => {
 			// Check if this variant has the right size
 			if (!hasThisSize) return false;
 
-			// Check if variant is in stock: either has inventory OR tracking is disabled
+			// Check if variant is in stock - simple check: stockLevel > 0
+			// When trackInventory is OFF, Vendure sets stockLevel to a very high number (9007199254740991)
+			// When trackInventory is ON, stockLevel reflects actual inventory
 			const stockLevel = parseInt(variant.stockLevel || '0');
-			const trackInventory = variant.trackInventory;
-
-			// In stock if: has stock > 0 OR inventory tracking is disabled for this variant
-			// trackInventory can be 'FALSE', 'TRUE', or 'INHERIT' (inherits from global/channel settings)
-			const isInStock = stockLevel > 0 || trackInventory === 'FALSE';
+			const isInStock = stockLevel > 0;
 
 			return isInStock;
 		});
@@ -108,13 +106,11 @@ const isColorAvailable = useComputed$(() => {
 			// Check if this variant has the right size/color combination
 			if (!hasSelectedSize || !hasThisColor) return false;
 
-			// Check if variant is in stock: either has inventory OR tracking is disabled
+			// Check if variant is in stock - simple check: stockLevel > 0
+			// When trackInventory is OFF, Vendure sets stockLevel to a very high number (9007199254740991)
+			// When trackInventory is ON, stockLevel reflects actual inventory
 			const stockLevel = parseInt(variant.stockLevel || '0');
-			const trackInventory = variant.trackInventory;
-
-			// In stock if: has stock > 0 OR inventory tracking is disabled for this variant
-			// trackInventory can be 'FALSE', 'TRUE', or 'INHERIT' (inherits from global/channel settings)
-			const isInStock = stockLevel > 0 || trackInventory === 'FALSE';
+			const isInStock = stockLevel > 0;
 
 			return isInStock;
 		});

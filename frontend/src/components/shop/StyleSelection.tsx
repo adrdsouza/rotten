@@ -9,25 +9,28 @@ export interface StyleSelectionProps {
   stylesData: {
     shortSleeve: any | null;
     longSleeve: any | null;
-  };
+  } | null;
   fullProductData: Signal<{ shortSleeve?: Product | null; longSleeve?: Product | null }>;
   selectedStyle: Signal<'short' | 'long' | null>;
   isLoadingStep: Signal<boolean>;
   styleSelectTrigger: Signal<'short' | 'long' | null>;
 }
 
-// 🚀 NEW: Check if a product has any available variants (not all out of stock)
+// 🚀 NEW: Check if a product has any available variants
+// Note: Inventory tracking is disabled in the system, so products are always available
 const hasAnyAvailableVariants = (product: Product | null): boolean => {
   if (!product?.variants) return false;
-  
-  return product.variants.some(variant => {
-    const stockLevel = parseInt(String(variant.stockLevel || '0'));
-    const trackInventory = variant.trackInventory;
-    return stockLevel > 0 || trackInventory === 'FALSE';
-  });
+
+  // Since inventory tracking is disabled, all products with variants are available
+  // We still check for variants to ensure the product is properly configured
+  return product.variants.length > 0;
 };
 
 export const StyleSelection = component$<StyleSelectionProps>((props) => {
+  // Handle null stylesData during lazy loading
+  if (!props.stylesData) {
+    return null;
+  }
 
   return (
     <section class="bg-white min-h-screen" style="min-height: calc(100vh - 64px);">

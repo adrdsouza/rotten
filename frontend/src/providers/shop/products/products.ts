@@ -2,10 +2,12 @@ import gql from 'graphql-tag';
 import { shopSdk } from '~/graphql-wrapper';
 import { requester } from '~/utils/api';
 import { productCache } from '~/services/ProductCacheService';
+import staticProducts from '~/data/products.json';
 // Collections imports removed - no longer using cached versions
 
 // 🎯 STRATEGIC CACHING: Using advanced ProductCache service for better performance
 // Stock information must always be fresh for ecommerce accuracy
+// 🚀 STATIC DATA: Product info stored in JSON, only query dynamic data (stock, images)
 
 // Create a lightweight stock-only query
 const stockOnlyQuery = gql`
@@ -408,30 +410,225 @@ gql`
 	${detailedProductFragment}
 `;
 
-// 🚀 ULTRA-LIGHTWEIGHT: Stock-only query for initial page load
-export const getStockLevelsOnly = async () => {
-	console.log('🚀 Loading stock levels only for initial page load...');
-	
-	// Check if we have cached stock levels that are still fresh
-	const cachedShortSleeve = productCache.getStockLevels('shortsleeveshirt');
-	const cachedLongSleeve = productCache.getStockLevels('longsleeveshirt');
-	
-	// No stock caching - always query fresh for e-commerce accuracy
-	const STOCK_CACHE_DURATION = 0; // No caching
-	
+
+
+// 🚀 OPTIMIZED: Combined query that checks stock first, then loads style data only for available products
+export const getShirtStylesForSelection = async () => {
+	console.log('🚀 Loading optimized data for style selection (stock-first approach)...');
+
+	// Check if we have cached style selection data that's still fresh
+	// Use longer cache duration for style selection data (5 minutes)
+	const STYLE_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+	const cachedShortSleeve = productCache.get(`style:shortsleeveshirt`);
+	const cachedLongSleeve = productCache.get(`style:longsleeveshirt`);
+
 	if (cachedShortSleeve && cachedLongSleeve) {
 		const now = Date.now();
-		if (now - cachedShortSleeve.timestamp < STOCK_CACHE_DURATION && 
-			now - cachedLongSleeve.timestamp < STOCK_CACHE_DURATION) {
-			console.log('✅ Using cached stock levels for initial page load');
+		const shortData = cachedShortSleeve as { data: any; timestamp: number };
+		const longData = cachedLongSleeve as { data: any; timestamp: number };
+
+		if (now - shortData.timestamp < STYLE_CACHE_DURATION &&
+			now - longData.timestamp < STYLE_CACHE_DURATION) {
+			console.log('✅ Using cached style selection data');
 			return {
-				shortSleeve: cachedShortSleeve.data,
-				longSleeve: cachedLongSleeve.data,
+				shortSleeve: shortData.data,
+				longSleeve: longData.data,
 			};
 		}
 	}
+
+	// 🚀 SMART QUERY: Get both stock and style data, but prioritize stock check
+	const optimizedStyleSelectionQuery = gql`
+		query GetOptimizedShirtStylesForSelection {
+			shortsleeve: product(slug: "shortsleeveshirt") {
+				id
+				name
+				slug
+				variants {
+					id
+					priceWithTax
+					currencyCode
+					stockLevel
+				}
+			}
+			longsleeve: product(slug: "longsleeveshirt") {
+				id
+				name
+				slug
+				variants {
+					id
+					priceWithTax
+					currencyCode
+					stockLevel
+				}
+			}
+		}
+	`;
 	
-	const stockOnlyQuery = gql`
+	try {
+		const startTime = Date.now();
+		const result: any = await requester(optimizedStyleSelectionQuery);
+		
+		// 🚀 SMART FILTERING: Only return products that have available variants
+		// Note: Inventory tracking is disabled in the system, so products are always available
+		const hasAvailableVariants = (product: any): boolean => {
+			if (!product?.variants) return false;
+			// Since inventory tracking is disabled, all products with variants are available
+			// We still check for variants to ensure the product is properly configured
+			return product.variants.length > 0;
+		};
+
+		const filteredShortSleeve = hasAvailableVariants(result.shortsleeve) ? result.shortsleeve : null;
+		const filteredLongSleeve = hasAvailableVariants(result.longsleeve) ? result.longsleeve : null;
+
+		const loadTime = Date.now() - startTime;
+		const availableCount = (filteredShortSleeve ? 1 : 0) + (filteredLongSleeve ? 1 : 0);
+		console.log(`✅ Optimized style selection data loaded in ${loadTime}ms - ${availableCount}/2 products available`);
+
+		// Cache the results (only cache available products)
+		if (filteredShortSleeve) {
+			productCache.set(`style:shortsleeveshirt`, {
+				data: filteredShortSleeve,
+				timestamp: Date.now()
+			}, STYLE_CACHE_DURATION);
+		}
+
+		if (filteredLongSleeve) {
+			productCache.set(`style:longsleeveshirt`, {
+				data: filteredLongSleeve,
+				timestamp: Date.now()
+			}, STYLE_CACHE_DURATION);
+		}
+
+		return {
+			shortSleeve: filteredShortSleeve,
+			longSleeve: filteredLongSleeve,
+		};
+	} catch (error) {
+		console.error('❌ Optimized style selection query failed:', error);
+		return { shortSleeve: null, longSleeve: null };
+	}
+};
+
+// 🚀 PHASE 1: FCP Button Data + Stock - Load on server-side for instant button activation
+export const getFCPButtonData = async () => {
+	console.log('🚀 [FCP] Loading button data + stock levels (server-side)...');
+
+	const startTime = Date.now();
+
+	try {
+		// Query stock levels from API (server-side, so it's fast!)
+		const stockQuery = gql`
+			query GetStockLevelsServerSide {
+				shortsleeve: product(slug: "shortsleeveshirt") {
+					id
+					variants {
+						id
+						stockLevel
+					}
+				}
+				longsleeve: product(slug: "longsleeveshirt") {
+					id
+					variants {
+						id
+						stockLevel
+					}
+				}
+			}
+		`;
+
+		const result: any = await requester(stockQuery);
+		const queryTime = Date.now() - startTime;
+		console.log(`✅ [FCP] Stock query completed in ${queryTime}ms (server-side)`);
+
+		// Merge static product data with live stock levels
+		const mergeProductWithStock = (staticData: any, apiData: any) => {
+			if (!apiData) return null;
+
+			// Create a map of variant ID to stock level for fast lookup
+			const stockMap = new Map<string, string>();
+			apiData.variants.forEach((v: any) => {
+				stockMap.set(v.id, v.stockLevel);
+			});
+
+			return {
+				id: staticData.id,
+				name: staticData.name,
+				slug: staticData.slug,
+				featuredAsset: null, // Will be loaded in Phase 2
+				variants: staticData.variants.map((staticVariant: any) => {
+					const stockLevel = stockMap.get(staticVariant.variantId) || '0';
+					return {
+						id: staticVariant.variantId,
+						priceWithTax: staticData.basePrice,
+						currencyCode: staticData.currencyCode,
+						stockLevel: stockLevel,
+						sku: staticVariant.sku,
+						options: [
+							{
+								id: `size-${staticVariant.sizeCode}`,
+								code: staticVariant.sizeCode,
+								name: staticVariant.size,
+								group: { id: 'size-group', code: 'size', name: 'Size' }
+							},
+							{
+								id: `color-${staticVariant.colorCode}`,
+								code: staticVariant.colorCode,
+								name: staticVariant.color,
+								group: { id: 'color-group', code: 'color', name: 'Color' }
+							}
+						]
+					};
+				})
+			};
+		};
+
+		const shortSleeveData = mergeProductWithStock(staticProducts.shortSleeve, result.shortsleeve);
+		const longSleeveData = mergeProductWithStock(staticProducts.longSleeve, result.longsleeve);
+
+		const totalTime = Date.now() - startTime;
+		console.log(`✅ [FCP] Complete data ready in ${totalTime}ms with stock levels!`);
+
+		return {
+			shortSleeve: shortSleeveData,
+			longSleeve: longSleeveData
+		};
+	} catch (error) {
+		console.error('❌ [FCP] Data loading failed:', error);
+		// Fallback to static data without stock
+		return {
+			shortSleeve: {
+				id: staticProducts.shortSleeve.id,
+				name: staticProducts.shortSleeve.name,
+				slug: staticProducts.shortSleeve.slug,
+				variants: [{
+					priceWithTax: staticProducts.shortSleeve.basePrice,
+					currencyCode: staticProducts.shortSleeve.currencyCode
+				}]
+			},
+			longSleeve: {
+				id: staticProducts.longSleeve.id,
+				name: staticProducts.longSleeve.name,
+				slug: staticProducts.longSleeve.slug,
+				variants: [{
+					priceWithTax: staticProducts.longSleeve.basePrice,
+					currencyCode: staticProducts.longSleeve.currencyCode
+				}]
+			}
+		};
+	}
+};
+
+// 🚀 PHASE 2A: Stock Levels Only - Ultra-fast query for immediate button activation
+export const getStockLevelsOnly = async () => {
+	console.log('🚀 [PHASE 2A] Loading stock levels only (ultra-fast)...');
+
+	// Ultra-lightweight query - ONLY stock levels, no images
+	// Note: trackInventory is not available in shop API, but stockLevel handles both cases:
+	// - Tracked inventory: stockLevel = actual number (e.g., "35")
+	// - Untracked inventory: stockLevel = "9007199254740991" (unlimited)
+	const stockQuery = gql`
 		query GetStockLevelsOnly {
 			shortsleeve: product(slug: "shortsleeveshirt") {
 				id
@@ -449,119 +646,189 @@ export const getStockLevelsOnly = async () => {
 			}
 		}
 	`;
-	
+
 	try {
 		const startTime = Date.now();
-		const result: any = await requester(stockOnlyQuery);
-		
+		const result: any = await requester(stockQuery);
 		const loadTime = Date.now() - startTime;
-		console.log(`✅ Stock levels loaded in ${loadTime}ms - payload ~95% smaller than full products`);
-		
-		// Cache the stock levels
-		if (result.shortsleeve) {
-			productCache.cacheStockLevels('shortsleeveshirt', {
-				data: result.shortsleeve,
-				timestamp: Date.now()
+		console.log(`✅ [PHASE 2A] Stock levels loaded in ${loadTime}ms`);
+
+		// Merge static product data with stock levels only
+		const mergeProductWithStock = (staticData: any, apiData: any) => {
+			if (!apiData) return null;
+
+			// Create a map of variant ID to stock level for fast lookup
+			const stockMap = new Map<string, string>();
+			apiData.variants.forEach((v: any) => {
+				stockMap.set(v.id, v.stockLevel);
 			});
-		}
-		
-		if (result.longsleeve) {
-			productCache.cacheStockLevels('longsleeveshirt', {
-				data: result.longsleeve,
-				timestamp: Date.now()
-			});
-		}
-		
+
+			return {
+				id: staticData.id,
+				name: staticData.name,
+				slug: staticData.slug,
+				featuredAsset: null, // Will be loaded in Phase 2B
+				variants: staticData.variants.map((staticVariant: any) => {
+					// Look up stock level by variant ID from static data
+					const stockLevel = stockMap.get(staticVariant.variantId) || '0';
+
+					return {
+						id: staticVariant.variantId,
+						priceWithTax: staticData.basePrice,
+						currencyCode: staticData.currencyCode,
+						stockLevel: stockLevel,
+						sku: staticVariant.sku,
+						options: [
+							{
+								id: `size-${staticVariant.sizeCode}`,
+								code: staticVariant.sizeCode,
+								name: staticVariant.size,
+								group: {
+									id: 'size-group',
+									code: 'size',
+									name: 'Size'
+								}
+							},
+							{
+								id: `color-${staticVariant.colorCode}`,
+								code: staticVariant.colorCode,
+								name: staticVariant.color,
+								group: {
+									id: 'color-group',
+									code: 'color',
+									name: 'Color'
+								}
+							}
+						]
+					};
+				})
+			};
+		};
+
+		const shortSleeveData = mergeProductWithStock(staticProducts.shortSleeve, result.shortsleeve);
+		const longSleeveData = mergeProductWithStock(staticProducts.longSleeve, result.longsleeve);
+
+		console.log(`📊 [PHASE 2A] Products with stock ready: Short=${!!shortSleeveData}, Long=${!!longSleeveData}`);
+
 		return {
-			shortSleeve: result.shortsleeve,
-			longSleeve: result.longsleeve,
+			shortSleeve: shortSleeveData,
+			longSleeve: longSleeveData
 		};
 	} catch (error) {
-		console.error('❌ Stock levels query failed:', error);
+		console.error('❌ [PHASE 2A] Stock query failed:', error);
 		return { shortSleeve: null, longSleeve: null };
 	}
 };
 
-// 🚀 STEP-BY-STEP LOADING: Ultra-lightweight queries for progressive loading
-export const getShirtStylesForSelection = async () => {
-	console.log('🚀 Loading ultra-lightweight data for style selection...');
-	
-	// Check if we have cached style selection data that's still fresh
-	// Use longer cache duration for style selection data (5 minutes)
-	const STYLE_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-	
-	const cachedShortSleeve = productCache.get(`style:shortsleeveshirt`);
-	const cachedLongSleeve = productCache.get(`style:longsleeveshirt`);
-	
-	if (cachedShortSleeve && cachedLongSleeve) {
-		const now = Date.now();
-		const shortData = cachedShortSleeve as { data: any; timestamp: number };
-		const longData = cachedLongSleeve as { data: any; timestamp: number };
-		
-		if (now - shortData.timestamp < STYLE_CACHE_DURATION && 
-			now - longData.timestamp < STYLE_CACHE_DURATION) {
-			console.log('✅ Using cached style selection data');
-			return {
-				shortSleeve: shortData.data,
-				longSleeve: longData.data,
-			};
-		}
-	}
-	
-	const styleSelectionQuery = gql`
-		query GetShirtStylesForSelection {
+// 🚀 PHASE 2B: Featured Images - Load after stock (can wait 200ms)
+export const getFeaturedImages = async () => {
+	console.log('🚀 [PHASE 2B] Loading featured images...');
+
+	// Image-only query
+	const imageQuery = gql`
+		query GetFeaturedImages {
 			shortsleeve: product(slug: "shortsleeveshirt") {
 				id
-				name
-				slug
-				# Get minimal variant data for price display
-				variants {
-					priceWithTax
-					currencyCode
+				featuredAsset {
+					id
+					preview
+					source
 				}
 			}
 			longsleeve: product(slug: "longsleeveshirt") {
 				id
-				name
-				slug
-				# Get minimal variant data for price display
-				variants {
-					priceWithTax
-					currencyCode
+				featuredAsset {
+					id
+					preview
+					source
 				}
 			}
 		}
 	`;
-	
+
 	try {
 		const startTime = Date.now();
-		const result: any = await requester(styleSelectionQuery);
-		
+		const result: any = await requester(imageQuery);
 		const loadTime = Date.now() - startTime;
-		console.log(`✅ Style selection data loaded in ${loadTime}ms - payload ~85% smaller than full products`);
-		
-		// Cache the style selection data
-		if (result.shortsleeve) {
-			productCache.set(`style:shortsleeveshirt`, {
-				data: result.shortsleeve,
-				timestamp: Date.now()
-			}, STYLE_CACHE_DURATION);
-		}
-		
-		if (result.longsleeve) {
-			productCache.set(`style:longsleeveshirt`, {
-				data: result.longsleeve,
-				timestamp: Date.now()
-			}, STYLE_CACHE_DURATION);
-		}
-		
+		console.log(`✅ [PHASE 2B] Featured images loaded in ${loadTime}ms`);
+
 		return {
-			shortSleeve: result.shortsleeve,
-			longSleeve: result.longsleeve,
+			shortSleeve: result.shortsleeve?.featuredAsset || null,
+			longSleeve: result.longsleeve?.featuredAsset || null
 		};
 	} catch (error) {
-		console.error('❌ Style selection query failed:', error);
+		console.error('❌ [PHASE 2B] Image query failed:', error);
 		return { shortSleeve: null, longSleeve: null };
+	}
+};
+
+// 🚀 PHASE 3: Color Thumbnails - Load color variant images (triggered on style selection)
+export const getColorThumbnails = async (productSlug: string) => {
+	console.log(`🚀 [COLOR THUMBS] Loading color thumbnails for ${productSlug}...`);
+
+	// Check cache first
+	const THUMBS_CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
+	const cacheKey = `thumbs:${productSlug}`;
+	const cached = productCache.get(cacheKey);
+
+	if (cached) {
+		const cachedData = cached as { data: any; timestamp: number };
+		if (Date.now() - cachedData.timestamp < THUMBS_CACHE_DURATION) {
+			console.log(`✅ [COLOR THUMBS] Using cached thumbnails for ${productSlug}`);
+			return cachedData.data;
+		}
+	}
+
+	const thumbnailsQuery = gql`
+		query GetColorThumbnails($slug: String!) {
+			product(slug: $slug) {
+				id
+				name
+				slug
+				variants {
+					id
+					name
+					featuredAsset {
+						id
+						preview
+						source
+					}
+					assets {
+						id
+						preview
+						source
+					}
+					options {
+						id
+						code
+						name
+						group {
+							id
+							code
+							name
+						}
+					}
+				}
+			}
+		}
+	`;
+
+	try {
+		const startTime = Date.now();
+		const result = await requester(thumbnailsQuery, { slug: productSlug }) as any;
+		const loadTime = Date.now() - startTime;
+		console.log(`✅ [COLOR THUMBS] Thumbnails loaded in ${loadTime}ms for ${productSlug}`);
+
+		// Cache the result
+		productCache.set(cacheKey, {
+			data: result.product,
+			timestamp: Date.now()
+		}, THUMBS_CACHE_DURATION);
+
+		return result.product;
+	} catch (error) {
+		console.error(`❌ [COLOR THUMBS] Thumbnails query failed for ${productSlug}:`, error);
+		return null;
 	}
 };
 
@@ -593,7 +860,6 @@ export const getProductOptionsForStep = async (productSlug: string, step: 2 | 3)
 					variants {
 						id
 						stockLevel
-						trackInventory
 						priceWithTax
 						currencyCode
 						options {

@@ -205,39 +205,51 @@ export const loadCountryFromStorage = $(async (appState: any) => {
  * This handles geolocation and saves to sessionStorage for future use
  */
 export const loadCountryOnDemand = $(async (appState: any) => {
+	const geolocationStartTime = performance.now();
+	console.log('🚀 [GEOLOCATION TIMING] Starting loadCountryOnDemand...');
+
 	// Only run if country is not already set
 	if (appState.shippingAddress.countryCode) {
+		console.log('⏭️ [GEOLOCATION TIMING] Country already set, skipping');
 		return; // Country already set
 	}
 
 	// First check sessionStorage
+	const storageCheckStart = performance.now();
 	const storedCountry = sessionStorage.getItem('countryCode');
 	if (storedCountry) {
-		// console.log('🌍 Using country from sessionStorage:', storedCountry);
+		console.log(`⏱️ [GEOLOCATION TIMING] Using cached country: ${(performance.now() - storageCheckStart).toFixed(2)}ms`);
 		appState.shippingAddress.countryCode = storedCountry;
 		return;
 	}
+	console.log(`⏱️ [GEOLOCATION TIMING] Storage check: ${(performance.now() - storageCheckStart).toFixed(2)}ms`);
 
 	// If no stored country, attempt geolocation
 	try {
-		// console.log('🌍 Attempting geolocation for add-to-cart...');
+		console.log('🌍 [GEOLOCATION TIMING] Attempting geolocation API call...');
+		const apiCallStart = performance.now();
 		const response = await fetch('https://ipapi.co/json/');
 		const data = await response.json();
+		console.log(`⏱️ [GEOLOCATION TIMING] API call: ${(performance.now() - apiCallStart).toFixed(2)}ms`);
 
 		if (data.country_code) {
 			const countryCode = data.country_code.toUpperCase();
-			// console.log('🌍 Geolocation detected country:', countryCode);
+			console.log('🌍 [GEOLOCATION TIMING] Geolocation detected country:', countryCode);
 
 			// Save to sessionStorage and app state
+			const saveStart = performance.now();
 			setCookie(COUNTRY_COOKIE, countryCode, 30);
 			sessionStorage.setItem('countryCode', countryCode);
 			sessionStorage.setItem('countrySource', 'geolocation');
 			appState.shippingAddress.countryCode = countryCode;
+			console.log(`⏱️ [GEOLOCATION TIMING] Save to storage: ${(performance.now() - saveStart).toFixed(2)}ms`);
 
+			console.log(`✅ [GEOLOCATION TIMING] TOTAL geolocation: ${(performance.now() - geolocationStartTime).toFixed(2)}ms`);
 			return;
 		}
 	} catch (_error) {
-		// console.warn('⚠️ Geolocation failed:', _error);
+		console.warn('⚠️ [GEOLOCATION TIMING] Geolocation failed:', _error);
+		console.log(`❌ [GEOLOCATION TIMING] FAILED after: ${(performance.now() - geolocationStartTime).toFixed(2)}ms`);
 	}
 
 	// Fallback to US if geolocation fails

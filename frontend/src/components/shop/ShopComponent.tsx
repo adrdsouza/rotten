@@ -1,5 +1,5 @@
 import { component$, useSignal, $, useContext, useVisibleTask$ } from '@qwik.dev/core';
-import { getBatchedProductsForShop, getProductAssets, getStockLevelsOnly } from '~/providers/shop/products/products';
+import { getProductAssets, getFeaturedImages, getColorThumbnails } from '~/providers/shop/products/products';
 import { Product, ProductOption } from '~/types';
 import { useLocalCart, addToLocalCart, refreshCartStock } from '~/contexts/CartContext';
 import { APP_STATE } from '~/constants';
@@ -18,11 +18,11 @@ export interface ShopComponentProps {
   preloadData?: boolean;
   lazyLoadAssets?: boolean;
   analyticsSource?: 'hero-button' | 'scroll-proximity' | 'direct-navigation';
-  // Basic style data passed from parent (for immediate rendering)
+  // Basic style data passed from parent (for immediate rendering) - now nullable for lazy loading
   stylesData: {
     shortSleeve: any | null;
     longSleeve: any | null;
-  };
+  } | null;
 }
 
 // Shop component state interface
@@ -45,23 +45,54 @@ export const ShopComponent = component$<ShopComponentProps>((props) => {
   const localCart = useLocalCart();
   const appState = useContext(APP_STATE);
 
-  // Progressive loading state for full product data
-  const fullProductData = useSignal<{ shortSleeve?: Product | null; longSleeve?: Product | null }>({});
+
   const isLoadingStep = useSignal<boolean>(false);
 
-  // Show fallback if styles failed to load
-  if (!props.stylesData.shortSleeve && !props.stylesData.longSleeve) {
+  // 🚀 NEW: State for lazy-loaded style data
+  const stylesData = useSignal<{ shortSleeve: any | null; longSleeve: any | null } | null>(props.stylesData);
+  const hasLoadedStyles = useSignal<boolean>(!!props.stylesData);
+
+  // Full product data with images and variants (loaded in background)
+  // 🚀 OPTIMIZATION: Initialize with stylesData so buttons are active immediately!
+  const fullProductData = useSignal<{ shortSleeve?: any; longSleeve?: any }>({
+    shortSleeve: props.stylesData?.shortSleeve || null,
+    longSleeve: props.stylesData?.longSleeve || null
+  });
+
+  // Show loading skeleton while lazy loading initial data
+  console.log('🔧 [DEBUG] Render check - hasLoadedStyles.value:', hasLoadedStyles.value, 'stylesData.value:', !!stylesData.value);
+  if (!hasLoadedStyles.value) {
+    console.log('🔧 [DEBUG] Showing loading screen');
     return (
       <div class="min-h-screen bg-gray-50 flex items-center justify-center">
         <div class="text-center max-w-md mx-auto px-4">
           <div class="mb-6">
-            <div class="w-16 h-16 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center">
+            <div class="w-16 h-16 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center animate-pulse">
               <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <h1 class="text-2xl font-bold text-gray-900 mb-2">Loading Products...</h1>
-            <p class="text-gray-600 mb-6">We're preparing your perfect shirt experience. If this takes too long, there might be a temporary issue.</p>
+            <p class="text-gray-600 mb-6">We're preparing your perfect shirt experience.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error fallback if styles failed to load
+  if (!stylesData.value?.shortSleeve && !stylesData.value?.longSleeve) {
+    return (
+      <div class="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div class="text-center max-w-md mx-auto px-4">
+          <div class="mb-6">
+            <div class="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+              <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">Unable to Load Products</h1>
+            <p class="text-gray-600 mb-6">There was an issue loading the products. Please try refreshing the page.</p>
           </div>
 
           <div class="space-y-4">
@@ -141,6 +172,14 @@ export const ShopComponent = component$<ShopComponentProps>((props) => {
     selectedColor.value = null;
     updateVariantSelection();
 
+    // 🚀 EARLY INTENT DETECTION: Start geolocation when user shows purchase intent
+    console.log('🌍 [EARLY GEOLOCATION] Size selected - starting background geolocation...');
+    loadCountryOnDemand(appState).then(() => {
+      console.log('✅ [EARLY GEOLOCATION] Background geolocation completed during product selection');
+    }).catch((error) => {
+      console.warn('⚠️ [EARLY GEOLOCATION] Background geolocation failed (non-critical):', error);
+    });
+
     // Auto-advance to color step after selection
     setTimeout(() => {
       if (currentStep.value === 1) {
@@ -152,6 +191,14 @@ export const ShopComponent = component$<ShopComponentProps>((props) => {
   const handleColorSelect = $((colorOption: ProductOption) => {
     selectedColor.value = colorOption;
     updateVariantSelection();
+
+    // 🚀 EARLY INTENT DETECTION: Start geolocation when user shows purchase intent (fallback)
+    console.log('🌍 [EARLY GEOLOCATION] Color selected - ensuring geolocation is ready...');
+    loadCountryOnDemand(appState).then(() => {
+      console.log('✅ [EARLY GEOLOCATION] Geolocation confirmed ready for checkout');
+    }).catch((error) => {
+      console.warn('⚠️ [EARLY GEOLOCATION] Geolocation check failed (non-critical):', error);
+    });
   });
 
   const prevStep = $(() => {
@@ -174,45 +221,46 @@ export const ShopComponent = component$<ShopComponentProps>((props) => {
     selectedColor.value = null;
     selectedVariantId.value = '';
     
-    // 🚀 PROGRESSIVE LOADING: Load full product data only when user selects style
-    const loadFullProductData = async () => {
+    // 🚀 PHASE 3: Load color thumbnails when style is selected
+    const loadColorThumbnails = async () => {
       isLoadingStep.value = true;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
-      try {
-        console.log(`🔄 Loading full product data for ${style} sleeve...`);
-        
-        // Load only the selected product's full data
-        const slug = style === 'short' ? 'shortsleeveshirt' : 'longsleeveshirt';
-        
-        // Create a promise that respects the abort signal
-        const loadDataPromise = getBatchedProductsForShop([slug]);
-        const abortPromise = new Promise((_, reject) => {
-          controller.signal.addEventListener('abort', () => {
-            reject(new Error('Product data loading timed out'));
-          });
-        });
-        
-        const [productData] = await Promise.race([loadDataPromise, abortPromise]) as any;
-        
-        // Update the full product data with the loaded product
-        if (style === 'short') {
-          fullProductData.value = {
-            ...fullProductData.value,
-            shortSleeve: productData
-          };
-        } else {
-          fullProductData.value = {
-            ...fullProductData.value,
-            longSleeve: productData
-          };
-        }
-        
-        // Set the selected product for size/color selection
-        selectedProduct.value = productData;
 
-        console.log(`✅ Full product data loaded for ${style} sleeve`);
+      try {
+        console.log(`🚀 [PHASE 3] Loading color thumbnails for ${style} sleeve...`);
+
+        const slug = style === 'short' ? 'shortsleeveshirt' : 'longsleeveshirt';
+
+        // Check if we already have the data from Phase 2 background loading
+        const existingProduct = style === 'short' ? fullProductData.value.shortSleeve : fullProductData.value.longSleeve;
+
+        if (existingProduct && existingProduct.variants && existingProduct.featuredAsset) {
+          // We already have the data from background loading - use it immediately!
+          console.log(`✅ [PHASE 3] Using background-loaded data for ${style} sleeve`);
+          selectedProduct.value = existingProduct;
+        } else {
+          // Fallback: load color thumbnails if background loading didn't complete
+          console.log(`🔄 [PHASE 3] Background loading incomplete, fetching color thumbnails...`);
+          const colorData = await getColorThumbnails(slug);
+
+          if (colorData) {
+            // Update fullProductData with color thumbnail data
+            if (style === 'short') {
+              fullProductData.value = {
+                ...fullProductData.value,
+                shortSleeve: colorData
+              };
+            } else {
+              fullProductData.value = {
+                ...fullProductData.value,
+                longSleeve: colorData
+              };
+            }
+
+            selectedProduct.value = colorData;
+          }
+        }
+
+        console.log(`✅ [PHASE 3] Style selection ready for ${style} sleeve`);
 
         // Smooth scroll to customization section after a brief delay (only for standalone context)
         if (props.context === 'standalone') {
@@ -247,20 +295,22 @@ export const ShopComponent = component$<ShopComponentProps>((props) => {
           }, 300);
         }
       } catch (error) {
-        console.error(`❌ Failed to load full product data for ${style}:`, error);
+        console.error(`❌ [PHASE 3] Failed to load color thumbnails for ${style}:`, error);
         // Show error to user
       } finally {
-        clearTimeout(timeoutId);
         isLoadingStep.value = false;
       }
     };
     
-    // Load full product data in background
-    loadFullProductData();
+    // Load color thumbnails for selected style
+    loadColorThumbnails();
   });
 
   // Add to cart functionality
   const handleAddToCart = $(async () => {
+    const addToCartStartTime = performance.now();
+    console.log('🚀 [ADD TO CART TIMING] Starting add to cart process...');
+
     if (!selectedVariantId.value || !selectedProduct.value || !selectedSize.value || !selectedColor.value) return;
 
     isAddingToCart.value = true;
@@ -269,6 +319,7 @@ export const ShopComponent = component$<ShopComponentProps>((props) => {
     
     try {
       // Find the selected variant
+      const itemCreationStart = performance.now();
       const selectedVar = selectedProduct.value.variants.find(v => v.id === selectedVariantId.value);
       if (!selectedVar) {
         throw new Error('Selected variant not found');
@@ -292,31 +343,48 @@ export const ShopComponent = component$<ShopComponentProps>((props) => {
           featuredAsset: selectedProduct.value.featuredAsset,
         },
       };
+      console.log(`⏱️ [ADD TO CART TIMING] Item creation: ${(performance.now() - itemCreationStart).toFixed(2)}ms`);
 
       // Add to cart using the correct function signature with timeout
+      const addToCartStart = performance.now();
       const addToCartPromise = addToLocalCart(localCart, localCartItem);
       const abortPromise = new Promise((_, reject) => {
         controller.signal.addEventListener('abort', () => {
           reject(new Error('Add to cart operation timed out'));
         });
       });
-      
-      await Promise.race([addToCartPromise, abortPromise]);
 
-      // 🚀 DEMAND-BASED GEOLOCATION: Load country when user shows purchase intent
-      await loadCountryOnDemand(appState);
+      await Promise.race([addToCartPromise, abortPromise]);
+      console.log(`⏱️ [ADD TO CART TIMING] Add to local cart: ${(performance.now() - addToCartStart).toFixed(2)}ms`);
+
+      // 🚀 GEOLOCATION: Should already be cached from product selection, but fallback just in case
+      const geolocationStart = performance.now();
+      if (!appState.shippingAddress.countryCode) {
+        console.log('⚠️ [ADD TO CART TIMING] Geolocation not cached, running fallback...');
+        loadCountryOnDemand(appState).then(() => {
+          console.log(`⏱️ [ADD TO CART TIMING] Fallback geolocation: ${(performance.now() - geolocationStart).toFixed(2)}ms`);
+        }).catch((error) => {
+          console.warn('⚠️ [ADD TO CART TIMING] Fallback geolocation failed (non-critical):', error);
+        });
+      } else {
+        console.log(`✅ [ADD TO CART TIMING] Geolocation already cached: ${appState.shippingAddress.countryCode}`);
+      }
+      console.log(`⏱️ [ADD TO CART TIMING] Geolocation check: ${(performance.now() - geolocationStart).toFixed(2)}ms`);
 
       // Trigger cart update event to refresh quantities
+      const uiUpdateStart = performance.now();
       window.dispatchEvent(new CustomEvent('cart-updated'));
 
       // Show cart if successful
       if (!localCart.lastError) {
         appState.showCart = true;
-        
+
         // 🚀 FRESH STOCK: Refresh stock levels when opening cart (in background)
         // Refresh stock levels in background without blocking UI
         if (localCart.localCart.items.length > 0) {
+          const stockRefreshStart = performance.now();
           refreshCartStock(localCart).then(() => {
+            console.log(`⏱️ [ADD TO CART TIMING] Background stock refresh: ${(performance.now() - stockRefreshStart).toFixed(2)}ms`);
             // Trigger cart update event to refresh UI with new stock levels
             window.dispatchEvent(new CustomEvent('cart-updated'));
           }).catch((error: Error) => {
@@ -324,8 +392,11 @@ export const ShopComponent = component$<ShopComponentProps>((props) => {
           });
         }
       }
+      console.log(`⏱️ [ADD TO CART TIMING] UI updates: ${(performance.now() - uiUpdateStart).toFixed(2)}ms`);
+      console.log(`✅ [ADD TO CART TIMING] TOTAL add to cart: ${(performance.now() - addToCartStartTime).toFixed(2)}ms`);
     } catch (error) {
       console.error('Failed to add to cart:', error);
+      console.log(`❌ [ADD TO CART TIMING] FAILED after: ${(performance.now() - addToCartStartTime).toFixed(2)}ms`);
       // Could add error notification here
     } finally {
       clearTimeout(timeoutId);
@@ -557,46 +628,49 @@ export const ShopComponent = component$<ShopComponentProps>((props) => {
     });
   });
 
-  // 🚀 OPTIMIZED INITIAL LOAD: Load only stock levels for immediate button state
-  useVisibleTask$(({ cleanup }) => {
-    // Use AbortController to handle cleanup properly
+  // 🚀 PHASE 2A removed - stock now loaded in Phase 1 (server-side) for instant button activation!
+
+  // 🚀 PROGRESSIVE LOADING: Phase 2 - Load images 200ms later (can wait, doesn't block buttons)
+  useVisibleTask$(async ({ cleanup }) => {
+    console.log('🚀 [PHASE 2] Scheduling image loading...');
+
     const controller = new AbortController();
 
-    const loadStockLevelsOnly = async () => {
+    // Wait 200ms before loading images (buttons already active with stock from Phase 1)
+    setTimeout(async () => {
+      if (controller.signal.aborted) return;
+
       try {
-        // Only load stock levels if we haven't already loaded them
-        if (fullProductData.value.shortSleeve || fullProductData.value.longSleeve) {
-          return;
+        console.log('🚀 [PHASE 2] Loading featured images...');
+
+        const imageData = await getFeaturedImages();
+
+        if (!controller.signal.aborted && imageData && fullProductData.value.shortSleeve) {
+          console.log('✅ [PHASE 2] Images loaded - adding to product data');
+
+          // Add images to existing product data
+          fullProductData.value = {
+            shortSleeve: {
+              ...fullProductData.value.shortSleeve,
+              featuredAsset: imageData.shortSleeve
+            },
+            longSleeve: {
+              ...fullProductData.value.longSleeve,
+              featuredAsset: imageData.longSleeve
+            }
+          };
+
+          console.log('📊 [PHASE 2] Complete product data ready with images');
         }
-
-        console.log('🔄 Loading stock levels only on page load...');
-        const stockData = await getStockLevelsOnly();
-
-        // Check if component is still mounted
-        if (controller.signal.aborted) return;
-
-        // Store minimal stock data for button state calculation
-        fullProductData.value = {
-          shortSleeve: stockData.shortSleeve,
-          longSleeve: stockData.longSleeve
-        };
-
-        console.log('✅ Stock levels loaded on page load - buttons ready');
       } catch (error) {
         if (!controller.signal.aborted) {
-          console.error('❌ Failed to load stock levels on page load:', error);
+          console.error('❌ [PHASE 2] Image loading failed:', error);
         }
       }
-    };
-
-    // Add a small delay to prevent blocking initial render
-    const timeoutId = setTimeout(() => {
-      loadStockLevelsOnly();
-    }, 50);
+    }, 200); // 200ms delay for images
 
     cleanup(() => {
       controller.abort();
-      clearTimeout(timeoutId);
     });
   });
 
@@ -703,7 +777,7 @@ export const ShopComponent = component$<ShopComponentProps>((props) => {
 
       {/* Style Selection Section */}
       <StyleSelection
-        stylesData={props.stylesData}
+        stylesData={stylesData.value}
         fullProductData={fullProductData}
         selectedStyle={selectedStyle}
         isLoadingStep={isLoadingStep}

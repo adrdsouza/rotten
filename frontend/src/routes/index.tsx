@@ -1,32 +1,42 @@
 // 🚀 MODERN REDESIGN 2025: Clean, performance-focused homepage with integrated shop
 // 🚀 BACKUP: Original homepage saved as index-backup.tsx
-import { component$, useStylesScoped$ } from '@qwik.dev/core';
+import { component$, useStylesScoped$, $ } from '@qwik.dev/core';
 import { routeLoader$ } from '@qwik.dev/router';
 import { createSEOHead } from '~/utils/seo';
 import { ShopComponent } from '~/components/shop/ShopComponent';
-import { getShirtStylesForSelection } from '~/providers/shop/products/products';
+import { getFCPButtonData } from '~/providers/shop/products/products';
 
-// Shop image - simplified responsive (2 sizes, 2 formats to avoid memory issues)
-import ShopImageAvif from '~/media/shop.jpg?format=avif&width=800&quality=85&url';
-import ShopImageWebp from '~/media/shop.jpg?format=webp&width=800&quality=85&url';
+// 🚀 SERVER-SIDE DATA LOADING: Load minimal FCP button data for fastest initial render
+export const useProductData = routeLoader$(async () => {
+  try {
+    console.log('🚀 [SERVER LOADER] Loading FCP button data on server side...');
 
-// 🚀 OPTIMIZED: Only hero image imports (67% bundle size reduction)
-// HERO SECTION - Only image needed for modern design
+    // Minimal query for fastest First Contentful Paint - just button data
+    const productData = await getFCPButtonData();
+
+    console.log('✅ [SERVER LOADER] FCP button data loaded successfully:', !!productData);
+    return productData;
+  } catch (error) {
+    console.error('❌ [SERVER LOADER] Failed to load FCP button data:', error);
+    return null;
+  }
+});
+
+// Shop image - optimized responsive (mobile + desktop, AVIF + WebP)
+import ShopImageAvif_800 from '~/media/shop.jpg?format=avif&width=800&quality=80';
+import ShopImageAvif_1200 from '~/media/shop.jpg?format=avif&width=1200&quality=80';
+import ShopImageWebp_800 from '~/media/shop.jpg?format=webp&width=800&quality=80';
+import ShopImageWebp_1200 from '~/media/shop.jpg?format=webp&width=1200&quality=80';
+
+// 🚀 OPTIMIZED: Hero image imports - AVIF + WebP only, 4 sizes (best practice)
 import HeroImage_480 from '~/media/hero.png?format=avif&width=480&quality=85&url';
 import HeroImage_768 from '~/media/hero.png?format=avif&width=768&quality=85&url';
 import HeroImage_1024 from '~/media/hero.png?format=avif&width=1024&quality=85&url';
 import HeroImage_1600 from '~/media/hero.png?format=avif&width=1600&quality=85&url';
-import HeroImage_2000 from '~/media/hero.png?format=avif&width=2000&quality=85&url';
 import HeroImageWebP_480 from '~/media/hero.png?format=webp&width=480&quality=85&url';
 import HeroImageWebP_768 from '~/media/hero.png?format=webp&width=768&quality=85&url';
 import HeroImageWebP_1024 from '~/media/hero.png?format=webp&width=1024&quality=85&url';
 import HeroImageWebP_1600 from '~/media/hero.png?format=webp&width=1600&quality=85&url';
-import HeroImageWebP_2000 from '~/media/hero.png?format=webp&width=2000&quality=85&url';
-import HeroImageJPEG_480 from '~/media/hero.png?format=jpeg&width=480&quality=95&url';
-import HeroImageJPEG_768 from '~/media/hero.png?format=jpeg&width=768&quality=95&url';
-import HeroImageJPEG_1024 from '~/media/hero.png?format=jpeg&width=1024&quality=95&url';
-import HeroImageJPEG_1600 from '~/media/hero.png?format=jpeg&width=1600&quality=95&url';
-import HeroImageJPEG_2000 from '~/media/hero.png?format=jpeg&width=2000&quality=95&url';
 // Video is now in public folder
 
 // 🚀 MODERN STYLES: Clean, performance-focused design
@@ -133,54 +143,50 @@ const MODERN_STYLES = `
 
 ` as const;
 
-// 🚀 ROUTE LOADER: Load basic shirt styles data for immediate rendering
-export const useShirtStylesData = routeLoader$(async () => {
-  try {
-    console.log('🔄 Loading shirt styles data for homepage...');
-    const stylesData = await getShirtStylesForSelection();
-    console.log('✅ Shirt styles data loaded for homepage');
-    return stylesData;
-  } catch (error) {
-    console.error('❌ Failed to load shirt styles data for homepage:', error);
-    return {
-      shortSleeve: null,
-      longSleeve: null
-    };
-  }
-});
+// 🚀 REMOVED: Route loader that was blocking initial page load
+// Product data now loads on-demand via Intersection Observer or user interaction
 
 export default component$(() => {
+  const productData = useProductData();
   useStylesScoped$(MODERN_STYLES);
 
-  // Load shirt styles data
-  const stylesData = useShirtStylesData();
+  // Reusable scroll to shop function - triggers lazy load
+  const scrollToShop = $(() => {
+    // Trigger lazy load event before scrolling
+    window.dispatchEvent(new CustomEvent('shop-button-click'));
 
+    const shopSection = document.getElementById('shop-section');
+    if (shopSection) {
+      const headerHeight = 64; // Account for header
+      const offset = 20;
+      const rect = shopSection.getBoundingClientRect();
 
+      window.scrollTo({
+        top: window.scrollY + rect.top - headerHeight - offset,
+        behavior: 'smooth'
+      });
+    }
+  });
 
   return (
     <div>
       {/* Hero Section */}
       <section class="hero-section relative overflow-hidden">
-        {/* Hero Background Image - DAMN SITE PATTERN: Keep responsive but simplified */}
+        {/* Hero Background Image - Optimized: AVIF + WebP, 4 sizes */}
         <div class="absolute inset-0">
           <picture>
             <source
               type="image/avif"
-              srcset={`${HeroImage_480} 480w,${HeroImage_768} 768w,${HeroImage_1024} 1024w,${HeroImage_1600} 1600w,${HeroImage_2000} 2000w`}
-              sizes="(max-width: 600px) 100vw, (max-width: 1200px) 80vw, 60vw"
+              srcset={`${HeroImage_480} 480w, ${HeroImage_768} 768w, ${HeroImage_1024} 1024w, ${HeroImage_1600} 1600w`}
+              sizes="100vw"
             />
             <source
               type="image/webp"
-              srcset={`${HeroImageWebP_480} 480w,${HeroImageWebP_768} 768w,${HeroImageWebP_1024} 1024w,${HeroImageWebP_1600} 1600w,${HeroImageWebP_2000} 2000w`}
-              sizes="(max-width: 600px) 100vw, (max-width: 1200px) 80vw, 60vw"
-            />
-            <source
-              type="image/jpeg"
-              srcset={`${HeroImageJPEG_480} 480w,${HeroImageJPEG_768} 768w,${HeroImageJPEG_1024} 1024w,${HeroImageJPEG_1600} 1600w,${HeroImageJPEG_2000} 2000w`}
-              sizes="(max-width: 600px) 100vw, (max-width: 1200px) 80vw, 60vw"
+              srcset={`${HeroImageWebP_480} 480w, ${HeroImageWebP_768} 768w, ${HeroImageWebP_1024} 1024w, ${HeroImageWebP_1600} 1600w`}
+              sizes="100vw"
             />
             <img
-              src={HeroImageJPEG_1024}
+              src={HeroImageWebP_1024}
               alt="Premium Knife from Rotten Hand"
               loading="eager"
               fetchPriority="high"
@@ -204,20 +210,7 @@ export default component$(() => {
               If it's not the softest shirt you've ever felt, we'll pay you back
             </p>
             <button
-              onClick$={() => {
-                // Smooth scroll to shop section
-                const shopSection = document.getElementById('shop-section');
-                if (shopSection) {
-                  const headerHeight = 64; // Account for header
-                  const offset = 20;
-                  const rect = shopSection.getBoundingClientRect();
-
-                  window.scrollTo({
-                    top: window.scrollY + rect.top - headerHeight - offset,
-                    behavior: 'smooth'
-                  });
-                }
-              }}
+              onClick$={scrollToShop}
               class="inline-block bg-[#8a6d4a] text-white px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:scale-105 hover:shadow-xl rounded-lg shadow-lg border border-[#8a6d4a] animate-scale cursor-pointer"
               style="animation-delay: 0.4s;"
             >
@@ -232,13 +225,21 @@ export default component$(() => {
       <section class="py-12 lg:py-20 bg-white">
         <div class="max-w-7xl mx-auto px-8 lg:px-16">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            {/* Left Side - Image with optimized formats */}
+            {/* Left Side - Image with optimized formats (responsive) */}
             <div class="relative">
               <picture>
-                <source srcset={ShopImageAvif} type="image/avif" />
-                <source srcset={ShopImageWebp} type="image/webp" />
+                <source
+                  type="image/avif"
+                  srcset={`${ShopImageAvif_800} 800w, ${ShopImageAvif_1200} 1200w`}
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                />
+                <source
+                  type="image/webp"
+                  srcset={`${ShopImageWebp_800} 800w, ${ShopImageWebp_1200} 1200w`}
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                />
                 <img
-                  src={ShopImageWebp}
+                  src={ShopImageWebp_800}
                   alt="Premium shirt collection - Three years in the making"
                   class="w-full h-[600px] object-cover rounded-2xl shadow-2xl"
                   width={800}
@@ -271,20 +272,7 @@ export default component$(() => {
 
               <div class="pt-4">
                 <button
-                  onClick$={() => {
-                    // Smooth scroll to shop section
-                    const shopSection = document.getElementById('shop-section');
-                    if (shopSection) {
-                      const headerHeight = 64;
-                      const offset = 20;
-                      const rect = shopSection.getBoundingClientRect();
-
-                      window.scrollTo({
-                        top: window.scrollY + rect.top - headerHeight - offset,
-                        behavior: 'smooth'
-                      });
-                    }
-                  }}
+                  onClick$={scrollToShop}
                   class="inline-flex items-center px-8 py-4 bg-[#8a6d4a] text-white font-medium rounded-xl hover:bg-[#4F3B26] transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl cursor-pointer"
                 >
                   Experience the Perfect Shirt
@@ -298,7 +286,7 @@ export default component$(() => {
         </div>
       </section>
 
-      {/* Style Selector Section - Always Visible */}
+      {/* Style Selector Section - Truly Lazy Loaded */}
       <section id="shop-section" class="bg-gray-50">
         <ShopComponent
           context="homepage"
@@ -306,7 +294,7 @@ export default component$(() => {
           preloadData={true}
           lazyLoadAssets={true}
           analyticsSource="scroll-proximity"
-          stylesData={stylesData.value}
+          stylesData={productData.value}
         />
       </section>
 
@@ -396,7 +384,7 @@ export default component$(() => {
 
       {/* Conscious Consumption Video Section - Moved to End */}
       <section class="relative min-h-screen bg-black overflow-hidden">
-        {/* Background Video */}
+        {/* Background Video - Lazy loaded for performance */}
         <div class="absolute inset-0">
           <video
             autoplay
@@ -404,7 +392,7 @@ export default component$(() => {
             loop
             playsInline
             class="w-full h-full object-cover"
-            preload="metadata"
+            preload="none"
           >
             <source src="/homepage.mp4" type="video/mp4" />
           </video>
@@ -430,20 +418,7 @@ export default component$(() => {
               </div>
               <div>
                 <button
-                  onClick$={() => {
-                    // Scroll back to shop section
-                    const shopSection = document.getElementById('shop-section');
-                    if (shopSection) {
-                      const headerHeight = 64;
-                      const offset = 20;
-                      const rect = shopSection.getBoundingClientRect();
-
-                      window.scrollTo({
-                        top: window.scrollY + rect.top - headerHeight - offset,
-                        behavior: 'smooth'
-                      });
-                    }
-                  }}
+                  onClick$={scrollToShop}
                   class="inline-block bg-[#8a6d4a] text-black px-8 py-2 text-center font-medium tracking-wide transition-all duration-300 hover:bg-[#4F3B26] hover:text-white hover:scale-105 rounded-lg shadow-lg border border-[#8a6d4a] cursor-pointer"
                 >
                   <div class="text-4xl font-bold uppercase tracking-widest">SHOP</div>
@@ -472,7 +447,7 @@ export const head = () => {
     description: 'Two shirts. Zero compromise. Ethically made in India with fair wages. Built to last decades, not seasons. Why buy garbage when you can buy forever?',
     noindex: false,
     links: [
-      // 🚀 DAMN SITE PATTERN: Only 4 strategic preloads for optimal LCP
+      // 🚀 OPTIMIZED: Strategic preloads for optimal LCP (AVIF + WebP only)
       // Mobile-first: 768w for most mobile devices
       {
         rel: 'preload',

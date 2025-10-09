@@ -69,10 +69,11 @@ const createVariantAvailabilityMap = (product: Product | null) => {
   product.variants.forEach(variant => {
     if (!variant.options || !Array.isArray(variant.options)) return;
 
-    // Check if variant is in stock
+    // Check if variant is in stock - simple check: stockLevel > 0
+    // When trackInventory is OFF, Vendure sets stockLevel to a very high number (9007199254740991)
+    // When trackInventory is ON, stockLevel reflects actual inventory
     const stockLevel = parseInt(String(variant.stockLevel || '0'));
-    const trackInventory = variant.trackInventory;
-    const isInStock = stockLevel > 0 || trackInventory === 'FALSE';
+    const isInStock = stockLevel > 0;
 
     if (isInStock) {
       // Mark each option as available

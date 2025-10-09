@@ -284,21 +284,33 @@ export class LocalCartService {
 
   // Add item to cart with stock validation - FAIL FAST on stock errors
   static addItem(item: LocalCartItem): { cart: LocalCart; stockResult: StockValidationResult } {
+    const serviceStartTime = performance.now();
+    console.log('🚀 [SERVICE TIMING] Starting LocalCartService.addItem...');
+
+    const getCartStart = performance.now();
     const cart = this.getCart();
+    console.log(`⏱️ [SERVICE TIMING] Get cart: ${(performance.now() - getCartStart).toFixed(2)}ms`);
+
+    const findItemStart = performance.now();
     const existingIndex = cart.items.findIndex(i => i.productVariantId === item.productVariantId);
-    
-    const newQuantity = existingIndex >= 0 
+
+    const newQuantity = existingIndex >= 0
       ? cart.items[existingIndex].quantity + item.quantity
       : item.quantity;
-    
+    console.log(`⏱️ [SERVICE TIMING] Find existing item: ${(performance.now() - findItemStart).toFixed(2)}ms`);
+
     // Validate stock before adding
+    const stockValidationStart = performance.now();
     const stockResult = this.validateStockLevel(item, newQuantity);
-    
+    console.log(`⏱️ [SERVICE TIMING] Stock validation: ${(performance.now() - stockValidationStart).toFixed(2)}ms`);
+
     // 🚫 FAIL FAST: Don't add/update if stock validation fails
     if (!stockResult.success) {
+      console.log(`❌ [SERVICE TIMING] Stock validation failed after: ${(performance.now() - serviceStartTime).toFixed(2)}ms`);
       return { cart, stockResult };
     }
     
+    const updateItemStart = performance.now();
     if (existingIndex >= 0) {
       // Update existing item with requested quantity (no silent adjustments)
       cart.items[existingIndex].quantity = newQuantity;
@@ -312,9 +324,14 @@ export class LocalCartService {
       item.productVariant.stockLevel = stockResult.availableStock.toString();
       cart.items.push(item);
     }
-    
+    console.log(`⏱️ [SERVICE TIMING] Update cart items: ${(performance.now() - updateItemStart).toFixed(2)}ms`);
+
+    const recalcStart = performance.now();
     this.recalculateTotals(cart);
     this.saveCart(cart);
+    console.log(`⏱️ [SERVICE TIMING] Recalc & save: ${(performance.now() - recalcStart).toFixed(2)}ms`);
+
+    console.log(`✅ [SERVICE TIMING] TOTAL LocalCartService.addItem: ${(performance.now() - serviceStartTime).toFixed(2)}ms`);
     return { cart, stockResult };
   }
 
