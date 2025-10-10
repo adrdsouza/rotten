@@ -3,17 +3,12 @@ import { APP_STATE, CUSTOMER_NOT_DEFINED_ID, AUTH_TOKEN } from '~/constants';
 import AddressForm from '~/components/address-form/AddressForm';
 import BillingAddressForm from '~/components/billing-address-form/BillingAddressForm';
 // LoginModal moved to parent component
+// Removed getActiveOrderQuery and setCustomerForOrderMutation - customer setup now handled in placeOrder()
 import {
-  getActiveOrderQuery,
-  setCustomerForOrderMutation,
-} from '~/providers/shop/orders/order';
-import {
-  getActiveCustomerCached,
   getActiveCustomerAddressesQuery,
   createCustomerAddressMutation as createCustomerAddress,
   updateCustomerAddressMutation as updateCustomerAddress,
 } from '~/providers/shop/customer/customer';
-import { Order } from '~/generated/graphql';
 import { isActiveCustomerValid, isShippingAddressValid, isBillingAddressValid, getCookie } from '~/utils';
 import { validateEmail, validateName, validatePhone, filterPhoneInput, sanitizePhoneNumber } from '~/utils/validation';
 
@@ -358,13 +353,16 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
 
   // Submit addresses to the API - moved before useTask$ that calls it
   const submitAddresses = $(async () => {
+    const submitStartTime = performance.now();
+    console.log('🚀 [ADDRESS SUBMISSION] Starting address submission...');
+
     try {
       addressSubmissionInProgress.value = true;
       isLoading.value = true;
 
       // Update the new context
       checkoutAddressState.addressSubmissionInProgress = true;
-      
+
       // Sync customer data to appState before submission since we removed the automatic sync
       const customerForSync = {
         firstName: appState.customer?.firstName || '',
@@ -375,87 +373,19 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
         title: appState.customer?.title || '',
       };
       appState.customer = { ...customerForSync };
-      // console.log('[CheckoutAddresses] Syncing customer data to appState for submission');
+      console.log(`⏱️ [ADDRESS SUBMISSION] Customer sync: ${(performance.now() - submitStartTime).toFixed(2)}ms`);
 
-      // Set addresses and customer info on Vendure order if one exists
-      // This should happen regardless of isLocalMode - if we have a Vendure order, it needs proper setup
+      // Set addresses on Vendure order if one exists
+      // Customer setup is now handled in placeOrder() before this function is called
       if (appState.activeOrder) {
-        // First check if customer is already authenticated
-        const activeCustomer = await getActiveCustomerCached();
-          
-          if (activeCustomer) {
-            // console.log('Customer is already authenticated:', activeCustomer.emailAddress);
-            // Customer is logged in - verify the order has the customer association
-            const latestOrder = await getActiveOrderQuery();
-            if (latestOrder) {
-              appState.activeOrder = latestOrder as Order;
-              if (latestOrder.customer) {
-                // console.log('✅ Authenticated customer order confirmed:', latestOrder.customer.emailAddress);
-              } else {
-                // console.log('⚠️ Order exists but no customer association found - this is unusual for authenticated users');
-              }
-            }
-          } else {
-            // No authenticated customer - check if order already has customer (guest checkout)
-            const latestOrderBeforeCustomerSet = await getActiveOrderQuery();
-            if (latestOrderBeforeCustomerSet && latestOrderBeforeCustomerSet.customer) {
-              // console.log('Active order already has a customer associated:', latestOrderBeforeCustomerSet.customer.emailAddress);
-              appState.activeOrder = latestOrderBeforeCustomerSet as Order;
-              // console.log('Skipping setCustomerForOrderMutation as customer is already set for this order.');
-            } else {
-              // Guest checkout - set customer for order
-              const customerData = {
-                emailAddress: appState.customer.emailAddress || '',
-                firstName: appState.customer.firstName || '',
-                lastName: appState.customer.lastName || '',
-                phoneNumber: appState.shippingAddress.phoneNumber || '',
-              };
-              // console.log('Attempting to set customer for order (guest checkout) with data:', customerData);
-              const customerResult = await setCustomerForOrderMutation(customerData);
-
-              if (customerResult.__typename === 'Order') {
-                // console.log('Successfully set customer for order');
-                appState.activeOrder = customerResult as Order;
-              } else if (customerResult.__typename === 'EmailAddressConflictError') {
-                // Guest checkout with existing customer email - automatically link the order
-                // console.log('EmailAddressConflictError: Guest order automatically linked to existing customer account:', customerResult.message);
-                // The order should be automatically linked, so we continue with the flow
-                // Fetch the updated order to get the linked customer information
-                const updatedOrder = await getActiveOrderQuery();
-                if (updatedOrder) {
-                  appState.activeOrder = updatedOrder as Order;
-                  // console.log('Order successfully linked to existing customer:', updatedOrder.customer?.emailAddress);
-                }
-              } else if (customerResult.__typename === 'AlreadyLoggedInError') {
-                // User is already logged in, no need to set customer again
-                // console.log('Customer already logged in, skipping customer setup:', customerResult.message);
-                const updatedOrder = await getActiveOrderQuery();
-                if (updatedOrder) {
-                  appState.activeOrder = updatedOrder as Order;
-                }
-              } else if (customerResult.__typename === 'GuestCheckoutError') {
-                // Guest checkout not allowed by configuration
-                // console.error('Guest checkout not allowed:', customerResult.message);
-                throw new Error('Guest checkout is not enabled. Please create an account or log in to continue.');
-              } else if (customerResult.__typename === 'NoActiveOrderError') {
-                // No active order exists
-                // console.error('No active order found when setting customer:', customerResult.message);
-                throw new Error('No active order found. Please restart your checkout process.');
-              } else {
-                // console.error('Unexpected error setting customer for order. Result:', JSON.stringify(customerResult, null, 2));
-                throw new Error('Failed to set customer for order: ' + (customerResult as any).message || 'Unknown error');
-              }
-            }
-          }
-
-        // Check for active order before attempting address mutations
-        const latestOrderBeforeMutations = await getActiveOrderQuery();
-        if (!latestOrderBeforeMutations || !latestOrderBeforeMutations.id) {
-          // console.error('❌ No active order found before setting addresses. Order state:', latestOrderBeforeMutations);
+        // Verify we have an active order
+        if (!appState.activeOrder.id) {
           throw new Error('No active order found. Please retry the checkout process.');
         }
-        appState.activeOrder = latestOrderBeforeMutations; // Update appState with the latest order data
-        // console.log('✅ Active order confirmed before address mutations:', latestOrderBeforeMutations.code);
+
+        // Determine authentication state for address saving later
+        // FIX: Properly check for authenticated users (not CUSTOMER_NOT_DEFINED_ID)
+        const isAuthenticated = appState.customer.id !== CUSTOMER_NOT_DEFINED_ID && !!appState.customer.id;
 
         // 🚀 OPTIMIZATION: Use parallel processing for address and shipping setup
         // This reduces checkout time by running independent operations concurrently
@@ -498,11 +428,13 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
         }
 
         // Execute optimized parallel processing
+        const parallelProcessingStart = performance.now();
         const checkoutResult = await CheckoutOptimizationService.optimizedCheckoutProcessing(
           shippingAddressInput,
           billingAddressInput,
           appState.activeOrder?.subTotalWithTax || 0
         );
+        console.log(`⏱️ [ADDRESS SUBMISSION] Parallel processing (addresses + shipping): ${(performance.now() - parallelProcessingStart).toFixed(2)}ms`);
 
         // Update order with the result
         appState.activeOrder = checkoutResult.order;
@@ -517,7 +449,9 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
         if (checkoutResult.shippingMethodsApplied) {
           console.log('📦 Shipping method automatically applied');
         }
-        if (activeCustomer) {
+
+        // Save addresses to customer account if authenticated
+        if (isAuthenticated) {
           try {
             const customerAddresses = await getActiveCustomerAddressesQuery();
             const defaultShipping = customerAddresses?.addresses?.find((a) => a.defaultShippingAddress);
@@ -598,9 +532,12 @@ export const CheckoutAddresses = component$<CheckoutAddressesProps>(({ onAddress
       // Mark as complete for external coordination
       addressSubmissionComplete.value = true;
       checkoutAddressState.addressSubmissionComplete = true;
+
+      console.log(`✅ [ADDRESS SUBMISSION] TOTAL TIME: ${(performance.now() - submitStartTime).toFixed(2)}ms`);
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'An error occurred';
-      // console.error('❌ Checkout error:', err);
+      console.error('❌ [ADDRESS SUBMISSION] Error:', err);
+      console.log(`⏱️ [ADDRESS SUBMISSION] Failed after: ${(performance.now() - submitStartTime).toFixed(2)}ms`);
       hasProceeded.value = false; // Allow retry on error
     } finally {
       isLoading.value = false;

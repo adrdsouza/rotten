@@ -39,24 +39,12 @@ export default component$<{
 		return total;
 	});
 
-	// 🚀 Create a reactive signal that forces shipping recalculation when country changes
-	const shippingTrigger = useSignal(0);
-
-	useVisibleTask$(({ track }) => {
-		track(() => appState.shippingAddress.countryCode);
-		const countryCode = appState.shippingAddress.countryCode;
-		const timestamp = new Date().toISOString().slice(11, 23);
-		console.log(`🚢 [CartTotals] [${timestamp}] Country change detected: ${countryCode}, forcing shipping recalculation`);
-		// Force shipping computed to recalculate by updating trigger signal
-		shippingTrigger.value = shippingTrigger.value + 1;
-	});
-
+	// ✅ BEST PRACTICE: Direct computed with automatic dependency tracking
+	// No trigger pattern needed - useComputed$ automatically tracks countryCode changes
 	const shipping = useComputed$(() => {
-		// Track the trigger signal to ensure recalculation on country changes
-		const trigger = shippingTrigger.value;
 		const timestamp = new Date().toISOString().slice(11, 23); // HH:MM:SS.mmm
 		const countryCode = appState.shippingAddress?.countryCode;
-		console.log(`🚢 [CartTotals] [${timestamp}] Shipping computation triggered for country: ${countryCode || 'undefined'} (trigger: ${trigger})`);
+		console.log(`🚢 [CartTotals] [${timestamp}] Shipping computation for country: ${countryCode || 'undefined'}`);
 
 		if (appState.shippingAddress && appState.shippingAddress.countryCode) {
 			if (localCartContext.appliedCoupon?.freeShipping) {
@@ -110,7 +98,7 @@ export default component$<{
 			const cartItems = localCartContext.localCart.items.map(item => ({
 				productVariantId: item.productVariantId,
 				quantity: item.quantity,
-				unitPrice: item.productVariant.price
+				unitPrice: item.productVariant.priceWithTax || item.productVariant.price || 0
 			}));
 
 			const result = await validateLocalCartCouponQuery({
@@ -165,7 +153,7 @@ export default component$<{
 				const cartItems = localCartContext.localCart.items.map(item => ({
 					productVariantId: item.productVariantId,
 					quantity: item.quantity,
-					unitPrice: item.productVariant.price
+					unitPrice: item.productVariant.priceWithTax || item.productVariant.price || 0
 				}));
 
 				const result = await validateLocalCartCouponQuery({

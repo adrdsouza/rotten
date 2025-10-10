@@ -16,7 +16,6 @@ import {
 	CUSTOMER_NOT_DEFINED_ID,
 	IMAGE_RESOLUTIONS,
 	AUTH_TOKEN,
-	COUNTRY_COOKIE,
 } from '~/constants';
 import { Order } from '~/generated/graphql';
 import { getCollections } from '~/providers/shop/collections/collections';
@@ -88,9 +87,9 @@ export const useActiveOrderLoader = routeLoader$(async () => {
 });
 
 // SSR Authentication and Customer Data Loading
+// Country is NOT loaded from SSR - it's purely client-side from sessionStorage
 export const useLayoutLoader = routeLoader$(async ({ cookie }) => {
 	const authToken = cookie.get(AUTH_TOKEN)?.value;
-	const countryCode = cookie.get(COUNTRY_COOKIE)?.value;
 	let customer: ActiveCustomer | null = null;
 	let activeOrder: Order | null = null;
 
@@ -122,7 +121,7 @@ export const useLayoutLoader = routeLoader$(async ({ cookie }) => {
 		customer,
 		activeOrder,
 		isAuthenticated: !!customer,
-		countryCode,
+		// countryCode removed - client-side only
 	};
 });
 
@@ -177,7 +176,7 @@ export default component$(() => {
 			id: '',
 			city: '',
 			company: '',
-			countryCode: layoutData.value.countryCode || '', // SSR-seeded country
+			countryCode: '', // Will be loaded from sessionStorage on client - no SSR
 			fullName: '',
 			phoneNumber: '',
 			postalCode: '',
@@ -226,12 +225,12 @@ export default component$(() => {
 			}
 		}
 
-		// Client-side fallback to restore country from sessionStorage if it's still empty after hydration
-		if (!state.shippingAddress.countryCode) {
-			const storedCountry = sessionStorage.getItem('countryCode');
-			if (storedCountry) {
-				state.shippingAddress.countryCode = storedCountry;
-			}
+		// SINGLE SOURCE OF TRUTH: Always load country from sessionStorage (client-side only)
+		// This ensures the priority system works: Vendure > User input > Geolocation
+		const storedCountry = sessionStorage.getItem('countryCode');
+		if (storedCountry) {
+			state.shippingAddress.countryCode = storedCountry;
+			console.log('[Layout] Country loaded from sessionStorage:', storedCountry);
 		}
 
 		// Cleanup function to run when the component is unmounted
@@ -281,12 +280,13 @@ export default component$(() => {
 							company: defaultShipping.company || '',
 						};
 
-						// CRITICAL FIX: Save customer's country to sessionStorage to override geolocation
-						// This ensures customer address takes precedence over geolocation
+						// SINGLE SOURCE OF TRUTH: Save customer's country to sessionStorage only
+						// sessionStorage is the ONLY place country is stored (no cookies)
+						// Priority: Vendure customer address > User input > Geolocation
 						if (typeof sessionStorage !== 'undefined') {
 							sessionStorage.setItem('countryCode', defaultShipping.countryCode);
 							sessionStorage.setItem('countrySource', 'customer');
-							// console.log('✅ Customer address loaded, saved country to sessionStorage:', defaultShipping.countryCode);
+							console.log('✅ [Layout] Customer country saved to sessionStorage:', defaultShipping.countryCode, '(source: customer)');
 						}
 					}
 				}
@@ -321,16 +321,17 @@ export default component$(() => {
 		// Could show a user-friendly error message here
 	}));
 
-	// Set optimized background pattern image
-	useVisibleTask$(() => {
-		// Set background image with format fallbacks (browser picks best supported)
-		document.body.style.backgroundImage = `url(${PatternImageAvif}), url(${PatternImageWebp})`;
-	});
-
 	return (
 		<LoginModalProvider>
 			<CartProvider>
-				<div>
+				<div
+					style={{
+						// Set background pattern on root div instead of body for immediate SSR rendering
+						backgroundImage: `url(${PatternImageAvif}), url(${PatternImageWebp})`,
+						backgroundRepeat: 'repeat',
+						backgroundSize: 'auto',
+					}}
+				>
 					<Header />
 					{/* 🚀 DEMAND-BASED: Conditional Cart Loading with stock refresh */}
 					<ConditionalCart isHomePage={isHomePage} showCart={state.showCart} />

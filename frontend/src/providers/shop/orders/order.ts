@@ -1,5 +1,5 @@
 import gql from 'graphql-tag';
-import { AddPaymentToOrderMutation, TransitionOrderToStateMutation, AddItemInput } from '~/generated/graphql-shop';
+import { AddPaymentToOrderMutation, TransitionOrderToStateMutation, AddItemInput, RemoveAllOrderLinesMutation } from '~/generated/graphql-shop';
 import {
 	ActiveOrderQuery,
 	AddItemToOrderMutation,
@@ -92,6 +92,24 @@ export const removeOrderLineMutation = async (lineId: string) => {
 				return null;
 			}
 			return result as Order;
+		});
+};
+
+export const removeAllOrderLinesMutation = async () => {
+	return shopSdk
+		.removeAllOrderLines()
+		.then((res: RemoveAllOrderLinesMutation) => {
+			const result = res.removeAllOrderLines;
+			// Handle ErrorResult case
+			if (result && 'errorCode' in result) {
+				console.log('Remove all order lines resulted in error:', result.errorCode);
+				return null;
+			}
+			return result as Order;
+		})
+		.catch((error) => {
+			console.error('Error in removeAllOrderLinesMutation:', error);
+			throw error;
 		});
 };
 
@@ -411,6 +429,19 @@ gql`
 gql`
 	mutation removeOrderLine($orderLineId: ID!) {
 		removeOrderLine(orderLineId: $orderLineId) {
+			...CustomOrderDetail
+			... on ErrorResult {
+				errorCode
+				message
+			}
+		}
+	}
+	${CustomOrderDetailFragment}
+`;
+
+gql`
+	mutation removeAllOrderLines {
+		removeAllOrderLines {
 			...CustomOrderDetail
 			... on ErrorResult {
 				errorCode

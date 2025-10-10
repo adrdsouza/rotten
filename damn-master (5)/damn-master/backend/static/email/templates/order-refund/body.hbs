@@ -1,0 +1,196 @@
+{{> header title="Refund Confirmation" }}
+
+<mj-raw>
+    <style type="text/css">
+    /* Fix Gmail mobile app rendering */
+    * {
+        -webkit-text-size-adjust: none;
+        -ms-text-size-adjust: none;
+        text-size-adjust: none;
+    }
+    table {
+        border-collapse: collapse !important;
+        mso-table-lspace: 0pt !important;
+        mso-table-rspace: 0pt !important;
+    }
+    td {
+        vertical-align: top;
+        mso-line-height-rule: exactly;
+    }
+    .callout {
+        background-color: #28a745;
+        padding: 20px 0;
+    }
+    .callout-large > div {
+        text-align: center !important;
+        color: #fff !important;
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        padding: 0 0 5px 0 !important;
+        font-family: 'Inter', sans-serif !important;
+        margin: 0 !important;
+    }
+    .callout-small > div {
+        text-align: center !important;
+        color: #fff !important;
+        font-size: 16px !important;
+        padding: 0 !important;
+        font-family: 'Inter', sans-serif !important;
+        margin: 0 !important;
+        font-weight: 500 !important;
+    }
+    .refund-block {
+        background-color: #f8f9fa;
+        border: 1px solid #e5e5e5;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 10px 0;
+        font-family: 'Inter', sans-serif !important;
+        color: #333333 !important;
+        line-height: 1.6 !important;
+    }
+    .refund-amount {
+        font-size: 24px !important;
+        font-weight: 700 !important;
+        color: #28a745 !important;
+        text-align: center !important;
+        margin: 20px 0 !important;
+    }
+    .order-details {
+        background-color: #ffffff;
+        border: 1px solid #e5e5e5;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+        font-family: 'Inter', sans-serif !important;
+    }
+    .order-item {
+        border-bottom: 1px solid #f0f0f0;
+        padding: 15px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .order-item:last-child {
+        border-bottom: none;
+    }
+    .item-name {
+        font-weight: 600;
+        color: #333333;
+        margin-bottom: 5px;
+    }
+    .item-details {
+        color: #666666;
+        font-size: 14px;
+    }
+    .item-price {
+        font-weight: 600;
+        color: #333333;
+        text-align: right;
+    }
+    </style>
+</mj-raw>
+
+<mj-section css-class="callout">
+    <mj-column>
+        <mj-text css-class="callout-large">
+            <div>Refund Processed Successfully</div>
+        </mj-text>
+        <mj-text css-class="callout-small">
+            <div>Your refund has been processed and will appear in your account within 3-5 business days</div>
+        </mj-text>
+    </mj-column>
+</mj-section>
+
+<mj-section>
+    <mj-column>
+        <mj-text>
+            <p style="font-family: 'Inter', sans-serif; font-size: 16px; color: #333333; line-height: 1.6; margin: 20px 0;">
+                Hi {{order.customer.firstName}},
+            </p>
+            <p style="font-family: 'Inter', sans-serif; font-size: 16px; color: #333333; line-height: 1.6; margin: 20px 0;">
+                We've successfully processed your refund for order <strong>#{{order.code}}</strong>. The refunded amount will be credited back to your original payment method.
+            </p>
+        </mj-text>
+    </mj-column>
+</mj-section>
+
+<mj-section>
+    <mj-column>
+        <mj-text css-class="refund-amount">
+            <div>Refund Amount: {{formatMoney refund.total}}</div>
+        </mj-text>
+    </mj-column>
+</mj-section>
+
+<mj-section>
+    <mj-column>
+        <mj-text>
+            <div class="refund-block">
+                <h3 style="font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 600; color: #333333; margin: 0 0 15px 0;">Refund Details</h3>
+                <p style="font-family: 'Inter', sans-serif; font-size: 14px; color: #666666; margin: 5px 0;"><strong>Refund ID:</strong> {{refund.id}}</p>
+                <p style="font-family: 'Inter', sans-serif; font-size: 14px; color: #666666; margin: 5px 0;"><strong>Order Number:</strong> #{{order.code}}</p>
+                <p style="font-family: 'Inter', sans-serif; font-size: 14px; color: #666666; margin: 5px 0;"><strong>Refund Date:</strong> {{formatDate refund.updatedAt}}</p>
+                <p style="font-family: 'Inter', sans-serif; font-size: 14px; color: #666666; margin: 5px 0;"><strong>Refund Method:</strong> Original Payment Method</p>
+                {{#if refund.reason}}
+                <p style="font-family: 'Inter', sans-serif; font-size: 14px; color: #666666; margin: 5px 0;"><strong>Reason:</strong> {{refund.reason}}</p>
+                {{/if}}
+            </div>
+        </mj-text>
+    </mj-column>
+</mj-section>
+
+{{#if order.lines}}
+<mj-section>
+    <mj-column>
+        <mj-text>
+            <div class="order-details">
+                <h3 style="font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 600; color: #333333; margin: 0 0 20px 0;">Refunded Items</h3>
+                {{#each order.lines}}
+                <div class="order-item">
+                    <div>
+                        <div class="item-name">{{productVariant.name}}</div>
+                        <div class="item-details">Quantity: {{quantity}}</div>
+                        {{#if productVariant.sku}}
+                        <div class="item-details">SKU: {{productVariant.sku}}</div>
+                        {{/if}}
+                    </div>
+                    <div class="item-price">{{formatMoney linePriceWithTax}}</div>
+                </div>
+                {{/each}}
+            </div>
+        </mj-text>
+    </mj-column>
+</mj-section>
+{{/if}}
+
+<mj-section>
+    <mj-column>
+        <mj-text>
+            <p style="font-family: 'Inter', sans-serif; font-size: 16px; color: #333333; line-height: 1.6; margin: 20px 0;">
+                <strong>What happens next?</strong>
+            </p>
+            <ul style="font-family: 'Inter', sans-serif; font-size: 14px; color: #666666; line-height: 1.6; margin: 10px 0; padding-left: 20px;">
+                <li>Your refund will be processed within 1-2 business days</li>
+                <li>The refunded amount will appear in your account within 3-5 business days</li>
+                <li>You'll receive a confirmation from your bank or payment provider</li>
+                <li>If you don't see the refund after 7 business days, please contact us</li>
+            </ul>
+        </mj-text>
+    </mj-column>
+</mj-section>
+
+<mj-section>
+    <mj-column>
+        <mj-text>
+            <p style="font-family: 'Inter', sans-serif; font-size: 16px; color: #333333; line-height: 1.6; margin: 20px 0;">
+                If you have any questions about your refund, please don't hesitate to contact our customer service team.
+            </p>
+            <p style="font-family: 'Inter', sans-serif; font-size: 16px; color: #333333; line-height: 1.6; margin: 20px 0;">
+                Thank you for your business!
+            </p>
+        </mj-text>
+    </mj-column>
+</mj-section>
+
+{{> footer }}

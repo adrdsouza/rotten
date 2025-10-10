@@ -235,6 +235,10 @@ type Mutation {
   createCartMapping(cartUuid: String!, orderId: String!, orderCode: String!, paymentIntentId: String): CartOrderMapping!
   updateCartMappingPaymentIntent(cartUuid: String!, paymentIntentId: String!): CartOrderMapping
   markCartMappingCompleted(cartUuid: String!): CartOrderMapping
+  createPreOrderPaymentIntent(amount: Int, currency: String, cartUuid: String): String!
+  updatePaymentIntentAmount(paymentIntentId: String!, amount: Int!): Boolean!
+  updatePaymentIntentMetadata(paymentIntentId: String!, orderCode: String!, orderId: Int!): Boolean!
+  updatePaymentIntentWithOrder(paymentIntentId: String!, amount: Int!, orderCode: String!, orderId: Int!, cartUuid: String): Boolean!
 }
 
 type Address implements Node {

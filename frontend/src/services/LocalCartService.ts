@@ -9,7 +9,8 @@ export interface LocalCartItem {
   productVariant: {
     id: string;
     name: string;
-    price: number;
+    price?: number; // Legacy field, may not be present
+    priceWithTax: number; // Primary price field
     stockLevel?: string;
     product: {
       id: string;
@@ -59,6 +60,52 @@ export class LocalCartService {
   private static cacheTimestamp: number = 0;
   private static readonly CACHE_DURATION = 1000; // 1 second cache
 
+  // 🔍 DEBUG: Log when class is loaded
+  static {
+    console.log('🔍 [CART DEBUG] LocalCartService class loaded - cache initialized:', {
+      cartCache: this.cartCache,
+      cacheTimestamp: this.cacheTimestamp
+    });
+  }
+
+  // 🔍 DEBUG: Monitor localStorage operations
+  private static isMonitoringSetup = false;
+
+  private static setupLocalStorageMonitoring(): void {
+    if (typeof window === 'undefined' || this.isMonitoringSetup) return;
+
+    const originalSetItem = localStorage.setItem;
+    const originalRemoveItem = localStorage.removeItem;
+    const originalClear = localStorage.clear;
+
+    localStorage.setItem = function(key: string, value: string) {
+      console.log('🔵 [LOCALSTORAGE DEBUG] setItem:', key, value.length > 100 ? `${value.substring(0, 100)}...` : value);
+      if (key === 'vendure_local_cart') {
+        console.log('🛒 [CART DEBUG] Cart being saved to localStorage:', JSON.parse(value));
+        console.trace('Cart save stack trace:');
+      }
+      return originalSetItem.call(this, key, value);
+    };
+
+    localStorage.removeItem = function(key: string) {
+      console.log('🔴 [LOCALSTORAGE DEBUG] removeItem:', key);
+      if (key === 'vendure_local_cart') {
+        console.log('🛒 [CART DEBUG] Cart being removed from localStorage!');
+        console.trace('Cart removal stack trace:');
+      }
+      return originalRemoveItem.call(this, key);
+    };
+
+    localStorage.clear = function() {
+      console.log('💥 [LOCALSTORAGE DEBUG] localStorage.clear() called!');
+      console.trace('localStorage clear stack trace:');
+      return originalClear.call(this);
+    };
+
+    this.isMonitoringSetup = true;
+    console.log('✅ [CART DEBUG] localStorage monitoring enabled');
+  }
+
   // 🔄 CROSS-TAB SYNC: Storage event listeners and cart update callbacks
   private static cartUpdateCallbacks: Set<() => void> = new Set();
   private static isStorageListenerSetup = false;
@@ -66,6 +113,9 @@ export class LocalCartService {
   // Setup cross-tab synchronization
   static setupCrossTabSync(): void {
     if (typeof window === 'undefined' || this.isStorageListenerSetup) return;
+
+    // 🔍 DEBUG: Setup localStorage monitoring
+    this.setupLocalStorageMonitoring();
 
     window.addEventListener('storage', (event) => {
       if (event.key === this.CART_KEY) {
@@ -171,6 +221,7 @@ export class LocalCartService {
 
   // 🚀 OPTIMIZED: Clear cache when cart is modified
   private static clearCache(): void {
+    console.log('🔍 [CART DEBUG] clearCache() called - clearing in-memory cache');
     this.cartCache = null;
     this.cacheTimestamp = 0;
   }
@@ -203,16 +254,28 @@ export class LocalCartService {
       };
     }
 
+    // 🔍 DEBUG: Log cache state
+    console.log('🔍 [CART DEBUG] getCart() called - cache state:', {
+      hasCache: !!this.cartCache,
+      cacheAge: this.cacheTimestamp ? Date.now() - this.cacheTimestamp : 'no cache',
+      cacheDuration: this.CACHE_DURATION
+    });
+
     // 🚀 OPTIMIZED: Check in-memory cache first
     const now = Date.now();
     if (this.cartCache && (now - this.cacheTimestamp) < this.CACHE_DURATION) {
+      console.log('🔍 [CART DEBUG] Returning cached cart:', this.cartCache);
       return this.cartCache;
     }
 
+    console.log('🔍 [CART DEBUG] Cache miss - reading from localStorage...');
     try {
       const stored = localStorage.getItem(this.CART_KEY);
+      console.log('🔍 [CART DEBUG] localStorage value:', stored ? `${stored.length} chars` : 'null');
+
       if (stored) {
         const cart = JSON.parse(stored);
+        console.log('🔍 [CART DEBUG] Parsed cart from localStorage:', cart);
         // Update cache
         this.cartCache = cart;
         this.cacheTimestamp = now;
@@ -222,6 +285,7 @@ export class LocalCartService {
       console.error('Failed to parse cart from localStorage:', error);
     }
 
+    console.log('🔍 [CART DEBUG] No cart in localStorage - returning empty cart');
     const emptyCart = {
       items: [],
       totalQuantity: 0,
@@ -528,7 +592,8 @@ export class LocalCartService {
   static recalculateTotals(cart: LocalCart): void {
     cart.totalQuantity = cart.items.reduce((total, item) => total + item.quantity, 0);
     cart.subTotal = cart.items.reduce((total, item) => {
-      return total + (item.productVariant.price * item.quantity);
+      const price = item.productVariant.priceWithTax || item.productVariant.price || 0;
+      return total + (price * item.quantity);
     }, 0);
   }
 
@@ -578,7 +643,7 @@ export class LocalCartService {
       }
 
       // Dynamically import to avoid circular dependencies
-      const { addItemsToOrderMutation, addItemToOrderMutation, applyCouponCodeMutation, getActiveOrderQuery, removeOrderLineMutation } = await import('~/providers/shop/orders/order');
+      const { addItemsToOrderMutation, addItemToOrderMutation, applyCouponCodeMutation, getActiveOrderQuery } = await import('~/providers/shop/orders/order');
       let order: Order | null = null;
 
       // CRITICAL FIX: Check for existing order and clear its items to prevent accumulation
@@ -586,18 +651,12 @@ export class LocalCartService {
         const existingOrder = await getActiveOrderQuery();
         if (existingOrder && existingOrder.lines && existingOrder.lines.length > 0) {
           console.log(`[${conversionId}] Found existing order with ${existingOrder.lines.length} items. Clearing to prevent accumulation.`);
-          
-          // Remove all existing order lines to prevent item accumulation
-          for (const line of existingOrder.lines) {
-            try {
-              await removeOrderLineMutation(line.id);
-              console.log(`[${conversionId}] Removed existing order line: ${line.id}`);
-            } catch (removeError) {
-              console.warn(`[${conversionId}] Failed to remove order line ${line.id}:`, removeError);
-              // Continue with other lines even if one fails
-            }
-          }
-          
+
+          // Use batch removal mutation for better performance
+          const { removeAllOrderLinesMutation } = await import('~/providers/shop/orders/order');
+          await removeAllOrderLinesMutation();
+          console.log(`[${conversionId}] All order lines removed using batch mutation`);
+
           // Get the updated order after clearing
           order = await getActiveOrderQuery();
           console.log(`[${conversionId}] Order cleared. Remaining lines: ${order?.lines?.length || 0}`);

@@ -5,6 +5,7 @@ import {
   useContextProvider,
   useStore,
   useVisibleTask$,
+  useTask$,
   $,
   Slot
 } from '@qwik.dev/core';
@@ -65,37 +66,43 @@ export const CartProvider = component$(() => {
     lastStockRefresh: null
   });
 
-  // 🔄 CROSS-TAB SYNC: Setup storage listeners and cart update callbacks
+  // 🚀 CRITICAL FIX: Load cart EAGERLY on mount using useTask$ for proper SSR/hydration
+  // This runs during both SSR and client hydration, ensuring cart is always loaded
+  useTask$(() => {
+    // Only load from localStorage on client side (not during SSR)
+    if (typeof window !== 'undefined' && !cartState.hasLoadedOnce) {
+      try {
+        console.log('🔍 [CART PROVIDER] Loading cart from localStorage on mount...');
+        const cart = LocalCartService.getCart();
+        cartState.localCart = cart;
+        cartState.hasLoadedOnce = true;
+        console.log('✅ [CART PROVIDER] Cart loaded on mount:', cart.items.length, 'items');
+      } catch (error) {
+        console.error('❌ [CART PROVIDER] Failed to load cart on mount:', error);
+        cartState.lastError = 'Failed to load cart';
+      }
+    }
+  });
+
+  // 🔄 CROSS-TAB SYNC: Setup storage listeners for changes in other tabs
   useVisibleTask$(() => {
-    // Setup cross-tab synchronization
     LocalCartService.setupCrossTabSync();
-    
-    // Register callback to refresh cart state when changes occur in other tabs
+
+    // Only reload from localStorage for CROSS-TAB changes
+    // Same-tab mutations already update context directly
     const unsubscribe = LocalCartService.onCartUpdate(() => {
-      // Reload cart from localStorage when updated in another tab
-      if (cartState.hasLoadedOnce) {
-        const updatedCart = LocalCartService.getCart();
-        // Defensive check to ensure cart has all required properties
-        if (updatedCart && typeof updatedCart === 'object') {
-          cartState.localCart = {
-            items: updatedCart.items || [],
-            totalQuantity: updatedCart.totalQuantity || 0,
-            subTotal: updatedCart.subTotal || 0,
-            currencyCode: updatedCart.currencyCode || 'USD'
-          };
-        }
-        cartState.lastError = null;
-        
-        // Trigger header badge update
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('cart-updated', {
-            detail: { totalQuantity: cartState.localCart.totalQuantity }
-          }));
-        }
+      const updatedCart = LocalCartService.getCart();
+      if (updatedCart && typeof updatedCart === 'object') {
+        cartState.localCart = {
+          items: updatedCart.items || [],
+          totalQuantity: updatedCart.totalQuantity || 0,
+          subTotal: updatedCart.subTotal || 0,
+          currencyCode: updatedCart.currencyCode || 'USD'
+        };
+        console.log('🔄 [CART PROVIDER] Cross-tab update - cart reloaded from localStorage');
       }
     });
-    
-    // Cleanup on component unmount
+
     return unsubscribe;
   });
 
@@ -112,19 +119,6 @@ export const useLocalCart = () => {
   return useContext(CartContextId);
 };
 
-// 🚀 OPTIMIZED: Load cart on-demand when needed
-export const loadCartIfNeeded = $((cartState: CartContextState) => {
-  if (!cartState.hasLoadedOnce) {
-    try {
-      cartState.localCart = LocalCartService.getCart();
-      cartState.hasLoadedOnce = true;
-      // console.log('✅ CartContext: Cart loaded on-demand');
-    } catch (error) {
-      console.error('❌ CartContext: Failed to load cart on-demand:', error);
-      cartState.lastError = 'Failed to load cart';
-    }
-  }
-});
 
 // 🚀 NEW: Refresh stock levels when cart is opened
 export const refreshCartStock = $(async (cartState: CartContextState) => {
@@ -176,23 +170,20 @@ export const refreshCartStock = $(async (cartState: CartContextState) => {
 });
 
 // Helper functions that can be called from components
-export const addToLocalCart = $((cartState: CartContextState, item: any) => {
+export const addToLocalCart = $(async (cartState: CartContextState, item: any) => {
   const contextStartTime = performance.now();
   console.log('🚀 [CART CONTEXT TIMING] Starting addToLocalCart...');
-
-  // 🚀 DEMAND-BASED: Load cart only when add to cart is clicked
-  const loadCartStart = performance.now();
-  loadCartIfNeeded(cartState);
-  console.log(`⏱️ [CART CONTEXT TIMING] Load cart: ${(performance.now() - loadCartStart).toFixed(2)}ms`);
 
   cartState.isLoading = true;
   cartState.lastError = null;
 
   try {
+    // 🚀 OPTIMIZED: LocalCartService updates localStorage and returns new cart
     const serviceCallStart = performance.now();
     const result = LocalCartService.addItem(item);
     console.log(`⏱️ [CART CONTEXT TIMING] LocalCartService.addItem: ${(performance.now() - serviceCallStart).toFixed(2)}ms`);
 
+    // ✅ INSTANT UX: Update context immediately (no localStorage read needed)
     const stateUpdateStart = performance.now();
     cartState.localCart = result.cart;
     cartState.lastStockValidation[item.productVariantId] = result.stockResult;
@@ -202,7 +193,7 @@ export const addToLocalCart = $((cartState: CartContextState, item: any) => {
     }
     console.log(`⏱️ [CART CONTEXT TIMING] State updates: ${(performance.now() - stateUpdateStart).toFixed(2)}ms`);
 
-    // 🚀 OPTIMIZED: Trigger header badge update via custom event
+    // 🔔 Notify other components (badge, etc) - they don't need to reload from localStorage
     const eventDispatchStart = performance.now();
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('cart-updated', {
@@ -219,10 +210,7 @@ export const addToLocalCart = $((cartState: CartContextState, item: any) => {
   }
 });
 
-export const updateLocalCartQuantity = $((cartState: CartContextState, productVariantId: string, quantity: number) => {
-  // Load cart if not already loaded
-  loadCartIfNeeded(cartState);
-
+export const updateLocalCartQuantity = $(async (cartState: CartContextState, productVariantId: string, quantity: number) => {
   cartState.isLoading = true;
   cartState.lastError = null;
 
@@ -248,10 +236,7 @@ export const updateLocalCartQuantity = $((cartState: CartContextState, productVa
   }
 });
 
-export const removeFromLocalCart = $((cartState: CartContextState, productVariantId: string) => {
-  // Load cart if not already loaded
-  loadCartIfNeeded(cartState);
-
+export const removeFromLocalCart = $(async (cartState: CartContextState, productVariantId: string) => {
   try {
     cartState.localCart = LocalCartService.removeItem(productVariantId);
     // Clear validation for removed item

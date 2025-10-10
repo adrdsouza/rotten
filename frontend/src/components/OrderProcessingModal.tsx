@@ -1,38 +1,25 @@
-import { component$, useSignal, useVisibleTask$ } from '@qwik.dev/core';
+import { component$, useSignal, useVisibleTask$, type QRL } from '@qwik.dev/core';
 
 export interface OrderProcessingModalProps {
   visible: boolean;
   error?: string | null;
+  onClose$?: QRL<() => void>; // Callback to close the modal
 }
 
-export const OrderProcessingModal = component$<OrderProcessingModalProps>(({ visible, error }) => {
-  const countdown = useSignal(3);
+export const OrderProcessingModal = component$<OrderProcessingModalProps>(({ visible, error, onClose$ }) => {
   const isRefreshing = useSignal(false);
 
-  // Handle countdown for page refresh when there's an error
-  useVisibleTask$(({ track, cleanup }) => {
+  // DON'T auto-refresh on error - let user stay on page and retry
+  // Page reload was causing localStorage cart to be lost
+  useVisibleTask$(({ track }) => {
     // Track the error signal to re-run when error changes
     track(() => error);
 
     if (error && !isRefreshing.value) {
-      console.log('[OrderProcessingModal] Starting countdown for error:', error);
-      isRefreshing.value = true;
-      countdown.value = 3;
-
-      const timer = setInterval(() => {
-        countdown.value--;
-        console.log('[OrderProcessingModal] Countdown:', countdown.value);
-        if (countdown.value <= 0) {
-          clearInterval(timer);
-          console.log('[OrderProcessingModal] Refreshing page now...');
-          // Trigger page refresh
-          if (typeof window !== 'undefined') {
-            window.location.reload();
-          }
-        }
-      }, 1000);
-
-      cleanup(() => clearInterval(timer));
+      console.log('[OrderProcessingModal] Payment error detected:', error);
+      console.log('[OrderProcessingModal] User can close modal and retry payment');
+      // Modal will stay open until user closes it manually
+      // This preserves all cart data and form state for retry
     }
   });
 
@@ -64,23 +51,20 @@ export const OrderProcessingModal = component$<OrderProcessingModalProps>(({ vis
                 {error}
               </p>
 
-              {/* Refresh Countdown */}
-              <div class="bg-gray-50 rounded-lg p-4 border-l-4 border-brand-gold">
-                <p class="text-sm text-gray-600 mb-3">
-                  Refreshing page for retry in <span class="font-bold text-brand-gold">{countdown.value}</span> seconds...
+              {/* Retry Instructions */}
+              <div class="bg-gray-50 rounded-lg p-4 border-l-4 border-brand-gold mb-4">
+                <p class="text-sm text-gray-700">
+                  Please check your payment details and try again. Your cart has been preserved.
                 </p>
-                {/* Manual refresh button as fallback */}
-                <button
-                  onClick$={() => {
-                    if (typeof window !== 'undefined') {
-                      window.location.reload();
-                    }
-                  }}
-                  class="text-xs text-brand-gold hover:text-brand-gold-hover underline"
-                >
-                  Refresh now
-                </button>
               </div>
+
+              {/* Close button to retry */}
+              <button
+                onClick$={onClose$}
+                class="w-full bg-brand-gold hover:bg-brand-gold-hover text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
+              >
+                Close and Retry Payment
+              </button>
             </>
           ) : (
             // Processing State

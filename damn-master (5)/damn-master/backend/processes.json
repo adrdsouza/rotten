@@ -1,0 +1,38 @@
+{
+  "apps": [
+    {
+      "name": "backend",
+      "script": "npx",
+      "args": "ts-node ./src/index.ts",
+      "watch": ["src"],
+      "ignore_watch": [
+        "node_modules",
+        "**/*.d.ts",
+        "**/*.spec.ts",
+        "**/__tests__/**"
+      ],
+      "env": {
+        "NODE_ENV": "development",
+        "NODE_APP_INSTANCE": "api"
+      },
+      "max_memory_restart": "1G"
+    },
+    {
+      "name": "worker",
+      "script": "npx",
+      "args": "ts-node ./src/index-worker.ts",
+      "watch": ["src"],
+      "ignore_watch": [
+        "node_modules",
+        "**/*.d.ts",
+        "**/*.spec.ts",
+        "**/__tests__/**"
+      ],
+      "env": {
+        "NODE_ENV": "development",
+        "NODE_APP_INSTANCE": "worker"
+      },
+      "max_memory_restart": "1G"
+    }
+  ]
+}

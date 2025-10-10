@@ -2069,6 +2069,7 @@ type Mutation {
 
   """Create a new Customer Address"""
   createCustomerAddress(input: CreateAddressInput!): Address!
+  createPreOrderPaymentIntent(amount: Int, cartUuid: String, currency: String): String!
   createStripePaymentIntent: String!
 
   """Delete an existing Address"""
@@ -2186,6 +2187,9 @@ type Mutation {
 
   """Update the password of the active Customer"""
   updateCustomerPassword(currentPassword: String!, newPassword: String!): UpdateCustomerPasswordResult!
+  updatePaymentIntentAmount(amount: Int!, paymentIntentId: String!): Boolean!
+  updatePaymentIntentMetadata(orderCode: String!, orderId: Int!, paymentIntentId: String!): Boolean!
+  updatePaymentIntentWithOrder(amount: Int!, cartUuid: String, orderCode: String!, orderId: Int!, paymentIntentId: String!): Boolean!
 
   """
   Verify a Customer email address with the token sent to that address. Only applicable if `authOptions.requireVerification` is set to true.

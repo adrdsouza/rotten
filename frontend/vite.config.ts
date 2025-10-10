@@ -135,6 +135,12 @@ export default defineConfig((config) => {
         entryStrategy: {
           type: 'smart',
         },
+        // 🚀 PERFORMANCE FIX: Disable automatic prefetching to eliminate 404 errors
+        // q-data.json files are generated during build but Qwik tries to prefetch non-existent routes
+        // Disabling prefetching prevents these 404s without impacting functionality
+        prefetchStrategy: {
+          implementation: 'disabled',  // Completely disable prefetching
+        },
       }),
       tsconfigPaths(),
       imagetools({

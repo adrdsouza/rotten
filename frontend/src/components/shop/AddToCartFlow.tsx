@@ -1,14 +1,10 @@
-import { component$, Signal } from '@qwik.dev/core';
-import { Product, ProductOption } from '~/types';
+import { component$, Signal, type QRL } from '@qwik.dev/core';
 
 export interface AddToCartFlowProps {
-  selectedProduct: Signal<Product | null>;
-  selectedSize: Signal<ProductOption | null>;
-  selectedColor: Signal<ProductOption | null>;
   selectedVariantId: Signal<string>;
   currentStep: Signal<number>;
   isAddingToCart: Signal<boolean>;
-  addToCartTrigger: Signal<boolean>; // Signal to trigger add to cart action
+  onAddToCart$: QRL<() => void>; // Direct event handler
 }
 
 export const AddToCartFlow = component$<AddToCartFlowProps>((props) => {
@@ -20,13 +16,12 @@ export const AddToCartFlow = component$<AddToCartFlowProps>((props) => {
         <div class="mt-6">
           <button
             onClick$={() => {
-              // Trigger the add to cart action by toggling the signal
-              props.addToCartTrigger.value = !props.addToCartTrigger.value;
+              props.onAddToCart$();
             }}
             disabled={props.isAddingToCart.value}
             class={{
               'w-full py-4 px-6 rounded-xl font-medium text-lg transition-all duration-300 transform': true,
-              'bg-[#8a6d4a] text-white hover:bg-[#4F3B26] hover:scale-105 shadow-lg hover:shadow-xl': !props.isAddingToCart.value,
+              'bg-[#8a6d4a] text-white hover:bg-[#4F3B26] hover:scale-105 shadow-lg hover:shadow-xl cursor-pointer': !props.isAddingToCart.value,
               'bg-gray-400 text-gray-200 cursor-not-allowed': props.isAddingToCart.value
             }}
           >

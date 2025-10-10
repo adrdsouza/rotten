@@ -6,31 +6,12 @@
 import { getActiveCustomerQuery, getActiveCustomerAddressesQuery } from '~/providers/shop/customer/customer';
 import { Address } from '~/generated/graphql';
 import { $ } from '@qwik.dev/core';
-import { COUNTRY_COOKIE } from '~/constants';
 
 export interface StoredAddressInfo {
   countryCode: string;
   countryName?: string;
   source: 'customer' | 'session' | 'geolocation';
   isAuthenticated: boolean;
-}
-
-/**
- * Sets a cookie with the given name, value, and expiration days.
- * This function is isomorphic and can be called on the server or client.
- */
-function setCookie(name: string, value: string, days: number) {
-	if (typeof document === 'undefined') {
-		// Running on the server, cannot set cookies directly
-		return;
-	}
-	let expires = '';
-	if (days) {
-		const date = new Date();
-		date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
-		expires = '; expires=' + date.toUTCString();
-	}
-	document.cookie = name + '=' + (value || '') + expires + '; path=/';
 }
 
 export interface CustomerAddress {
@@ -75,8 +56,7 @@ export async function loadPriorityAddress(): Promise<StoredAddressInfo | null> {
 						isAuthenticated: true,
 					};
 
-					// Store customer's country in sessionStorage to maintain it across sessions
-					setCookie(COUNTRY_COOKIE, defaultShippingAddress.country.code, 30);
+					// Store customer's country in sessionStorage only (no cookies)
 					sessionStorage.setItem('countryCode', defaultShippingAddress.country.code);
 					sessionStorage.setItem('countrySource', 'customer');
 
@@ -157,7 +137,7 @@ export async function loadCustomerAddress(): Promise<CustomerAddress | null> {
  */
 export function saveUserSelectedCountry(countryCode: string): void {
 	// console.log('💾 Saving user-selected country:', countryCode);
-	setCookie(COUNTRY_COOKIE, countryCode, 30);
+	// No cookie - sessionStorage is single source of truth
 	sessionStorage.setItem('countryCode', countryCode);
 	sessionStorage.setItem('countrySource', 'session');
 }
@@ -236,9 +216,8 @@ export const loadCountryOnDemand = $(async (appState: any) => {
 			const countryCode = data.country_code.toUpperCase();
 			console.log('🌍 [GEOLOCATION TIMING] Geolocation detected country:', countryCode);
 
-			// Save to sessionStorage and app state
+			// Save to sessionStorage and app state (no cookie)
 			const saveStart = performance.now();
-			setCookie(COUNTRY_COOKIE, countryCode, 30);
 			sessionStorage.setItem('countryCode', countryCode);
 			sessionStorage.setItem('countrySource', 'geolocation');
 			appState.shippingAddress.countryCode = countryCode;
@@ -252,10 +231,9 @@ export const loadCountryOnDemand = $(async (appState: any) => {
 		console.log(`❌ [GEOLOCATION TIMING] FAILED after: ${(performance.now() - geolocationStartTime).toFixed(2)}ms`);
 	}
 
-	// Fallback to US if geolocation fails
+	// Fallback to US if geolocation fails (no cookie)
 	// console.log('🌍 Using US as fallback country');
 	appState.shippingAddress.countryCode = 'US';
-	setCookie(COUNTRY_COOKIE, 'US', 30);
 	sessionStorage.setItem('countryCode', 'US');
 	sessionStorage.setItem('countrySource', 'fallback');
 });

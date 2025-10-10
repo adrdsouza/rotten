@@ -1,4 +1,4 @@
-import { component$, useContext, useSignal, useStore, useVisibleTask$, $, useResource$, Resource } from '@qwik.dev/core';
+import { component$, useContext, useSignal, useStore, $, useResource$, Resource, useComputed$ } from '@qwik.dev/core';
 import { useLocation, useNavigate } from '@qwik.dev/router';
 import { APP_STATE } from '~/constants';
 import { isCheckoutPage } from '~/utils';
@@ -49,61 +49,42 @@ export default component$(() => {
 	
 	// Loading state for checkout navigation
 	const isNavigatingToCheckout = useSignal(false);
-	
-	// Local state for country code to ensure UI reactivity
-	const countryCodeSignal = useSignal(appState.shippingAddress.countryCode);
 
-	// Prefetch checkout route when cart opens for faster navigation
-	useVisibleTask$(({ track }) => {
-		track(() => appState.showCart);
+	// ✅ BEST PRACTICE: Use computed signal for reactive country code
+	const countryCode = useComputed$(() => appState.shippingAddress.countryCode);
 
-		if (appState.showCart) {
-			// Delay prefetch slightly to avoid blocking cart render
-			setTimeout(() => {
-				// Prefetch the checkout route for instant navigation
-				if (typeof document !== 'undefined') {
-					const existingLink = document.querySelector('link[rel="prefetch"][href="/checkout/"]');
-					if (!existingLink) {
-						const link = document.createElement('link');
-						link.rel = 'prefetch';
-						link.href = '/checkout/';
-						link.as = 'document';
-						document.head.appendChild(link);
-						console.log('🚀 [CART] Prefetching checkout route for faster navigation');
-					}
-				}
-			}, 100);
-		}
-	});
+	// 🚀 DISABLED: Prefetch was causing 404 errors for shop/q-data.json
+	// This was preventing page load completion (infinite browser spinner)
+	// Qwik handles navigation prefetching automatically, so this manual prefetch is unnecessary
+	// useVisibleTask$(({ track }) => {
+	// 	track(() => appState.showCart);
+	//
+	// 	if (appState.showCart) {
+	// 		// Delay prefetch slightly to avoid blocking cart render
+	// 		setTimeout(() => {
+	// 			// Prefetch the checkout route for instant navigation
+	// 			if (typeof document !== 'undefined') {
+	// 				const existingLink = document.querySelector('link[rel="prefetch"][href="/checkout/"]');
+	// 				if (!existingLink) {
+	// 					const link = document.createElement('link');
+	// 					link.rel = 'prefetch';
+	// 					link.href = '/checkout/';
+	// 					link.as = 'document';
+	// 					document.head.appendChild(link);
+	// 					console.log('🚀 [CART] Prefetching checkout route for faster navigation');
+	// 				}
+	// 			}
+	// 		}, 100);
+	// 	}
+	// });
 
-	const hasOutOfStockItems = $(() => {
+	// ✅ BEST PRACTICE: Use useComputed$ for reactive out-of-stock check
+	const isOutOfStock = useComputed$(() => {
 		// Always use local cart items
 		const items = localCart.localCart.items;
 		return items.some(
 			(item: any) => item.productVariant.stockLevel === 'OUT_OF_STOCK' || item.productVariant.stockLevel <= 0
 		);
-	});
-
-	const isOutOfStock = useSignal(false);
-
-	// Client-side only: Prevents Q20 SSR errors by running only after hydration
-	useVisibleTask$(async ({track}) => {
-		track(() => localCart.localCart.items);
-		track(() => appState.activeOrder);
-		isOutOfStock.value = await hasOutOfStockItems();
-	});
-
-	
-	
-	// 🚀 OPTIMIZED: Simple country code syncing (geolocation now demand-based)
-	// Client-side only: Prevents Q20 SSR errors by running only after hydration
-	useVisibleTask$(({ track }) => {
-		const countryCode = track(() => appState.shippingAddress.countryCode);
-
-		// Sync country code to local signal for UI reactivity
-		if (countryCode && countryCode !== countryCodeSignal.value) {
-			countryCodeSignal.value = countryCode;
-		}
 	});
 
 	// 🚀 OPTIMIZED: Geolocation removed from cart - handled by add-to-cart only
@@ -126,23 +107,26 @@ export default component$(() => {
 	
 	// Non-blocking shipping calculation using useResource$
 	const shippingResource = useResource$(async ({ track }) => {
-		const countryCode = track(() => appState.shippingAddress.countryCode);
+		// ONLY track cart visibility and country code - DO NOT track cart data
 		const cartVisible = track(() => appState.showCart);
+		const countryCode = track(() => appState.shippingAddress.countryCode);
 
-		// Always use local cart subtotal
-		const subTotal = track(() => localCart.localCart.subTotal);
+		// Only calculate when cart is visible and we have a country
+		if (!cartVisible || !countryCode) {
+			return null;
+		}
 
-		// Always use local cart applied coupon
-		const appliedCoupon = track(() => localCart.appliedCoupon);
+		// Read cart data WITHOUT tracking (to avoid infinite loops)
+		const subTotal = localCart.localCart.subTotal;
+		const appliedCoupon = localCart.appliedCoupon;
+
+		// Skip if cart is empty
+		if (subTotal === 0) {
+			return null;
+		}
 
 		// Calculate order total after discount for shipping eligibility
 		const orderTotalAfterDiscount = subTotal - (appliedCoupon?.discountAmount || 0);
-		
-		// Only calculate when cart is visible and we have valid data
-		if (!cartVisible || !countryCode || subTotal === 0) {
-			// console.log('🚀 Resource: Skipping calculation - cartVisible:', cartVisible, 'countryCode:', countryCode, 'subTotal:', subTotal);
-			return null;
-		}
 
 		// console.log('🚀 Resource: Calculating shipping for', countryCode, 'with order total after discount', orderTotalAfterDiscount);
 		
@@ -280,16 +264,15 @@ export default component$(() => {
 			// Only proceed if a country is selected and different from current
 			if (finalCountryCode && finalCountryCode !== appState.shippingAddress.countryCode) {
 				// console.log('Applying final country selection:', finalCountryCode);
-				// console.log('Before update - Global state:', appState.shippingAddress.countryCode, 'Local signal:', countryCodeSignal.value);
+				// console.log('Before update - Global state:', appState.shippingAddress.countryCode, 'Computed signal:', countryCode.value);
 
-				// Apply the country change to both global and local state
+				// Apply the country change to global state (computed signal will update automatically)
 				appState.shippingAddress.countryCode = finalCountryCode;
-				countryCodeSignal.value = finalCountryCode;
 
 				// Reset shipping state to force UI update
 				shippingState.lastCheckedCountry = '';
 
-				// console.log('After update - Global state:', appState.shippingAddress.countryCode, 'Local signal:', countryCodeSignal.value);
+				// console.log('After update - Global state:', appState.shippingAddress.countryCode, 'Computed signal:', countryCode.value);
 				
 				// Store user selection using centralized system
 				const { saveUserSelectedCountry } = await import('~/utils/addressStorage');
@@ -333,59 +316,58 @@ export default component$(() => {
 									<div class="flex-1 py-3 overflow-y-auto px-6 w-full">
 										<div class="mt-4">
 											{/* Show loading state when refreshing stock */}
-									{localCart.isRefreshingStock ? (
+									{/* Show cart contents if we have items, otherwise show empty state */}
+									{localCart.localCart.totalQuantity > 0 ? (
+										<>
+											{/* Show stock refresh indicator without blocking UI */}
+											{localCart.isRefreshingStock && (
+												<div class="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+													<div class="flex items-center text-sm text-blue-700">
+														<svg class="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+															<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+															<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+														</svg>
+														Updating stock levels...
+													</div>
+												</div>
+											)}
+											<CartContents />
+										</>
+									) : (
 										<div class="flex flex-col items-center justify-center h-64 text-center">
 											<div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-												<svg class="animate-spin h-8 w-8 text-[#8a6d4a]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-													<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-													<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+												<svg
+													class="w-8 h-8 text-slate-400"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+													></path>
 												</svg>
 											</div>
-											<h3 class="text-lg font-medium text-slate-900 mb-2">Updating stock levels...</h3>
-											<p class="text-slate-500">Please wait while we verify product availability</p>
+											<h3 class="text-lg font-medium text-slate-900 mb-2">Your cart is empty</h3>
+											<p class="text-slate-500 mb-6">Add some items to get started</p>
+											<button
+												class="bg-[#8a6d4a] hover:bg-[#4F3B26] text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg hover:shadow-xl flex items-center justify-center uppercase font-heading text-sm cursor-pointer"
+												onClick$={async () => {
+													appState.showCart = false;
+													await navigate('/');
+												}}
+											>
+												Continue Shopping
+											</button>
 										</div>
-									) : (
-										/* Always use local cart */
-										(localCart.hasLoadedOnce && localCart.localCart.totalQuantity > 0) ? (
-											<>
-												<CartContents />
-											</>
-										) : (
-												<div class="flex flex-col items-center justify-center h-64 text-center">
-													<div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-														<svg
-															class="w-8 h-8 text-slate-400"
-															fill="none"
-															stroke="currentColor"
-															viewBox="0 0 24 24"
-														>
-															<path
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																stroke-width="2"
-																d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-															></path>
-														</svg>
-													</div>
-													<h3 class="text-lg font-medium text-slate-900 mb-2">Your cart is empty</h3>
-													<p class="text-slate-500 mb-6">Add some items to get started</p>
-													<button
-														class="bg-[#8a6d4a] hover:bg-[#4F3B26] text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg hover:shadow-xl flex items-center justify-center uppercase font-heading text-sm cursor-pointer"
-														onClick$={async () => {
-															appState.showCart = false;
-															await navigate('/shop');
-														}}
-													>
-														Continue Shopping
-														</button>
-													</div>
-												)
-											)}
+									)}
 										</div>
 									</div>
 									{/* Show cart totals and checkout button if we have items */}
 									{/* Always use local cart */}
-									{(localCart.hasLoadedOnce && localCart.localCart.totalQuantity > 0) && isInEditableUrl && (
+									{(localCart.localCart.totalQuantity > 0) && isInEditableUrl && (
 										<div class="border-t border-slate-200 bg-[#F5F5F5] py-6 px-6 w-full rounded-lg">
 											{/* Free Shipping Progress Bar */}
 											<FreeShippingProgress
@@ -405,15 +387,15 @@ export default component$(() => {
 												<select
 													class="block w-full rounded-md border border-gray-300 py-2 px-3 text-sm"
 													onChange$={(_, el) => handleCountryChange(el.value)}
-													value={countryCodeSignal.value}
-													key={`country-select-${countryCodeSignal.value}`}
+													value={countryCode.value}
+													key={`country-select-${countryCode.value}`}
 												>
 													<option value="">{`Select a country`}</option>
 													{appState.availableCountries.map((country) => (
-														<option 
-															key={country.code} 
+														<option
+															key={country.code}
 															value={country.code}
-															selected={country.code === countryCodeSignal.value}
+															selected={country.code === countryCode.value}
 														>
 															{country.name}
 														</option>

@@ -12,13 +12,13 @@ import CartContents from '~/components/cart-contents/CartContents';
 import CartTotals from '~/components/cart-totals/CartTotals';
 import { APP_STATE, AUTH_TOKEN } from '~/constants';
 import { getCookie } from '~/utils';
-import { getActiveOrderQuery } from '~/providers/shop/orders/order';
+import { getActiveOrderQuery, setCustomerForOrderMutation } from '~/providers/shop/orders/order';
 
 import { CheckoutAddresses } from '~/components/checkout/CheckoutAddresses';
 import { CheckoutAddressProvider } from '~/contexts/CheckoutAddressContext';
 import { createSEOHead } from '~/utils/seo';
 import Payment from '~/components/payment/Payment';
-import { useLocalCart, refreshCartStock, loadCartIfNeeded } from '~/contexts/CartContext';
+import { useLocalCart, refreshCartStock } from '~/contexts/CartContext';
 import { CheckoutValidationProvider, useCheckoutValidation, useCheckoutValidationActions } from '~/contexts/CheckoutValidationContext';
 import { OrderProcessingModal } from '~/components/OrderProcessingModal';
 
@@ -141,10 +141,8 @@ const CheckoutContent = component$(() => {
         }
         console.log(`⏱️ [CHECKOUT TIMING] Loader data init: ${(performance.now() - loaderStart).toFixed(2)}ms`);
 
-        const loadCartStart = performance.now();
-        await loadCartIfNeeded(localCart);
-        console.log(`⏱️ [CHECKOUT TIMING] Load cart: ${(performance.now() - loadCartStart).toFixed(2)}ms`);
-
+        // Cart is already loaded eagerly by CartProvider using useTask$
+        // No need to call loadCartIfNeeded - it's guaranteed to be loaded
         if (localCart.localCart.items.length > 0) {
           try {
             const stockRefreshStart = performance.now();
@@ -202,15 +200,21 @@ const CheckoutContent = component$(() => {
   const placeOrder = $(async () => {
     if (isOrderProcessing.value) return;
 
+    // 🚀 START TIMING
+    const startTime = performance.now();
+    console.log('🚀 [PLACE ORDER] Starting order placement...');
+
     showProcessingModal.value = true;
     isOrderProcessing.value = true;
     state.error = null;
 
     try {
+      // Step 1: Validation
+      const validationStart = performance.now();
       if (!appState.customer?.emailAddress || !appState.customer?.firstName || !appState.customer?.lastName) {
         throw new Error('Please complete all required customer information.');
       }
-      
+
       if (!appState.shippingAddress?.streetLine1 || !appState.shippingAddress?.city || !appState.shippingAddress?.province) {
         throw new Error('Please complete all required shipping address information.');
       }
@@ -218,91 +222,189 @@ const CheckoutContent = component$(() => {
       if (checkoutValidation.useDifferentBilling && !appState.billingAddress?.streetLine1) {
         throw new Error('Please complete all required billing address information.');
       }
-      
-      // Always convert local cart to Vendure order
+      console.log(`⏱️ [PLACE ORDER] Validation: ${(performance.now() - validationStart).toFixed(2)}ms`);
+
+      // Step 2: If retrying after payment failure, transition order back to AddingItems first
+      if (appState.activeOrder && appState.activeOrder.state === 'ArrangingPayment') {
+        const retryTransitionStart = performance.now();
+        console.log('🔄 [PLACE ORDER] Retrying after payment failure - transitioning order back to AddingItems...');
+        try {
+          const transitionResult = await transitionOrderToStateMutation('AddingItems');
+          if (transitionResult.transitionOrderToState && 'state' in transitionResult.transitionOrderToState) {
+            appState.activeOrder = transitionResult.transitionOrderToState as any;
+            console.log(`⏱️ [PLACE ORDER] Order transitioned back to AddingItems: ${(performance.now() - retryTransitionStart).toFixed(2)}ms`);
+          }
+        } catch (_transitionError) {
+          const errorMessage = 'Failed to reset order for retry. Please refresh the page.';
+          modalError.value = errorMessage;
+          isOrderProcessing.value = false;
+          console.log(`❌ [PLACE ORDER] Failed to transition order for retry after ${(performance.now() - retryTransitionStart).toFixed(2)}ms`);
+          return;
+        }
+      }
+
+      // Step 3: Convert local cart to Vendure order
+      const cartConversionStart = performance.now();
       try {
+        console.log('🛒 [PLACE ORDER] Converting local cart to Vendure order...');
         const vendureOrder = await convertLocalCartToVendureOrder();
         if (!vendureOrder) {
           throw new Error(checkoutState.error || 'Failed to create order from your cart.');
         }
         appState.activeOrder = vendureOrder;
+        console.log(`⏱️ [PLACE ORDER] Cart conversion: ${(performance.now() - cartConversionStart).toFixed(2)}ms`);
       } catch (conversionError) {
         const errorMessage = conversionError instanceof Error ? conversionError.message : 'An unknown error occurred while creating your order.';
         modalError.value = errorMessage;
         isOrderProcessing.value = false;
+        console.log(`❌ [PLACE ORDER] Cart conversion failed after ${(performance.now() - cartConversionStart).toFixed(2)}ms`);
         return;
       }
 
+      // Step 4: Set customer for order (guest checkout only)
+      // For authenticated users, Vendure automatically associates the order with the customer
+      // For guest users, we must explicitly set customer info on the order
+      const isGuest = !appState.customer.id || appState.customer.id === 'CUSTOMER_NOT_DEFINED_ID';
+      console.log(`🔐 [PLACE ORDER] User authentication status: ${isGuest ? 'GUEST' : 'AUTHENTICATED'}`);
+      console.log(`🔐 [PLACE ORDER] Customer ID: ${appState.customer.id}`);
+
+      if (isGuest) {
+        const customerSetupStart = performance.now();
+        console.log('🔓 [PLACE ORDER] Setting customer for guest checkout...');
+
+        const customerData = {
+          emailAddress: appState.customer.emailAddress || '',
+          firstName: appState.customer.firstName || '',
+          lastName: appState.customer.lastName || '',
+          phoneNumber: appState.shippingAddress.phoneNumber || '',
+        };
+
+        try {
+          const customerResult = await setCustomerForOrderMutation(customerData);
+
+          if (customerResult.__typename === 'Order') {
+            appState.activeOrder = customerResult as any;
+            console.log(`⏱️ [PLACE ORDER] Customer setup (guest): ${(performance.now() - customerSetupStart).toFixed(2)}ms`);
+          } else if (customerResult.__typename === 'EmailAddressConflictError') {
+            // Guest email matches existing customer - order is automatically linked
+            console.log('📧 [PLACE ORDER] Email conflict - fetching linked order...');
+            const updatedOrder = await getActiveOrderQuery();
+            if (updatedOrder) {
+              appState.activeOrder = updatedOrder;
+            }
+            console.log(`⏱️ [PLACE ORDER] Customer setup (email conflict): ${(performance.now() - customerSetupStart).toFixed(2)}ms`);
+          } else if (customerResult.__typename === 'GuestCheckoutError') {
+            throw new Error('Guest checkout is not enabled. Please create an account or log in to continue.');
+          } else if (customerResult.__typename === 'NoActiveOrderError') {
+            throw new Error('No active order found. Please restart your checkout process.');
+          } else {
+            throw new Error('Failed to set customer for order: ' + (customerResult as any).message || 'Unknown error');
+          }
+        } catch (customerError) {
+          const errorMessage = customerError instanceof Error ? customerError.message : 'Failed to set customer information.';
+          modalError.value = errorMessage;
+          isOrderProcessing.value = false;
+          console.log(`❌ [PLACE ORDER] Customer setup failed after ${(performance.now() - customerSetupStart).toFixed(2)}ms`);
+          return;
+        }
+      } else {
+        console.log('✅ [PLACE ORDER] Order already has customer - skipping customer setup');
+      }
+
+      // Step 5: Submit address form
+      const addressSubmitStart = performance.now();
+      console.log('📍 [PLACE ORDER] Submitting address form...');
       if (typeof window !== 'undefined' && (window as any).submitCheckoutAddressForm) {
         await (window as any).submitCheckoutAddressForm();
+        console.log(`⏱️ [PLACE ORDER] Address submission: ${(performance.now() - addressSubmitStart).toFixed(2)}ms`);
       } else {
         throw new Error('Failed to submit address form.');
       }
-      
+
       // Address submission and shipping method setting is handled by CheckoutOptimizationService
       // during the address processing phase - no need to set shipping method again here
-      
-      // Get current order before transitioning to ArrangingPayment
-      const currentOrder = await getActiveOrderQuery();
 
-      // CRITICAL: Update PaymentIntent metadata BEFORE transitioning to ArrangingPayment
+      // Step 6: Update PaymentIntent with amount and metadata BEFORE transitioning to ArrangingPayment
+      // OPTIMIZATION: Use appState.activeOrder instead of querying backend (saves ~289ms)
       // This ensures webhook has complete metadata when payment is processed
-      if (selectedPaymentMethod.value === 'stripe' && typeof window !== 'undefined' && currentOrder) {
+      // OPTIMIZATION: Combined update saves ~1.5 seconds by eliminating one API round-trip
+      if (selectedPaymentMethod.value === 'stripe' && typeof window !== 'undefined' && appState.activeOrder) {
+        const paymentIntentUpdateStart = performance.now();
+        console.log('💳 [PLACE ORDER] Updating PaymentIntent with order data...');
         try {
           const paymentIntentId = (window as any).__stripePaymentIntentId;
-          if (paymentIntentId && currentOrder.totalWithTax && currentOrder.code && currentOrder.id) {
-            console.log(`[Checkout] Updating PaymentIntent ${paymentIntentId} for order ${currentOrder.code}`);
+          if (paymentIntentId && appState.activeOrder.totalWithTax && appState.activeOrder.code && appState.activeOrder.id) {
+            console.log(`[Checkout] Updating PaymentIntent ${paymentIntentId} for order ${appState.activeOrder.code}`);
 
+            const importStart = performance.now();
             const { StripePaymentService } = await import('~/services/StripePaymentService');
             const { getStripePublishableKeyQuery } = await import('~/providers/shop/checkout/checkout');
+            console.log(`⏱️ [PLACE ORDER] Stripe imports: ${(performance.now() - importStart).toFixed(2)}ms`);
 
+            const keyStart = performance.now();
             const stripeKey = await getStripePublishableKeyQuery();
+            console.log(`⏱️ [PLACE ORDER] Get Stripe key: ${(performance.now() - keyStart).toFixed(2)}ms`);
+
             const stripeService = new StripePaymentService(
               stripeKey,
               '/shop-api',
               getAuthHeaders
             );
 
-            // Update amount
-            await stripeService.updatePaymentIntentAmount(paymentIntentId, currentOrder.totalWithTax);
-            console.log('[Checkout] PaymentIntent amount updated');
-
-            // Update metadata with order details
-            await stripeService.updatePaymentIntentMetadata(
+            // Combined update: amount + metadata in a single API call
+            // OPTIMIZED: Pass cartUuid to avoid backend retrieve call (saves ~700ms)
+            const combinedUpdateStart = performance.now();
+            const cartUuid = (window as any).__stripeCartUuid;
+            await stripeService.updatePaymentIntentWithOrder(
               paymentIntentId,
-              currentOrder.code,
-              parseInt(currentOrder.id)
+              appState.activeOrder.totalWithTax,
+              appState.activeOrder.code,
+              parseInt(appState.activeOrder.id),
+              cartUuid
             );
-            console.log('[Checkout] PaymentIntent metadata updated with order details');
+            console.log(`⏱️ [PLACE ORDER] Update PaymentIntent (combined): ${(performance.now() - combinedUpdateStart).toFixed(2)}ms`);
           }
+          console.log(`⏱️ [PLACE ORDER] Total PaymentIntent update: ${(performance.now() - paymentIntentUpdateStart).toFixed(2)}ms`);
         } catch (updateError) {
           console.warn('[Checkout] Failed to update PaymentIntent (non-critical):', updateError);
+          console.log(`⏱️ [PLACE ORDER] PaymentIntent update failed after: ${(performance.now() - paymentIntentUpdateStart).toFixed(2)}ms`);
         }
       }
 
-      // Now transition to ArrangingPayment with complete PaymentIntent metadata
+      // Step 7: Transition to ArrangingPayment with complete PaymentIntent metadata
+      const transitionStart = performance.now();
+      console.log('🔄 [PLACE ORDER] Transitioning order to ArrangingPayment...');
       if (appState.activeOrder && appState.activeOrder.state !== 'ArrangingPayment') {
         const transitionResult = await transitionOrderToStateMutation('ArrangingPayment');
         if (transitionResult.transitionOrderToState && 'state' in transitionResult.transitionOrderToState) {
           appState.activeOrder = transitionResult.transitionOrderToState as any;
+          console.log(`⏱️ [PLACE ORDER] Order transition: ${(performance.now() - transitionStart).toFixed(2)}ms`);
         } else {
             throw new Error('Failed to prepare the order for payment.');
         }
+      } else {
+        console.log(`⏱️ [PLACE ORDER] Order already in ArrangingPayment: ${(performance.now() - transitionStart).toFixed(2)}ms`);
       }
 
-      // Get latest order and trigger payment
-      const latestOrder = await getActiveOrderQuery();
-      if (latestOrder?.state === 'ArrangingPayment') {
-        appState.activeOrder = latestOrder;
-        if (latestOrder.code) {
-          await prefetchOrderConfirmation(latestOrder.code);
+      // Step 8: Prefetch confirmation page and trigger payment
+      // OPTIMIZATION: Use appState.activeOrder from transition mutation (saves ~292ms)
+      if (appState.activeOrder?.state === 'ArrangingPayment') {
+        // Prefetch confirmation page
+        if (appState.activeOrder.code) {
+          const prefetchStart = performance.now();
+          await prefetchOrderConfirmation(appState.activeOrder.code);
+          console.log(`⏱️ [PLACE ORDER] Prefetch confirmation: ${(performance.now() - prefetchStart).toFixed(2)}ms`);
         }
 
+        // Trigger Stripe payment
         // Only trigger payment if we haven't already triggered it for this order
         // This prevents multiple payment attempts on the same order
         if (selectedPaymentMethod.value === 'stripe' && stripeTriggerSignal.value === 0) {
+          console.log('💳 [PLACE ORDER] Triggering Stripe payment...');
           stripeTriggerSignal.value++;
         }
+
+        console.log(`✅ [PLACE ORDER] TOTAL TIME: ${(performance.now() - startTime).toFixed(2)}ms`);
       } else {
         throw new Error('Order is not ready for payment. Please try again.');
       }
@@ -310,6 +412,7 @@ const CheckoutContent = component$(() => {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred. Please check your information and try again.';
       modalError.value = errorMessage;
       isOrderProcessing.value = false;
+      console.log(`❌ [PLACE ORDER] Failed after ${(performance.now() - startTime).toFixed(2)}ms: ${errorMessage}`);
     }
   });
 
@@ -338,6 +441,14 @@ const CheckoutContent = component$(() => {
           <OrderProcessingModal
             visible={showProcessingModal.value}
             error={modalError.value}
+            onClose$={$(() => {
+              // Close modal and reset state to allow retry
+              showProcessingModal.value = false;
+              modalError.value = null;
+              isOrderProcessing.value = false;
+              // Reset stripe trigger to allow re-submission
+              stripeTriggerSignal.value = 0;
+            })}
           />
           
           <div class="max-w-7xl mx-auto pt-4 mb-12 px-4 sm:px-6 lg:px-8">
@@ -409,12 +520,13 @@ const CheckoutContent = component$(() => {
                       onError$={$(async (errorMessage: string) => {
                         console.error('[CHECKOUT] Payment error:', errorMessage);
 
-                        // 🔄 SNAPPY UX: Show error in modal with countdown, then refresh
+                        // Show error in modal - user can close it and retry payment
+                        // Cart and order state are preserved - no page reload needed
                         modalError.value = errorMessage || 'Payment processing failed. Please check your details and try again.';
                         isOrderProcessing.value = false;
-                        stripeTriggerSignal.value = 0;
+                        // Don't reset stripeTriggerSignal here - let the modal close handler do it
 
-                        console.log('[CHECKOUT] Payment failed - modal will show error and refresh page');
+                        console.log('[CHECKOUT] Payment failed - showing error modal');
                       })}
                       onProcessingChange$={$(async (isProcessing: boolean) => {
                         state.loading = isProcessing;

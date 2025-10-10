@@ -1,0 +1,73 @@
+<mjml>
+    <mj-head>
+        <mj-title>{{ title }}</mj-title>
+        <mj-font name="Inter" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+        <mj-font name="Playfair Display" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap" />
+        <mj-style inline="inline">
+            .header-logo {
+                padding: 0 !important;
+            }
+            .brand-name {
+                font-family: 'Playfair Display', serif !important;
+                font-size: 24px !important;
+                font-weight: 700 !important;
+                color: #000000 !important;
+                text-align: center !important;
+                margin: 0 !important;
+                padding: 10px 0 5px 0 !important;
+                line-height: 1.2 !important;
+            }
+            .brand-tagline {
+                font-family: 'Inter', sans-serif !important;
+                font-size: 12px !important;
+                font-weight: 400 !important;
+                color: #666666 !important;
+                text-align: center !important;
+                margin: 0 !important;
+                padding: 0 0 20px 0 !important;
+                letter-spacing: 1px !important;
+                text-transform: uppercase !important;
+            }
+            h1, h2, h3, h4, h5, h6 {
+                font-family: 'Playfair Display', serif !important;
+                font-weight: 700 !important;
+                color: #000000 !important;
+                line-height: 1.2 !important;
+            }
+            h3 {
+                font-size: 20px !important;
+                margin: 20px 0 10px 0 !important;
+            }
+            body, p, td, div, span {
+                font-family: 'Inter', sans-serif !important;
+                color: #333333 !important;
+                line-height: 1.6 !important;
+            }
+            .damned-red {
+                color: #d42838 !important;
+            }
+            .damned-red-bg {
+                background-color: #d42838 !important;
+            }
+        </mj-style>
+    </mj-head>
+
+    <mj-body background-color="#ffffff">
+        <!-- Header with Logo -->
+        <mj-section background-color="#F5F5F5" padding="40px 20px 20px 20px">
+            <mj-column width="100%" vertical-align="middle">
+                <mj-text css-class="brand-name" align="center">
+                    DAMNED DESIGNS
+                </mj-text>
+                <mj-text css-class="brand-tagline" align="center">
+                    Darkly Beautiful Art & Design
+                </mj-text>
+            </mj-column>
+        </mj-section>
+
+        <!-- Divider -->
+        <mj-section background-color="#ffffff" padding="0 20px">
+            <mj-column>
+                <mj-divider border-color="#e5e5e5" border-width="1px" />
+            </mj-column>
+        </mj-section>

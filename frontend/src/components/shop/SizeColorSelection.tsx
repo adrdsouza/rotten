@@ -1,14 +1,12 @@
-import { component$, Signal, useComputed$ } from '@qwik.dev/core';
+import { component$, Signal, useComputed$, type QRL } from '@qwik.dev/core';
 import { OptimizedImage } from '~/components/ui';
-import Price from '~/components/products/Price';
-import { Product, ProductOption } from '~/types';
+import { PRODUCTS, SIZES, COLORS, getVariantId } from '~/data/shop-constants';
 import { AddToCartFlow } from './AddToCartFlow';
 
 export interface SizeColorSelectionProps {
-  selectedProduct: Signal<Product | null>;
   selectedStyle: Signal<'short' | 'long' | null>;
-  selectedSize: Signal<ProductOption | null>;
-  selectedColor: Signal<ProductOption | null>;
+  selectedSize: Signal<string | null>;
+  selectedColor: Signal<string | null>;
   selectedVariantId: Signal<string>;
   currentStep: Signal<number>;
   showSizeChart: Signal<boolean>;
@@ -18,99 +16,48 @@ export interface SizeColorSelectionProps {
   touchStartX: Signal<number | null>;
   touchEndX: Signal<number | null>;
   isAddingToCart: Signal<boolean>;
-  addToCartTrigger: Signal<boolean>;
-  // Action triggers using signals instead of function props
-  sizeSelectTrigger: Signal<ProductOption | null>;
-  colorSelectTrigger: Signal<ProductOption | null>;
-  prevStepTrigger: Signal<boolean>;
-  toggleSizeChartTrigger: Signal<boolean>;
-  imageSelectTrigger: Signal<any>;
-  touchStartTrigger: Signal<{ clientX: number; clientY: number } | null>;
-  touchMoveTrigger: Signal<{ clientX: number; clientY: number } | null>;
-  touchEndTrigger: Signal<boolean>;
+  stockMap: Signal<Map<string, number>>;
+  // Event handlers - BEST PRACTICE: Direct QRL handlers
+  onSizeSelect$: QRL<(size: string) => void>;
+  onColorSelect$: QRL<(color: string) => void>;
+  onPrevStep$: QRL<() => void>;
+  onToggleSizeChart$: QRL<() => void>;
+  onImageSelect$: QRL<(asset: any) => void>;
+  onTouchStart$: QRL<(touch: { clientX: number; clientY: number }) => void>;
+  onTouchMove$: QRL<(touch: { clientX: number; clientY: number }) => void>;
+  onTouchEnd$: QRL<() => void>;
+  onAddToCart$: QRL<() => void>;
 }
 
-// 🚀 OPTIMIZED: Memoized helper functions for better performance
-const getAvailableOptions = (product: Product | null) => {
-  if (!product?.variants) return { sizes: [], colors: [] };
-
-  const optionGroups: Record<string, ProductOption[]> = {};
-
-  product.variants.forEach(variant => {
-    if (!variant.options || !Array.isArray(variant.options)) return;
-
-    variant.options.forEach(option => {
-      if (!option.group) return;
-
-      const groupCode = option.group.code.toLowerCase();
-      if (!optionGroups[groupCode]) {
-        optionGroups[groupCode] = [];
-      }
-
-      const exists = optionGroups[groupCode].some(existing => existing.id === option.id);
-      if (!exists) {
-        optionGroups[groupCode].push(option);
-      }
-    });
-  });
-
-  return {
-    sizes: optionGroups['size'] || [],
-    colors: optionGroups['color'] || []
-  };
-};
-
-// 🚀 OPTIMIZED: Pre-compute variant availability map for O(1) lookups
-const createVariantAvailabilityMap = (product: Product | null) => {
-  if (!product?.variants) return new Map();
-
-  const availabilityMap = new Map<string, boolean>();
-
-  product.variants.forEach(variant => {
-    if (!variant.options || !Array.isArray(variant.options)) return;
-
-    // Check if variant is in stock - simple check: stockLevel > 0
-    // When trackInventory is OFF, Vendure sets stockLevel to a very high number (9007199254740991)
-    // When trackInventory is ON, stockLevel reflects actual inventory
-    const stockLevel = parseInt(String(variant.stockLevel || '0'));
-    const isInStock = stockLevel > 0;
-
-    if (isInStock) {
-      // Mark each option as available
-      variant.options.forEach(option => {
-        if (option?.id) {
-          availabilityMap.set(option.id, true);
-        }
-      });
-
-      // Mark size+color combinations as available
-      const sizeOption = variant.options.find(opt => opt.group?.code.toLowerCase() === 'size');
-      const colorOption = variant.options.find(opt => opt.group?.code.toLowerCase() === 'color');
-
-      if (sizeOption?.id && colorOption?.id) {
-        availabilityMap.set(`${sizeOption.id}+${colorOption.id}`, true);
-      }
-    }
-  });
-
-  return availabilityMap;
-};
-
-// 🚀 PERFORMANCE OPTIMIZED: Fast availability checks using pre-computed map
-const checkSizeAvailable = (sizeOption: ProductOption, availabilityMap: Map<string, boolean>) => {
-  if (!sizeOption?.id) return false;
-  return availabilityMap.has(sizeOption.id);
-};
-
-const checkColorAvailable = (colorOption: ProductOption, selectedSize: ProductOption | null, availabilityMap: Map<string, boolean>) => {
-  if (!selectedSize?.id || !colorOption?.id) return false;
-  return availabilityMap.has(`${selectedSize.id}+${colorOption.id}`);
-};
-
 export const SizeColorSelection = component$<SizeColorSelectionProps>((props) => {
-  // 🚀 PERFORMANCE OPTIMIZED: Memoized computations for better rendering performance
-  const availableOptions = useComputed$(() => getAvailableOptions(props.selectedProduct.value));
-  const availabilityMap = useComputed$(() => createVariantAvailabilityMap(props.selectedProduct.value));
+  // Helper functions for stock checking using the new hardcoded approach
+  const checkSizeAvailable = (sizeCode: string): boolean => {
+    if (!props.selectedStyle.value) return false;
+    
+    // Check if ANY color in this size has stock
+    return COLORS.some(color => {
+      const variantId = getVariantId(props.selectedStyle.value!, sizeCode, color.code);
+      if (!variantId) return false;
+      const stock = props.stockMap.value.get(variantId) || 0;
+      return stock > 0;
+    });
+  };
+
+  const checkColorAvailable = (colorCode: string): boolean => {
+    if (!props.selectedStyle.value || !props.selectedSize.value) return false;
+    
+    const variantId = getVariantId(props.selectedStyle.value, props.selectedSize.value, colorCode);
+    if (!variantId) return false;
+    const stock = props.stockMap.value.get(variantId) || 0;
+    return stock > 0;
+  };
+
+  // Computed product info
+  const productInfo = useComputed$(() => {
+    if (!props.selectedStyle.value) return null;
+    const key = props.selectedStyle.value === 'short' ? 'shortSleeve' : 'longSleeve';
+    return PRODUCTS[key];
+  });
 
   return (
     <div class="max-w-7xl mx-auto px-4 py-6">
@@ -122,17 +69,28 @@ export const SizeColorSelection = component$<SizeColorSelectionProps>((props) =>
             <div class="flex flex-col lg:flex-row lg:gap-4">
               {/* Thumbnail Images - Desktop Only */}
               <div class="hidden lg:flex flex-col gap-2 w-[22%] max-w-[180px] min-w-[80px] pt-4">
-                {props.selectedProduct.value && props.productAssets.value ? (
+                {props.productAssets.value ? (
                   (() => {
-                    const allAssets = [];
+                    const allAssets: any[] = [];
 
-                    if (props.productAssets.value.featuredAsset) {
-                      allAssets.push(props.productAssets.value.featuredAsset);
+                    // 🎨 PRIORITY: If variant is selected, show variant featured image first
+                    if (props.selectedVariantId.value && props.productAssets.value.variantFeaturedAsset) {
+                      allAssets.push(props.productAssets.value.variantFeaturedAsset);
                     }
 
+                    // Add product featured asset (if not already added)
+                    if (props.productAssets.value.featuredAsset) {
+                      const alreadyAdded = allAssets.some(asset => asset.id === props.productAssets.value.featuredAsset.id);
+                      if (!alreadyAdded) {
+                        allAssets.push(props.productAssets.value.featuredAsset);
+                      }
+                    }
+
+                    // Add other product assets
                     if (props.productAssets.value.assets && props.productAssets.value.assets.length > 0) {
                       props.productAssets.value.assets.forEach((asset: any) => {
-                        if (!props.productAssets.value.featuredAsset || asset.id !== props.productAssets.value.featuredAsset.id) {
+                        const alreadyAdded = allAssets.some(existing => existing.id === asset.id);
+                        if (!alreadyAdded) {
                           allAssets.push(asset);
                         }
                       });
@@ -154,7 +112,7 @@ export const SizeColorSelection = component$<SizeColorSelectionProps>((props) =>
                           .filter(Boolean)
                           .join(' ')}
                         onClick$={() => {
-                          props.imageSelectTrigger.value = asset;
+                          props.onImageSelect$(asset);
                         }}
                       >
                         <OptimizedImage
@@ -163,13 +121,13 @@ export const SizeColorSelection = component$<SizeColorSelectionProps>((props) =>
                           width={360}
                           height={450}
                           responsive="thumbnail"
-                          alt={`${props.selectedProduct.value?.name || 'Product'} view ${index + 1}`}
+                          alt={`${productInfo.value?.name || 'Product'} view ${index + 1}`}
                           loading="lazy"
                         />
                       </div>
                     ));
                   })()
-                ) : props.selectedProduct.value && props.assetsLoading.value ? (
+                ) : props.assetsLoading.value ? (
                   <div class="border-2 border-gray-200 rounded-lg overflow-hidden aspect-4/5 animate-pulse bg-gray-100 flex items-center justify-center">
                     <div class="text-gray-400 text-sm">Loading...</div>
                   </div>
@@ -189,30 +147,30 @@ export const SizeColorSelection = component$<SizeColorSelectionProps>((props) =>
                   onTouchStart$={(e) => {
                     const touch = e.touches[0];
                     if (touch) {
-                      props.touchStartTrigger.value = { clientX: touch.clientX, clientY: touch.clientY };
+                      props.onTouchStart$({ clientX: touch.clientX, clientY: touch.clientY });
                     }
                   }}
                   onTouchMove$={(e) => {
                     const touch = e.touches[0];
                     if (touch) {
-                      props.touchMoveTrigger.value = { clientX: touch.clientX, clientY: touch.clientY };
+                      props.onTouchMove$({ clientX: touch.clientX, clientY: touch.clientY });
                     }
                   }}
                   onTouchEnd$={() => {
-                    props.touchEndTrigger.value = !props.touchEndTrigger.value;
+                    props.onTouchEnd$();
                   }}
                 >
-                  {props.selectedProduct.value && props.currentProductImage.value ? (
+                  {props.currentProductImage.value ? (
                     <OptimizedImage
                       key={props.currentProductImage.value?.id || 'no-image'}
                       src={props.currentProductImage.value.preview}
-                      alt={props.selectedProduct.value?.name || 'Product'}
+                      alt={productInfo.value?.name || 'Product'}
                       width={800}
                       height={1000}
                       class="w-full h-auto rounded-lg shadow-2xl aspect-4/5 object-contain"
                       responsive="productMain"
                     />
-                  ) : props.selectedProduct.value && props.assetsLoading.value ? (
+                  ) : props.assetsLoading.value ? (
                     <div class="w-full h-auto rounded-lg shadow-2xl aspect-4/5 bg-gray-100 animate-pulse flex items-center justify-center">
                       <div class="text-gray-400">Loading product image...</div>
                     </div>
@@ -227,16 +185,27 @@ export const SizeColorSelection = component$<SizeColorSelectionProps>((props) =>
                 </div>
 
                 {/* Mobile Image Navigation Dots */}
-                {props.selectedProduct.value && props.productAssets.value && (() => {
-                  const allAssets = [];
+                {props.productAssets.value && (() => {
+                  const allAssets: any[] = [];
 
-                  if (props.productAssets.value.featuredAsset) {
-                    allAssets.push(props.productAssets.value.featuredAsset);
+                  // 🎨 PRIORITY: If variant is selected, show variant featured image first
+                  if (props.selectedVariantId.value && props.productAssets.value.variantFeaturedAsset) {
+                    allAssets.push(props.productAssets.value.variantFeaturedAsset);
                   }
 
+                  // Add product featured asset (if not already added)
+                  if (props.productAssets.value.featuredAsset) {
+                    const alreadyAdded = allAssets.some(asset => asset.id === props.productAssets.value.featuredAsset.id);
+                    if (!alreadyAdded) {
+                      allAssets.push(props.productAssets.value.featuredAsset);
+                    }
+                  }
+
+                  // Add other product assets
                   if (props.productAssets.value.assets && props.productAssets.value.assets.length > 0) {
                     props.productAssets.value.assets.forEach((asset: any) => {
-                      if (!props.productAssets.value.featuredAsset || asset.id !== props.productAssets.value.featuredAsset.id) {
+                      const alreadyAdded = allAssets.some(existing => existing.id === asset.id);
+                      if (!alreadyAdded) {
                         allAssets.push(asset);
                       }
                     });
@@ -255,9 +224,9 @@ export const SizeColorSelection = component$<SizeColorSelectionProps>((props) =>
                             'bg-gray-300 hover:bg-gray-400': props.currentProductImage.value?.id !== asset.id,
                           }}
                           onClick$={() => {
-                            props.imageSelectTrigger.value = asset;
+                            props.onImageSelect$(asset);
                           }}
-                          aria-label={`View image ${index + 1} of ${props.selectedProduct.value?.name || 'Product'}`}
+                          aria-label={`View image ${index + 1} of ${productInfo.value?.name || 'Product'}`}
                         />
                       ))}
                     </div>
@@ -277,15 +246,14 @@ export const SizeColorSelection = component$<SizeColorSelectionProps>((props) =>
               <div class="flex items-center justify-between">
                 <div>
                   <h1 class="text-2xl font-light mb-1">
-                    {props.selectedStyle.value === 'short' ? 'Short Sleeve' : 'Long Sleeve'} Shirt
+                    {productInfo.value?.name || 'Product'}
                   </h1>
                   <p class="text-white/80 text-sm">Handcrafted perfection in every detail</p>
                 </div>
                 <div class="text-right">
-                  <Price
-                    priceWithTax={props.selectedProduct.value?.variants[0]?.priceWithTax || 0}
-                    forcedClass="text-2xl font-light text-white"
-                  />
+                  <span class="text-2xl font-light text-white">
+                    ${(productInfo.value?.price || 0) / 100}
+                  </span>
                 </div>
               </div>
             </div>
@@ -298,7 +266,7 @@ export const SizeColorSelection = component$<SizeColorSelectionProps>((props) =>
                 <div class="text-center mb-2">
                   <button
                     onClick$={() => {
-                      props.prevStepTrigger.value = !props.prevStepTrigger.value;
+                      props.onPrevStep$();
                     }}
                     class="text-[#8a6d4a] hover:text-[#4F3B26] text-sm font-medium underline transition-colors duration-300 cursor-pointer"
                   >
@@ -315,46 +283,37 @@ export const SizeColorSelection = component$<SizeColorSelectionProps>((props) =>
               }}>
 
                 <div class="grid grid-cols-3 gap-4 mb-4">
-                  {props.selectedProduct.value ? (
-                    availableOptions.value.sizes.map((sizeOption) => {
-                      const isSelected = props.selectedSize.value?.id === sizeOption.id;
-                      const isAvailable = checkSizeAvailable(sizeOption, availabilityMap.value);
+                  {SIZES.map((size) => {
+                    const isSelected = props.selectedSize.value === size.code;
+                    const isAvailable = checkSizeAvailable(size.code);
 
-                      return (
-                        <button
-                          key={sizeOption.id}
-                          class={{
-                            'border-2 rounded-xl p-4 text-center transition-all duration-300 transform relative': true,
-                            'cursor-pointer hover:scale-105 hover:shadow-md': isAvailable,
-                            'cursor-not-allowed opacity-50': !isAvailable,
-                            'border-[#8a6d4a] bg-[#8a6d4a]/5 shadow-lg scale-105': isSelected,
-                            'border-gray-200 hover:border-[#8a6d4a]': !isSelected && isAvailable,
-                            'border-gray-200': !isAvailable
-                          }}
-                          onClick$={() => {
-                            if (isAvailable) {
-                              props.sizeSelectTrigger.value = sizeOption;
-                            }
-                          }}
-                          disabled={!isAvailable}
-                        >
-                          {isSelected && (
-                            <div class="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#8a6d4a] text-white flex items-center justify-center text-xs">
-                              ✓
-                            </div>
-                          )}
-                          <div class="text-2xl font-light text-gray-900">{sizeOption.name}</div>
-                        </button>
-                      );
-                    })
-                  ) : (
-                    Array.from(['S', 'M', 'L']).map((size) => (
-                      <div key={size} class="border-2 border-gray-200 rounded-xl p-4 text-center opacity-30">
-                        <div class="text-2xl font-light mb-2 text-gray-400">{size}</div>
-                        <div class="text-xs text-gray-400">Loading...</div>
-                      </div>
-                    ))
-                  )}
+                    return (
+                      <button
+                        key={size.code}
+                        class={{
+                          'border-2 rounded-xl p-4 text-center transition-all duration-300 transform relative': true,
+                          'cursor-pointer hover:scale-105 hover:shadow-md': isAvailable,
+                          'cursor-not-allowed opacity-50': !isAvailable,
+                          'border-[#8a6d4a] bg-[#8a6d4a]/5 shadow-lg scale-105': isSelected,
+                          'border-gray-200 hover:border-[#8a6d4a]': !isSelected && isAvailable,
+                          'border-gray-200': !isAvailable
+                        }}
+                        onClick$={() => {
+                          if (isAvailable) {
+                            props.onSizeSelect$(size.code);
+                          }
+                        }}
+                        disabled={!isAvailable}
+                      >
+                        {isSelected && (
+                          <div class="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#8a6d4a] text-white flex items-center justify-center text-xs">
+                            ✓
+                          </div>
+                        )}
+                        <div class="text-2xl font-light text-gray-900">{size.name}</div>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Size Info with integrated Size Guide */}
@@ -365,9 +324,9 @@ export const SizeColorSelection = component$<SizeColorSelectionProps>((props) =>
                       <span>Designed with an oversized, relaxed fit for ultimate comfort and styling</span>
                     </div>
                     <button
-                      class="text-[#8a6d4a] hover:text-[#4F3B26] text-xs font-medium underline transition-colors duration-200 flex items-center gap-1 ml-4 flex-shrink-0"
+                      class="text-[#8a6d4a] hover:text-[#4F3B26] text-xs font-medium underline transition-colors duration-200 flex items-center gap-1 ml-4 flex-shrink-0 cursor-pointer"
                       onClick$={() => {
-                        props.toggleSizeChartTrigger.value = !props.toggleSizeChartTrigger.value;
+                        props.onToggleSizeChart$();
                       }}
                     >
                       <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -430,57 +389,45 @@ export const SizeColorSelection = component$<SizeColorSelectionProps>((props) =>
               }}>
 
                 <div class="grid grid-cols-3 gap-4">
-                  {props.selectedProduct.value ? (
-                    availableOptions.value.colors.map((colorOption) => {
-                      const isSelected = props.selectedColor.value?.id === colorOption.id;
-                      const isAvailable = props.selectedSize.value ? checkColorAvailable(colorOption, props.selectedSize.value, availabilityMap.value) : false;
+                  {COLORS.map((color) => {
+                    const isSelected = props.selectedColor.value === color.code;
+                    const isAvailable = checkColorAvailable(color.code);
 
-                      return (
-                        <button
-                          key={colorOption.id}
-                          class={{
-                            'border-2 rounded-xl p-4 text-center transition-all duration-300 transform relative': true,
-                            'cursor-pointer hover:scale-105 hover:shadow-md': isAvailable,
-                            'cursor-not-allowed opacity-50': !isAvailable,
-                            'border-[#8a6d4a] bg-[#8a6d4a]/5 shadow-lg scale-105': isSelected,
-                            'border-gray-200 hover:border-[#8a6d4a]': !isSelected && isAvailable,
-                            'border-gray-200': !isAvailable
-                          }}
-                          onClick$={() => {
-                            if (isAvailable) {
-                              props.colorSelectTrigger.value = colorOption;
-                            }
-                          }}
-                          disabled={!isAvailable}
-                        >
-                          {isSelected && (
-                            <div class="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#8a6d4a] text-white flex items-center justify-center text-xs">
-                              ✓
-                            </div>
-                          )}
-                          <div class="text-lg font-light text-gray-900">{colorOption.name}</div>
-                        </button>
-                      );
-                    })
-                  ) : (
-                    Array.from(['Black', 'White', 'Gray']).map((color) => (
-                      <div key={color} class="border-2 border-gray-200 rounded-xl p-4 text-center opacity-30">
-                        <div class="text-lg font-light mb-2 text-gray-400">{color}</div>
-                        <div class="text-xs text-gray-400">Loading...</div>
-                      </div>
-                    ))
-                  )}
+                    return (
+                      <button
+                        key={color.code}
+                        class={{
+                          'border-2 rounded-xl p-4 text-center transition-all duration-300 transform relative': true,
+                          'cursor-pointer hover:scale-105 hover:shadow-md': isAvailable,
+                          'cursor-not-allowed opacity-50': !isAvailable,
+                          'border-[#8a6d4a] bg-[#8a6d4a]/5 shadow-lg scale-105': isSelected,
+                          'border-gray-200 hover:border-[#8a6d4a]': !isSelected && isAvailable,
+                          'border-gray-200': !isAvailable
+                        }}
+                        onClick$={() => {
+                          if (isAvailable) {
+                            props.onColorSelect$(color.code);
+                          }
+                        }}
+                        disabled={!isAvailable}
+                      >
+                        {isSelected && (
+                          <div class="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#8a6d4a] text-white flex items-center justify-center text-xs">
+                            ✓
+                          </div>
+                        )}
+                        <div class="text-lg font-light text-gray-900">{color.name}</div>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Add to Cart Flow */}
                 <AddToCartFlow
-                  selectedProduct={props.selectedProduct}
-                  selectedSize={props.selectedSize}
-                  selectedColor={props.selectedColor}
                   selectedVariantId={props.selectedVariantId}
                   currentStep={props.currentStep}
                   isAddingToCart={props.isAddingToCart}
-                  addToCartTrigger={props.addToCartTrigger}
+                  onAddToCart$={props.onAddToCart$}
                 />
               </div>
             </div>

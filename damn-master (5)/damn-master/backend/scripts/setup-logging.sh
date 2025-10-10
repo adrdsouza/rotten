@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# Create centralized logs directory if it doesn't exist
+mkdir -p /home/vendure/damneddesigns/logs/backend
+
+# Set appropriate permissions (adjust user:group as needed)
+chown -R vendure:vendure /home/vendure/damneddesigns/logs/backend
+chmod 750 /home/vendure/damneddesigns/logs/backend
+
+# Create logrotate configuration
+cat > /etc/logrotate.d/vendure-logs << 'EOL'
+/home/vendure/damneddesigns/logs/backend/*.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 0640 vendure vendure
+    sharedscripts
+    postrotate
+        # Send USR1 signal to Node.js process to reopen log files
+        [ -f /home/vendure/damneddesigns/backend/pids/app.pid ] && kill -USR1 $(cat /home/vendure/damneddesigns/backend/pids/app.pid) || true
+    endscript
+}
+EOL
+
+echo "Logging setup complete. Logs will be stored in /home/vendure/damneddesigns/logs/backend/"
+echo "Log rotation has been configured in /etc/logrotate.d/vendure-logs"

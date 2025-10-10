@@ -152,7 +152,7 @@ export default component$<{
 						productSlug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
 					// Calculate line price (since local cart items don't have linePriceWithTax)
-					const linePrice = item.productVariant.price * item.quantity;
+					const linePrice = (item.productVariant.priceWithTax || item.productVariant.price || 0) * item.quantity;
 
 					// Calculate quantity options for local cart items
 					const stockLevel = item.productVariant.stockLevel || '3';

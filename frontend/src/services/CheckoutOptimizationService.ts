@@ -71,14 +71,19 @@ export class CheckoutOptimizationService {
 
       // Process shipping address result
       const shippingResult = results[0];
+      console.log('🔍 [CHECKOUT] Shipping address result:', shippingResult);
       if (shippingResult.status === 'fulfilled') {
         const shippingOrder = shippingResult.value;
+        console.log('🔍 [CHECKOUT] Shipping order response:', shippingOrder);
         if (shippingOrder.__typename === 'Order') {
           finalOrder = shippingOrder as Order;
+          console.log('✅ [CHECKOUT] Shipping address set successfully');
         } else {
+          console.error('❌ [CHECKOUT] Shipping address failed - typename:', shippingOrder.__typename);
           errors.push('Failed to set shipping address');
         }
       } else {
+        console.error('❌ [CHECKOUT] Shipping address rejected:', shippingResult.reason);
         errors.push(`Shipping address error: ${shippingResult.reason}`);
       }
 

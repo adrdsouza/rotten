@@ -1799,6 +1799,7 @@ export type Mutation = {
   createCartMapping: CartOrderMapping;
   /** Create a new Customer Address */
   createCustomerAddress: Address;
+  createPreOrderPaymentIntent: Scalars['String']['output'];
   createStripePaymentIntent: Scalars['String']['output'];
   /** Delete an existing Address */
   deleteCustomerAddress: Success;
@@ -1883,6 +1884,9 @@ export type Mutation = {
   updateCustomerEmailAddress: UpdateCustomerEmailAddressResult;
   /** Update the password of the active Customer */
   updateCustomerPassword: UpdateCustomerPasswordResult;
+  updatePaymentIntentAmount: Scalars['Boolean']['output'];
+  updatePaymentIntentMetadata: Scalars['Boolean']['output'];
+  updatePaymentIntentWithOrder: Scalars['Boolean']['output'];
   /**
    * Verify a Customer email address with the token sent to that address. Only applicable if `authOptions.requireVerification` is set to true.
    *
@@ -1936,6 +1940,13 @@ export type MutationCreateCartMappingArgs = {
 
 export type MutationCreateCustomerAddressArgs = {
   input: CreateAddressInput;
+};
+
+
+export type MutationCreatePreOrderPaymentIntentArgs = {
+  amount?: InputMaybe<Scalars['Int']['input']>;
+  cartUuid?: InputMaybe<Scalars['String']['input']>;
+  currency?: InputMaybe<Scalars['String']['input']>;
 };
 
 
@@ -2057,6 +2068,28 @@ export type MutationUpdateCustomerEmailAddressArgs = {
 export type MutationUpdateCustomerPasswordArgs = {
   currentPassword: Scalars['String']['input'];
   newPassword: Scalars['String']['input'];
+};
+
+
+export type MutationUpdatePaymentIntentAmountArgs = {
+  amount: Scalars['Int']['input'];
+  paymentIntentId: Scalars['String']['input'];
+};
+
+
+export type MutationUpdatePaymentIntentMetadataArgs = {
+  orderCode: Scalars['String']['input'];
+  orderId: Scalars['Int']['input'];
+  paymentIntentId: Scalars['String']['input'];
+};
+
+
+export type MutationUpdatePaymentIntentWithOrderArgs = {
+  amount: Scalars['Int']['input'];
+  cartUuid?: InputMaybe<Scalars['String']['input']>;
+  orderCode: Scalars['String']['input'];
+  orderId: Scalars['Int']['input'];
+  paymentIntentId: Scalars['String']['input'];
 };
 
 
@@ -3840,16 +3873,6 @@ export type CreateStripePaymentIntentMutationVariables = Exact<{ [key: string]: 
 
 export type CreateStripePaymentIntentMutation = { __typename?: 'Mutation', createStripePaymentIntent: string };
 
-export type CreateCartMappingMutationVariables = Exact<{
-  cartUuid: Scalars['String']['input'];
-  orderId: Scalars['String']['input'];
-  orderCode: Scalars['String']['input'];
-  paymentIntentId?: InputMaybe<Scalars['String']['input']>;
-}>;
-
-
-export type CreateCartMappingMutation = { __typename?: 'Mutation', createCartMapping: { __typename?: 'CartOrderMapping', id: string, cartUuid: string, orderId: string, orderCode: string, paymentIntentId?: string | null, createdAt: any, completedAt?: any | null } };
-
 export type CollectionsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -4143,6 +4166,15 @@ export type RemoveOrderLineMutation = { __typename?: 'Mutation', removeOrderLine
     | { __typename?: 'OrderModificationError', errorCode: ErrorCode, message: string }
    };
 
+export type RemoveAllOrderLinesMutationVariables = Exact<{ [key: string]: never; }>;
+
+
+export type RemoveAllOrderLinesMutation = { __typename?: 'Mutation', removeAllOrderLines:
+    | { __typename: 'Order', id: string, code: string, active: boolean, createdAt: any, state: string, currencyCode: CurrencyCode, couponCodes: Array<string>, totalQuantity: number, subTotal: any, subTotalWithTax: any, shippingWithTax: any, totalWithTax: any, discounts: Array<{ __typename?: 'Discount', type: AdjustmentType, description: string, amountWithTax: any }>, taxSummary: Array<{ __typename?: 'OrderTaxSummary', description: string, taxRate: number, taxTotal: any }>, customer?: { __typename?: 'Customer', id: string, firstName: string, lastName: string, emailAddress: string } | null, shippingAddress?: { __typename?: 'OrderAddress', fullName?: string | null, streetLine1?: string | null, streetLine2?: string | null, company?: string | null, city?: string | null, province?: string | null, postalCode?: string | null, countryCode?: string | null, phoneNumber?: string | null } | null, billingAddress?: { __typename?: 'OrderAddress', fullName?: string | null, streetLine1?: string | null, streetLine2?: string | null, company?: string | null, city?: string | null, province?: string | null, postalCode?: string | null, countryCode?: string | null, phoneNumber?: string | null } | null, shippingLines: Array<{ __typename?: 'ShippingLine', priceWithTax: any, shippingMethod: { __typename?: 'ShippingMethod', id: string, name: string } }>, lines: Array<{ __typename?: 'OrderLine', id: string, unitPriceWithTax: any, linePriceWithTax: any, quantity: number, featuredAsset?: { __typename?: 'Asset', id: string, preview: string } | null, productVariant: { __typename?: 'ProductVariant', id: string, name: string, price: any, stockLevel: string, options: Array<{ __typename?: 'ProductOption', id: string, code: string, name: string, group: { __typename?: 'ProductOptionGroup', id: string, name: string } }>, product: { __typename?: 'Product', id: string, name: string, slug: string } } }>, payments?: Array<{ __typename?: 'Payment', id: string, method: string, amount: any, state: string, transactionId?: string | null, metadata?: any | null }> | null }
+    | { __typename?: 'OrderInterceptorError', errorCode: ErrorCode, message: string }
+    | { __typename?: 'OrderModificationError', errorCode: ErrorCode, message: string }
+   };
+
 export type ActiveOrderQueryVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -4428,24 +4460,6 @@ export const AddPaymentToOrderDocument = gql`
 export const CreateStripePaymentIntentDocument = gql`
     mutation createStripePaymentIntent {
   createStripePaymentIntent
-}
-    `;
-export const CreateCartMappingDocument = gql`
-    mutation createCartMapping($cartUuid: String!, $orderId: String!, $orderCode: String!, $paymentIntentId: String) {
-  createCartMapping(
-    cartUuid: $cartUuid
-    orderId: $orderId
-    orderCode: $orderCode
-    paymentIntentId: $paymentIntentId
-  ) {
-    id
-    cartUuid
-    orderId
-    orderCode
-    paymentIntentId
-    createdAt
-    completedAt
-  }
 }
     `;
 export const CollectionsDocument = gql`
@@ -4826,6 +4840,17 @@ export const RemoveOrderLineDocument = gql`
   }
 }
     ${CustomOrderDetailFragmentDoc}`;
+export const RemoveAllOrderLinesDocument = gql`
+    mutation removeAllOrderLines {
+  removeAllOrderLines {
+    ...CustomOrderDetail
+    ... on ErrorResult {
+      errorCode
+      message
+    }
+  }
+}
+    ${CustomOrderDetailFragmentDoc}`;
 export const ActiveOrderDocument = gql`
     query activeOrder {
   activeOrder {
@@ -4935,9 +4960,6 @@ export function getSdk<C>(requester: Requester<C>) {
     createStripePaymentIntent(variables?: CreateStripePaymentIntentMutationVariables, options?: C): Promise<CreateStripePaymentIntentMutation> {
       return requester<CreateStripePaymentIntentMutation, CreateStripePaymentIntentMutationVariables>(CreateStripePaymentIntentDocument, variables, options) as Promise<CreateStripePaymentIntentMutation>;
     },
-    createCartMapping(variables: CreateCartMappingMutationVariables, options?: C): Promise<CreateCartMappingMutation> {
-      return requester<CreateCartMappingMutation, CreateCartMappingMutationVariables>(CreateCartMappingDocument, variables, options) as Promise<CreateCartMappingMutation>;
-    },
     collections(variables?: CollectionsQueryVariables, options?: C): Promise<CollectionsQuery> {
       return requester<CollectionsQuery, CollectionsQueryVariables>(CollectionsDocument, variables, options) as Promise<CollectionsQuery>;
     },
@@ -5000,6 +5022,9 @@ export function getSdk<C>(requester: Requester<C>) {
     },
     removeOrderLine(variables: RemoveOrderLineMutationVariables, options?: C): Promise<RemoveOrderLineMutation> {
       return requester<RemoveOrderLineMutation, RemoveOrderLineMutationVariables>(RemoveOrderLineDocument, variables, options) as Promise<RemoveOrderLineMutation>;
+    },
+    removeAllOrderLines(variables?: RemoveAllOrderLinesMutationVariables, options?: C): Promise<RemoveAllOrderLinesMutation> {
+      return requester<RemoveAllOrderLinesMutation, RemoveAllOrderLinesMutationVariables>(RemoveAllOrderLinesDocument, variables, options) as Promise<RemoveAllOrderLinesMutation>;
     },
     activeOrder(variables?: ActiveOrderQueryVariables, options?: C): Promise<ActiveOrderQuery> {
       return requester<ActiveOrderQuery, ActiveOrderQueryVariables>(ActiveOrderDocument, variables, options) as Promise<ActiveOrderQuery>;

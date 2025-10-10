@@ -1,26 +1,8 @@
 // 🚀 MODERN REDESIGN 2025: Clean, performance-focused homepage with integrated shop
 // 🚀 BACKUP: Original homepage saved as index-backup.tsx
 import { component$, useStylesScoped$, $ } from '@qwik.dev/core';
-import { routeLoader$ } from '@qwik.dev/router';
 import { createSEOHead } from '~/utils/seo';
 import { ShopComponent } from '~/components/shop/ShopComponent';
-import { getFCPButtonData } from '~/providers/shop/products/products';
-
-// 🚀 SERVER-SIDE DATA LOADING: Load minimal FCP button data for fastest initial render
-export const useProductData = routeLoader$(async () => {
-  try {
-    console.log('🚀 [SERVER LOADER] Loading FCP button data on server side...');
-
-    // Minimal query for fastest First Contentful Paint - just button data
-    const productData = await getFCPButtonData();
-
-    console.log('✅ [SERVER LOADER] FCP button data loaded successfully:', !!productData);
-    return productData;
-  } catch (error) {
-    console.error('❌ [SERVER LOADER] Failed to load FCP button data:', error);
-    return null;
-  }
-});
 
 // Shop image - optimized responsive (mobile + desktop, AVIF + WebP)
 import ShopImageAvif_800 from '~/media/shop.jpg?format=avif&width=800&quality=80';
@@ -147,7 +129,6 @@ const MODERN_STYLES = `
 // Product data now loads on-demand via Intersection Observer or user interaction
 
 export default component$(() => {
-  const productData = useProductData();
   useStylesScoped$(MODERN_STYLES);
 
   // Reusable scroll to shop function - triggers lazy load
@@ -244,7 +225,7 @@ export default component$(() => {
                   class="w-full h-[600px] object-cover rounded-2xl shadow-2xl"
                   width={800}
                   height={600}
-                  loading="lazy"
+                  fetchPriority="low"
                 />
               </picture>
               <div class="absolute inset-0 bg-black/20 rounded-2xl"></div>
@@ -291,10 +272,6 @@ export default component$(() => {
         <ShopComponent
           context="homepage"
           scrollTarget="customization-section"
-          preloadData={true}
-          lazyLoadAssets={true}
-          analyticsSource="scroll-proximity"
-          stylesData={productData.value}
         />
       </section>
 
@@ -384,15 +361,23 @@ export default component$(() => {
 
       {/* Conscious Consumption Video Section - Moved to End */}
       <section class="relative min-h-screen bg-black overflow-hidden">
-        {/* Background Video - Lazy loaded for performance */}
+        {/* Background Video - Truly lazy loaded to prevent blocking page load */}
         <div class="absolute inset-0">
           <video
-            autoplay
             muted
             loop
             playsInline
             class="w-full h-full object-cover"
             preload="none"
+            onLoadedData$={() => {
+              // Auto-play only after video is loaded and user has scrolled to it
+              const video = event?.target as HTMLVideoElement;
+              if (video) {
+                video.play().catch(() => {
+                  // Ignore autoplay failures (browser policy)
+                });
+              }
+            }}
           >
             <source src="/homepage.mp4" type="video/mp4" />
           </video>

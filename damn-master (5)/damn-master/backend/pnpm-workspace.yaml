@@ -1,0 +1,9 @@
+onlyBuiltDependencies:
+  - '@apollo/protobufjs'
+  - '@nestjs/core'
+  - '@parcel/watcher'
+  - bcrypt
+  - esbuild
+  - lmdb
+  - msgpackr-extract
+  - sharp

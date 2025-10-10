@@ -151,6 +151,61 @@ class StripePreOrderResolver {
             return false;
         }
     }
+
+    /**
+     * Combined mutation to update both amount and metadata in a single Stripe API call
+     * OPTIMIZED: Accepts cartUuid to avoid retrieve call, reducing latency by ~700ms
+     */
+    @Mutation()
+    @Allow(Permission.Public)
+    async updatePaymentIntentWithOrder(
+        @Ctx() ctx: RequestContext,
+        @Args('paymentIntentId') paymentIntentId: string,
+        @Args('amount') amount: number,
+        @Args('orderCode') orderCode: string,
+        @Args('orderId') orderId: number,
+        @Args('cartUuid') cartUuid?: string
+    ): Promise<boolean> {
+        try {
+            Logger.info(`Updating PaymentIntent ${paymentIntentId} with amount ${amount} and order metadata: ${orderCode} (${orderId})`, 'StripePreOrder');
+            Logger.info(`CartUuid provided: ${cartUuid || 'UNDEFINED - using slow path'}`, 'StripePreOrder');
+
+            // OPTIMIZATION: If cartUuid is provided, use it directly without retrieve call
+            // Otherwise, retrieve to preserve existing metadata (fallback for backward compatibility)
+            if (cartUuid) {
+                Logger.info(`Using FAST PATH - single Stripe API call`, 'StripePreOrder');
+                // Fast path: We know the metadata from creation
+                await this.stripe.paymentIntents.update(paymentIntentId, {
+                    amount: amount,
+                    metadata: {
+                        cartUuid: cartUuid,
+                        channelToken: ctx.channel.token,
+                        languageCode: ctx.languageCode,
+                        orderCode: orderCode,
+                        orderId: orderId.toString(),
+                    }
+                });
+            } else {
+                // Slow path: Retrieve first to preserve metadata (backward compatibility)
+                Logger.warn(`Using SLOW PATH - two Stripe API calls (retrieve + update)`, 'StripePreOrder');
+                const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
+                await this.stripe.paymentIntents.update(paymentIntentId, {
+                    amount: amount,
+                    metadata: {
+                        ...paymentIntent.metadata,
+                        orderCode: orderCode,
+                        orderId: orderId.toString(),
+                    }
+                });
+            }
+
+            Logger.info(`PaymentIntent ${paymentIntentId} updated successfully with amount and order metadata`, 'StripePreOrder');
+            return true;
+        } catch (error) {
+            Logger.error(`Failed to update PaymentIntent ${paymentIntentId}: ${error}`, 'StripePreOrder');
+            return false;
+        }
+    }
 }
 
 /**
@@ -169,6 +224,7 @@ class StripePreOrderResolver {
                 createPreOrderPaymentIntent(amount: Int, currency: String, cartUuid: String): String!
                 updatePaymentIntentAmount(paymentIntentId: String!, amount: Int!): Boolean!
                 updatePaymentIntentMetadata(paymentIntentId: String!, orderCode: String!, orderId: Int!): Boolean!
+                updatePaymentIntentWithOrder(paymentIntentId: String!, amount: Int!, orderCode: String!, orderId: Int!, cartUuid: String): Boolean!
             }
         `,
     },

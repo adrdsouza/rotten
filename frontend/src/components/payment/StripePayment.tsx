@@ -93,12 +93,14 @@ export default component$(() => {
     if (typeof window !== 'undefined') {
       // Function to confirm payment using enhanced error handling
       (window as any).confirmStripePreOrderPayment = async (activeOrder?: any) => {
-        console.log('[StripePayment] Starting payment confirmation with order:', activeOrder);
-        
+        // 🚀 START TIMING
+        const paymentStartTime = performance.now();
+        console.log('🚀 [STRIPE PAYMENT] Starting payment confirmation with order:', activeOrder);
+
         if (!store.resolvedStripe || !store.stripeElements) {
           console.error('[StripePayment] Stripe not initialized');
-          const error = { 
-            message: 'Payment system not initialized', 
+          const error = {
+            message: 'Payment system not initialized',
             isRetryable: false,
             category: 'system' as const,
             severity: 'high' as const,
@@ -119,10 +121,12 @@ export default component$(() => {
         store.debugInfo = 'Processing payment...';
 
         try {
-          // CRITICAL: Must call submit() first to validate and prepare payment data
-          console.log('[StripePayment] Submitting payment form...');
+          // Step 1: Submit payment form
+          const submitStart = performance.now();
+          console.log('📝 [STRIPE PAYMENT] Submitting payment form...');
 
           const submitResult = await store.stripeElements?.submit();
+          console.log(`⏱️ [STRIPE PAYMENT] Form submit: ${(performance.now() - submitStart).toFixed(2)}ms`);
           if (submitResult?.error) {
             console.error('[StripePayment] Form submission failed:', submitResult.error);
             console.error('[StripePayment] Error type:', submitResult.error.type);
@@ -165,7 +169,9 @@ export default component$(() => {
             return { success: false, error: errorMessage, paymentError };
           }
 
-          console.log('[StripePayment] Form submitted successfully, confirming payment with Stripe...');
+          // Step 2: Confirm payment with Stripe
+          const confirmStart = performance.now();
+          console.log('💳 [STRIPE PAYMENT] Confirming payment with Stripe...');
 
           const result = await store.resolvedStripe.confirmPayment({
             elements: store.stripeElements,
@@ -174,10 +180,14 @@ export default component$(() => {
               return_url: `${window.location.origin}/checkout/confirmation/${activeOrder?.code || 'unknown'}`,
             },
           });
+          console.log(`⏱️ [STRIPE PAYMENT] Stripe confirmPayment: ${(performance.now() - confirmStart).toFixed(2)}ms`);
 
-          // This code should only run if there's an error (redirect didn't happen)
+          // Handle the result according to Stripe documentation
+          // https://docs.stripe.com/payments/payment-intents/verifying-status
           if (result?.error) {
+            // Payment failed with an error
             console.error('[StripePayment] Payment confirmation failed:', result.error);
+            console.log(`❌ [STRIPE PAYMENT] Failed after ${(performance.now() - paymentStartTime).toFixed(2)}ms`);
 
             // Create enhanced error object
             const stripeKey = await getStripePublishableKeyQuery();
@@ -216,19 +226,64 @@ export default component$(() => {
             return { success: false, error: errorMessage, paymentError };
           }
 
-          // If we reach here without redirect, something unexpected happened
-          // This should normally not execute because Stripe redirects on success
-          console.warn('[StripePayment] Payment confirmed but no redirect occurred');
-          console.log('[StripePayment] Result:', result);
+          // Check if payment actually succeeded
+          // According to Stripe docs, when confirmPayment doesn't redirect, we must check paymentIntent.status
+          if (result?.paymentIntent) {
+            console.log('[StripePayment] Payment completed without redirect. Status:', result.paymentIntent.status);
 
-          return {
-            success: true,
-            message: 'Payment processing...'
+            if (result.paymentIntent.status === 'succeeded') {
+              // Payment succeeded
+              console.log(`✅ [STRIPE PAYMENT] Payment succeeded: ${(performance.now() - paymentStartTime).toFixed(2)}ms`);
+              return {
+                success: true,
+                message: 'Payment processing...'
+              };
+            } else {
+              // Payment did not succeed - treat as error
+              console.error('[StripePayment] Payment did not succeed. Status:', result.paymentIntent.status);
+              console.log(`❌ [STRIPE PAYMENT] Failed after ${(performance.now() - paymentStartTime).toFixed(2)}ms`);
+
+              const errorMessage = `Payment ${result.paymentIntent.status}. Please try again.`;
+              const paymentError: PaymentError = {
+                message: errorMessage,
+                isRetryable: true,
+                category: 'stripe',
+                severity: 'medium',
+                userAction: 'Please check your payment information and try again'
+              };
+
+              store.paymentError = paymentError;
+              store.error = errorMessage;
+              store.debugInfo = `Payment status: ${result.paymentIntent.status}`;
+
+              return { success: false, error: errorMessage, paymentError };
+            }
+          }
+
+          // If we reach here, something unexpected happened (no error, no paymentIntent)
+          console.error('[StripePayment] Unexpected result - no error and no paymentIntent');
+          console.log('[StripePayment] Result:', result);
+          console.log(`❌ [STRIPE PAYMENT] Failed after ${(performance.now() - paymentStartTime).toFixed(2)}ms`);
+
+          const errorMessage = 'Payment processing failed. Please try again.';
+          const paymentError: PaymentError = {
+            message: errorMessage,
+            isRetryable: true,
+            category: 'system',
+            severity: 'high',
+            userAction: 'Please try again or contact support if the problem persists'
           };
+
+          store.paymentError = paymentError;
+          store.error = errorMessage;
+          store.debugInfo = 'No error and no paymentIntent in result';
+
+          return { success: false, error: errorMessage, paymentError };
 
         } catch (error) {
           console.error('[StripePayment] Payment process error:', error);
-          
+          console.log(`❌ [STRIPE PAYMENT] Exception after ${(performance.now() - paymentStartTime).toFixed(2)}ms`);
+
           const errorMessage = error instanceof Error ? error.message : 'Payment failed';
           const paymentError: PaymentError = {
             message: errorMessage,
@@ -399,9 +454,10 @@ export default component$(() => {
         store.clientSecret = paymentIntentResult.clientSecret;
         store.paymentIntentId = paymentIntentResult.paymentIntentId;
 
-        // Store PaymentIntent ID globally for checkout flow to access
+        // Store PaymentIntent ID and cartUuid globally for checkout flow to access
         if (typeof window !== 'undefined') {
           (window as any).__stripePaymentIntentId = paymentIntentResult.paymentIntentId;
+          (window as any).__stripeCartUuid = cartUuid.value;
         }
 
         // Note: Cart mapping is not needed for payment flow

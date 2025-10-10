@@ -1,794 +1,450 @@
-import { component$, useSignal, $, useContext, useVisibleTask$ } from '@qwik.dev/core';
-import { getProductAssets, getFeaturedImages, getColorThumbnails } from '~/providers/shop/products/products';
-import { Product, ProductOption } from '~/types';
+import { component$, useSignal, $, useContext, useTask$ } from '@qwik.dev/core';
 import { useLocalCart, addToLocalCart, refreshCartStock } from '~/contexts/CartContext';
 import { APP_STATE } from '~/constants';
 import { loadCountryOnDemand } from '~/utils/addressStorage';
-import { LocalCartService } from '~/services/LocalCartService';
-import { cleanupCache } from '~/utils/cache-warming';
-import { enableAutoCleanup, disableAutoCleanup } from '~/services/ProductCacheService';
+
 
 import { StyleSelection } from './StyleSelection';
 import { SizeColorSelection } from './SizeColorSelection';
 
-// Context for different usage scenarios
+import { PRODUCTS, getVariantId } from '~/data/shop-constants';
+import { checkVariantStock, checkProductsHaveStock, loadProductFeaturedImage, loadProductGallery, loadVariantFeaturedImage, loadVariantGallery } from '~/services/shop-queries';
+import { shopCache } from '~/services/shop-cache';
+
 export interface ShopComponentProps {
   context: 'homepage' | 'standalone';
   scrollTarget?: string;
-  preloadData?: boolean;
-  lazyLoadAssets?: boolean;
-  analyticsSource?: 'hero-button' | 'scroll-proximity' | 'direct-navigation';
-  // Basic style data passed from parent (for immediate rendering) - now nullable for lazy loading
-  stylesData: {
-    shortSleeve: any | null;
-    longSleeve: any | null;
-  } | null;
 }
-
-// Shop component state interface
-export interface ShopComponentState {
-  selectedStyle: 'short' | 'long' | null;
-  selectedSize: ProductOption | null;
-  selectedColor: ProductOption | null;
-  selectedVariantId: string;
-  currentStep: number;
-  isLoading: boolean;
-  productData: {
-    shortSleeve?: Product | null;
-    longSleeve?: Product | null;
-  };
-}
-
-// Helper functions moved to individual components
 
 export const ShopComponent = component$<ShopComponentProps>((props) => {
   const localCart = useLocalCart();
   const appState = useContext(APP_STATE);
 
-
-  const isLoadingStep = useSignal<boolean>(false);
-
-  // 🚀 NEW: State for lazy-loaded style data
-  const stylesData = useSignal<{ shortSleeve: any | null; longSleeve: any | null } | null>(props.stylesData);
-  const hasLoadedStyles = useSignal<boolean>(!!props.stylesData);
-
-  // Full product data with images and variants (loaded in background)
-  // 🚀 OPTIMIZATION: Initialize with stylesData so buttons are active immediately!
-  const fullProductData = useSignal<{ shortSleeve?: any; longSleeve?: any }>({
-    shortSleeve: props.stylesData?.shortSleeve || null,
-    longSleeve: props.stylesData?.longSleeve || null
-  });
-
-  // Show loading skeleton while lazy loading initial data
-  console.log('🔧 [DEBUG] Render check - hasLoadedStyles.value:', hasLoadedStyles.value, 'stylesData.value:', !!stylesData.value);
-  if (!hasLoadedStyles.value) {
-    console.log('🔧 [DEBUG] Showing loading screen');
-    return (
-      <div class="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div class="text-center max-w-md mx-auto px-4">
-          <div class="mb-6">
-            <div class="w-16 h-16 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center animate-pulse">
-              <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h1 class="text-2xl font-bold text-gray-900 mb-2">Loading Products...</h1>
-            <p class="text-gray-600 mb-6">We're preparing your perfect shirt experience.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error fallback if styles failed to load
-  if (!stylesData.value?.shortSleeve && !stylesData.value?.longSleeve) {
-    return (
-      <div class="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div class="text-center max-w-md mx-auto px-4">
-          <div class="mb-6">
-            <div class="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
-              <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h1 class="text-2xl font-bold text-gray-900 mb-2">Unable to Load Products</h1>
-            <p class="text-gray-600 mb-6">There was an issue loading the products. Please try refreshing the page.</p>
-          </div>
-
-          <div class="space-y-4">
-            <button
-              onClick$={() => window.location.reload()}
-              class="w-full bg-[#8a6d4a] text-white px-6 py-3 rounded-lg font-medium hover:bg-[#4F3B26] transition-colors"
-            >
-              Refresh Page
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Page flow state
+  // Flow state
   const selectedStyle = useSignal<'short' | 'long' | null>(null);
-  const showBrandStory = useSignal<boolean>(true);
   const currentStep = useSignal<number>(1); // 1: Size, 2: Color
 
-  // Customization flow state
-  const selectedProduct = useSignal<Product | null>(null);
-  const selectedSize = useSignal<ProductOption | null>(null);
-  const selectedColor = useSignal<ProductOption | null>(null);
+  // Selection state (simplified)
+  const selectedSize = useSignal<string | null>(null);
+  const selectedColor = useSignal<string | null>(null);
   const selectedVariantId = useSignal<string>('');
-  const isAddingToCart = useSignal(false);
+
+  // UI state
+  const isLoadingStep = useSignal<boolean>(false);
   const showSizeChart = useSignal<boolean>(false);
+  const isAddingToCart = useSignal<boolean>(false);
 
-  // Cart quantity tracking for all variants
-  const quantitySignal = useSignal<Record<string, number>>({});
+  // Image state (preserve behavior)
+  const currentProductImage = useSignal<any>(null);
+  const productAssets = useSignal<any>({ featuredAsset: null, assets: [], variantFeaturedAsset: null });
+  const assetsLoading = useSignal<boolean>(false);
 
-  // Touch handling state
+  // Stock & availability - NON-BLOCKING: useTask$ runs immediately without blocking page load
+  const stockMap = useSignal<Map<string, number>>(new Map());
+  const hasStock = useSignal<{ shortSleeve: boolean; longSleeve: boolean }>({ shortSleeve: false, longSleeve: false });
+
+  // Phase 1: Non-blocking stock check that runs immediately on mount
+  useTask$(async () => {
+    const phase1Start = performance.now();
+    console.log('🚀 Phase 1 START: Product-level stock check (OPTIMIZED)');
+
+    try {
+      // 🚀 Step 1: Check if products have stock (boolean check)
+      const stockStart = performance.now();
+      const stockResult = await checkProductsHaveStock();
+      const stockEnd = performance.now();
+      console.log(`📊 Product stock check completed in ${(stockEnd - stockStart).toFixed(2)}ms`);
+      console.log(`✅ Stock status: Short=${stockResult.shortSleeve}, Long=${stockResult.longSleeve}`);
+
+      // Update hasStock signal
+      hasStock.value = stockResult;
+
+      // 🚀 Step 2: Query size-level stock for in-stock styles (so sizes appear instantly when clicked)
+      const sizeStockStart = performance.now();
+      const { SIZES, COLORS } = await import('~/data/shop-constants');
+      const stylesToQuery: Array<'short' | 'long'> = [];
+      if (stockResult.shortSleeve) stylesToQuery.push('short');
+      if (stockResult.longSleeve) stylesToQuery.push('long');
+
+      const sizeStockMap = new Map<string, number>();
+
+      for (const style of stylesToQuery) {
+        const sizeVariantIds: string[] = [];
+
+        // Collect all variant IDs for all sizes (across all colors) for this style
+        SIZES.forEach(size => {
+          COLORS.forEach(color => {
+            const id = getVariantId(style, size.code, color.code);
+            if (id) sizeVariantIds.push(id);
+          });
+        });
+
+        if (sizeVariantIds.length > 0) {
+          const stockData = await checkVariantStock(sizeVariantIds);
+          stockData.forEach((qty, variantId) => sizeStockMap.set(variantId, qty));
+          console.log(`📊 ${style} sleeve: Queried ${sizeVariantIds.length} variants for size availability`);
+        }
+      }
+
+      const sizeStockEnd = performance.now();
+      console.log(`📊 Size-level stock check completed in ${(sizeStockEnd - sizeStockStart).toFixed(2)}ms`);
+
+      // Update stockMap signal
+      stockMap.value = sizeStockMap;
+
+      // 🚀 Step 3: Warm featured images for in-stock styles (non-blocking)
+      const imageStart = performance.now();
+      const imagePromises = [];
+      for (const style of stylesToQuery) {
+        const productId = style === 'short' ? PRODUCTS.shortSleeve.productId : PRODUCTS.longSleeve.productId;
+        const cached = shopCache.getCachedProductFeaturedImage(productId);
+        if (!cached) {
+          imagePromises.push(
+            loadProductFeaturedImage(productId).then(image => {
+              if (image) {
+                shopCache.cacheProductFeaturedImage(productId, image);
+                console.log(`🖼️ ${style} sleeve featured image cached`);
+              }
+            })
+          );
+        } else {
+          console.log(`💾 ${style} sleeve featured image loaded from cache`);
+        }
+      }
+
+      await Promise.all(imagePromises);
+      const imageEnd = performance.now();
+      console.log(`🖼️ Featured images processed in ${(imageEnd - imageStart).toFixed(2)}ms`);
+
+      const phase1End = performance.now();
+      console.log(`🏁 Phase 1 COMPLETE in ${(phase1End - phase1Start).toFixed(2)}ms`);
+    } catch (err) {
+      console.error('❌ Phase 1 initialization error:', err);
+      hasStock.value = { shortSleeve: false, longSleeve: false };
+    }
+  });
+
+  // Touch state (for swipe)
   const touchStartX = useSignal<number | null>(null);
   const touchEndX = useSignal<number | null>(null);
 
-  // Product image state
-  const currentProductImage = useSignal<any>(null);
-  const productAssets = useSignal<any>(null);
-  const assetsLoading = useSignal<boolean>(false);
-
-  // Signal triggers for component communication
-  const styleSelectTrigger = useSignal<'short' | 'long' | null>(null);
-  const sizeSelectTrigger = useSignal<ProductOption | null>(null);
-  const colorSelectTrigger = useSignal<ProductOption | null>(null);
-  const prevStepTrigger = useSignal<boolean>(false);
-  const toggleSizeChartTrigger = useSignal<boolean>(false);
-  const imageSelectTrigger = useSignal<any>(null);
-  const touchStartTrigger = useSignal<{ clientX: number; clientY: number } | null>(null);
-  const touchMoveTrigger = useSignal<{ clientX: number; clientY: number } | null>(null);
-  const touchEndTrigger = useSignal<boolean>(false);
-  const addToCartTrigger = useSignal<boolean>(false);
-
-  // Computations moved to individual components
-
-  // Update variant selection when size and color are both selected
+  // Helpers
   const updateVariantSelection = $(() => {
-    if (!selectedSize.value || !selectedColor.value || !selectedProduct.value) {
+    if (!selectedStyle.value || !selectedSize.value || !selectedColor.value) {
       selectedVariantId.value = '';
       return;
     }
+    const variantId = getVariantId(selectedStyle.value, selectedSize.value, selectedColor.value);
+    selectedVariantId.value = variantId || '';
 
-    const matchingVariant = selectedProduct.value.variants.find(variant => {
-      if (!variant.options || !Array.isArray(variant.options)) return false;
-
-      const hasSelectedSize = variant.options.some(opt => opt.id === selectedSize.value!.id);
-      const hasSelectedColor = variant.options.some(opt => opt.id === selectedColor.value!.id);
-
-      return hasSelectedSize && hasSelectedColor;
-    });
-
-    selectedVariantId.value = matchingVariant?.id || '';
-  });
-
-  const handleSizeSelect = $((sizeOption: ProductOption) => {
-    selectedSize.value = sizeOption;
-    // Reset color if it's no longer available with new size
-    selectedColor.value = null;
-    updateVariantSelection();
-
-    // 🚀 EARLY INTENT DETECTION: Start geolocation when user shows purchase intent
-    console.log('🌍 [EARLY GEOLOCATION] Size selected - starting background geolocation...');
-    loadCountryOnDemand(appState).then(() => {
-      console.log('✅ [EARLY GEOLOCATION] Background geolocation completed during product selection');
-    }).catch((error) => {
-      console.warn('⚠️ [EARLY GEOLOCATION] Background geolocation failed (non-critical):', error);
-    });
-
-    // Auto-advance to color step after selection
-    setTimeout(() => {
-      if (currentStep.value === 1) {
-        currentStep.value = 2;
+    // Update image priority: variant image first, then product featured
+    if (variantId) {
+      const cachedVariant = shopCache.getCachedVariantFeaturedImage(variantId);
+      if (cachedVariant) {
+        productAssets.value = { ...productAssets.value, variantFeaturedAsset: cachedVariant };
+        currentProductImage.value = cachedVariant;
       }
-    }, 300);
+    }
+    if (!currentProductImage.value && productAssets.value.featuredAsset) {
+      currentProductImage.value = productAssets.value.featuredAsset;
+    }
   });
 
-  const handleColorSelect = $((colorOption: ProductOption) => {
-    selectedColor.value = colorOption;
-    updateVariantSelection();
+  const handleStyleSelect = $(async (style: 'short' | 'long') => {
+    const phase2Start = performance.now();
+    console.log(`🎯 Phase 2 START: Style selected (${style})`);
 
-    // 🚀 EARLY INTENT DETECTION: Start geolocation when user shows purchase intent (fallback)
-    console.log('🌍 [EARLY GEOLOCATION] Color selected - ensuring geolocation is ready...');
-    loadCountryOnDemand(appState).then(() => {
-      console.log('✅ [EARLY GEOLOCATION] Geolocation confirmed ready for checkout');
-    }).catch((error) => {
-      console.warn('⚠️ [EARLY GEOLOCATION] Geolocation check failed (non-critical):', error);
-    });
+    selectedStyle.value = style;
+    // Reset downstream selections
+    selectedSize.value = null;
+    selectedColor.value = null;
+    selectedVariantId.value = '';
+    currentStep.value = 1;
+
+    // Scroll into view (preserve UX)
+    setTimeout(() => {
+      const scrollTarget = props.context === 'standalone' ? 'customization-section' : (props.scrollTarget || 'customization-section');
+      const customizationSection = document.getElementById(scrollTarget);
+      if (customizationSection) {
+        const headerHeight = 64;
+        const offset = 20;
+        const rect = customizationSection.getBoundingClientRect();
+        window.scrollTo({ top: window.scrollY + rect.top - headerHeight - offset, behavior: 'smooth' });
+      }
+    }, 200);
+
+    // Phase 2: Load product images (stock already queried in Phase 1)
+    try {
+      isLoadingStep.value = true;
+      const productId = style === 'short' ? PRODUCTS.shortSleeve.productId : PRODUCTS.longSleeve.productId;
+
+      // Featured image (cache first)
+      const featuredStart = performance.now();
+      let featured = shopCache.getCachedProductFeaturedImage(productId);
+      if (!featured) {
+        featured = await loadProductFeaturedImage(productId);
+        if (featured) shopCache.cacheProductFeaturedImage(productId, featured);
+        console.log(`🖼️ Product featured image loaded in ${(performance.now() - featuredStart).toFixed(2)}ms`);
+      } else {
+        console.log(`💾 Product featured image from cache in ${(performance.now() - featuredStart).toFixed(2)}ms`);
+      }
+      productAssets.value = { featuredAsset: featured, assets: [], variantFeaturedAsset: null };
+      if (featured) currentProductImage.value = featured;
+
+      // Gallery (non-blocking)
+      assetsLoading.value = true;
+      const galleryStart = performance.now();
+      const gallery = await loadProductGallery(productId);
+      console.log(`🖼️ Product gallery loaded in ${(performance.now() - galleryStart).toFixed(2)}ms`);
+      productAssets.value = { ...productAssets.value, featuredAsset: gallery.featuredAsset || featured, assets: gallery.assets || [] };
+      assetsLoading.value = false;
+
+      const phase2End = performance.now();
+      console.log(`🏁 Phase 2 COMPLETE in ${(phase2End - phase2Start).toFixed(2)}ms`);
+    } catch (e) {
+      console.error('❌ Phase 2 failed to load product assets:', e);
+      assetsLoading.value = false;
+    } finally {
+      isLoadingStep.value = false;
+    }
+  });
+
+  const handleSizeSelect = $(async (sizeCode: string) => {
+    const phase3Start = performance.now();
+    console.log(`📏 Phase 3 START: Size selected (${sizeCode})`);
+
+    selectedSize.value = sizeCode;
+    selectedColor.value = null;
+    selectedVariantId.value = '';
+    currentStep.value = 2;
+
+    // Phase 3: Refresh stock for all colors of this size; warm variant featured images for in-stock colors
+    if (!selectedStyle.value) return;
+    try {
+      const stockStart = performance.now();
+      const colorVariantIds: string[] = [];
+      const colors = (await import('~/data/shop-constants')).COLORS;
+      colors.forEach(c => {
+        const id = getVariantId(selectedStyle.value!, sizeCode, c.code);
+        if (id) colorVariantIds.push(id);
+      });
+      if (colorVariantIds.length > 0) {
+        const fresh = await checkVariantStock(colorVariantIds);
+        const stockEnd = performance.now();
+        console.log(`📊 Size-specific stock check completed in ${(stockEnd - stockStart).toFixed(2)}ms`);
+
+        // Merge fresh into stockMap
+        const merged = new Map(stockMap.value);
+        fresh.forEach((v, k) => merged.set(k, v));
+        stockMap.value = merged;
+
+        // Warm variant featured images for in-stock colors
+        const imageStart = performance.now();
+        let imageCount = 0;
+        for (const vid of colorVariantIds) {
+          const qty = fresh.get(vid) || 0;
+          if (qty > 0 && !shopCache.getCachedVariantFeaturedImage(vid)) {
+            const vImg = await loadVariantFeaturedImage(vid);
+            if (vImg) {
+              shopCache.cacheVariantFeaturedImage(vid, vImg);
+              imageCount++;
+            }
+          }
+        }
+        const imageEnd = performance.now();
+        console.log(`🖼️ Warmed ${imageCount} variant featured images in ${(imageEnd - imageStart).toFixed(2)}ms`);
+      }
+
+      const phase3End = performance.now();
+      console.log(`🏁 Phase 3 COMPLETE in ${(phase3End - phase3Start).toFixed(2)}ms`);
+    } catch (e) {
+      console.error('❌ Phase 3 failed refreshing size stock/images:', e);
+    }
+  });
+
+  const handleColorSelect = $(async (colorCode: string) => {
+    const phase4Start = performance.now();
+    console.log(`🎨 Phase 4 START: Color selected (${colorCode})`);
+
+    selectedColor.value = colorCode;
+
+    // Determine variant
+    await updateVariantSelection();
+    const vid = selectedVariantId.value;
+    if (!vid) return;
+    console.log(`🔍 Variant ID determined: ${vid}`);
+
+    // Phase 4: Ensure variant featured image and gallery are ready
+    try {
+      const featuredStart = performance.now();
+      let vFeatured = shopCache.getCachedVariantFeaturedImage(vid);
+      if (!vFeatured) {
+        vFeatured = await loadVariantFeaturedImage(vid);
+        if (vFeatured) shopCache.cacheVariantFeaturedImage(vid, vFeatured);
+        console.log(`🖼️ Variant featured image loaded in ${(performance.now() - featuredStart).toFixed(2)}ms`);
+      } else {
+        console.log(`💾 Variant featured image from cache in ${(performance.now() - featuredStart).toFixed(2)}ms`);
+      }
+
+      if (vFeatured) {
+        productAssets.value = { ...productAssets.value, variantFeaturedAsset: vFeatured };
+        currentProductImage.value = vFeatured;
+        console.log(`✅ Variant featured image set as current image`);
+      } else {
+        // Use placeholder image when no variant featured image exists
+        const placeholderAsset = {
+          id: 'placeholder',
+          preview: '/asset_placeholder.webp',
+          source: '/asset_placeholder.webp'
+        };
+        productAssets.value = { ...productAssets.value, variantFeaturedAsset: placeholderAsset };
+        currentProductImage.value = placeholderAsset;
+        console.log(`🖼️ Using placeholder image for variant ${vid} (no featured image found)`);
+      }
+
+      const galleryStart = performance.now();
+      const vGallery = shopCache.getCachedVariantGallery(vid);
+      if (!vGallery) {
+        const loaded = await loadVariantGallery(vid);
+        if (loaded) {
+          shopCache.cacheVariantGallery(vid, loaded);
+          console.log(`🖼️ Variant gallery loaded in ${(performance.now() - galleryStart).toFixed(2)}ms`);
+        }
+      } else {
+        console.log(`💾 Variant gallery from cache in ${(performance.now() - galleryStart).toFixed(2)}ms`);
+      }
+
+      const phase4End = performance.now();
+      console.log(`🏁 Phase 4 COMPLETE in ${(phase4End - phase4Start).toFixed(2)}ms`);
+    } catch (e) {
+      console.error('❌ Phase 4 failed loading variant images:', e);
+    }
+
+    // Early geolocation to prep checkout
+    loadCountryOnDemand(appState).catch(() => {});
   });
 
   const prevStep = $(() => {
     if (currentStep.value > 1) {
       currentStep.value--;
-      // Reset color selection when going back to size step
       if (currentStep.value === 1) {
         selectedColor.value = null;
         selectedVariantId.value = '';
+        productAssets.value = { ...productAssets.value, variantFeaturedAsset: null };
       }
     }
   });
 
-  const handleStyleSelect = $((style: 'short' | 'long') => {
-    selectedStyle.value = style;
-    showBrandStory.value = false;
-    
-    // Reset subsequent selections when changing style
-    selectedSize.value = null;
-    selectedColor.value = null;
-    selectedVariantId.value = '';
-    
-    // 🚀 PHASE 3: Load color thumbnails when style is selected
-    const loadColorThumbnails = async () => {
-      isLoadingStep.value = true;
-
-      try {
-        console.log(`🚀 [PHASE 3] Loading color thumbnails for ${style} sleeve...`);
-
-        const slug = style === 'short' ? 'shortsleeveshirt' : 'longsleeveshirt';
-
-        // Check if we already have the data from Phase 2 background loading
-        const existingProduct = style === 'short' ? fullProductData.value.shortSleeve : fullProductData.value.longSleeve;
-
-        if (existingProduct && existingProduct.variants && existingProduct.featuredAsset) {
-          // We already have the data from background loading - use it immediately!
-          console.log(`✅ [PHASE 3] Using background-loaded data for ${style} sleeve`);
-          selectedProduct.value = existingProduct;
-        } else {
-          // Fallback: load color thumbnails if background loading didn't complete
-          console.log(`🔄 [PHASE 3] Background loading incomplete, fetching color thumbnails...`);
-          const colorData = await getColorThumbnails(slug);
-
-          if (colorData) {
-            // Update fullProductData with color thumbnail data
-            if (style === 'short') {
-              fullProductData.value = {
-                ...fullProductData.value,
-                shortSleeve: colorData
-              };
-            } else {
-              fullProductData.value = {
-                ...fullProductData.value,
-                longSleeve: colorData
-              };
-            }
-
-            selectedProduct.value = colorData;
-          }
-        }
-
-        console.log(`✅ [PHASE 3] Style selection ready for ${style} sleeve`);
-
-        // Smooth scroll to customization section after a brief delay (only for standalone context)
-        if (props.context === 'standalone') {
-          setTimeout(() => {
-            const customizationSection = document.getElementById('customization-section');
-            if (customizationSection) {
-              // Get the element's position and scroll with offset to keep header visible
-              const rect = customizationSection.getBoundingClientRect();
-              const headerHeight = 64; // Account for header height (h-16 = 64px)
-              const offset = 20; // Additional padding
-
-              window.scrollTo({
-                top: window.scrollY + rect.top - headerHeight - offset,
-                behavior: 'smooth'
-              });
-            }
-          }, 300);
-        } else if (props.context === 'homepage' && props.scrollTarget) {
-          // For homepage context, scroll to the specified target
-          setTimeout(() => {
-            const targetSection = document.getElementById(props.scrollTarget!);
-            if (targetSection) {
-              const rect = targetSection.getBoundingClientRect();
-              const headerHeight = 64;
-              const offset = 20;
-
-              window.scrollTo({
-                top: window.scrollY + rect.top - headerHeight - offset,
-                behavior: 'smooth'
-              });
-            }
-          }, 300);
-        }
-      } catch (error) {
-        console.error(`❌ [PHASE 3] Failed to load color thumbnails for ${style}:`, error);
-        // Show error to user
-      } finally {
-        isLoadingStep.value = false;
-      }
-    };
-    
-    // Load color thumbnails for selected style
-    loadColorThumbnails();
-  });
-
-  // Add to cart functionality
+  // Add to cart (build item using simplified data)
   const handleAddToCart = $(async () => {
-    const addToCartStartTime = performance.now();
-    console.log('🚀 [ADD TO CART TIMING] Starting add to cart process...');
-
-    if (!selectedVariantId.value || !selectedProduct.value || !selectedSize.value || !selectedColor.value) return;
+    if (!selectedVariantId.value || !selectedStyle.value || !selectedSize.value || !selectedColor.value) return;
 
     isAddingToCart.value = true;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
     try {
-      // Find the selected variant
-      const itemCreationStart = performance.now();
-      const selectedVar = selectedProduct.value.variants.find(v => v.id === selectedVariantId.value);
-      if (!selectedVar) {
-        throw new Error('Selected variant not found');
-      }
+      const style = selectedStyle.value;
+      const variantId = selectedVariantId.value;
+      const productMeta = style === 'short' ? PRODUCTS.shortSleeve : PRODUCTS.longSleeve;
+      const priceWithTax = productMeta.price; // cents
+      const stockLevel = (stockMap.value.get(variantId) || 0).toString();
 
-      // Create the cart item object
       const localCartItem = {
-        productVariantId: selectedVar.id,
+        productVariantId: variantId,
         quantity: 1,
         productVariant: {
-          id: selectedVar.id,
-          name: selectedVar.name,
-          price: selectedVar.priceWithTax,
-          stockLevel: selectedVar.stockLevel,
+          id: variantId,
+          name: `${productMeta.name} - ${selectedSize.value} - ${selectedColor.value}`,
+          priceWithTax,
+          stockLevel,
           product: {
-            id: selectedProduct.value.id,
-            name: selectedProduct.value.name,
-            slug: selectedProduct.value.slug || '',
+            id: productMeta.productId,
+            name: productMeta.name,
+            slug: productMeta.slug,
           },
-          options: selectedVar.options || [],
-          featuredAsset: selectedProduct.value.featuredAsset,
+          options: [
+            { id: `size-${selectedSize.value}`, name: selectedSize.value!, group: { name: 'Size' } },
+            { id: `color-${selectedColor.value}`, name: selectedColor.value!, group: { name: 'Color' } },
+          ],
+          featuredAsset: productAssets.value.variantFeaturedAsset || productAssets.value.featuredAsset || null,
         },
       };
-      console.log(`⏱️ [ADD TO CART TIMING] Item creation: ${(performance.now() - itemCreationStart).toFixed(2)}ms`);
 
-      // Add to cart using the correct function signature with timeout
-      const addToCartStart = performance.now();
-      const addToCartPromise = addToLocalCart(localCart, localCartItem);
-      const abortPromise = new Promise((_, reject) => {
-        controller.signal.addEventListener('abort', () => {
-          reject(new Error('Add to cart operation timed out'));
-        });
-      });
+      await addToLocalCart(localCart, localCartItem);
 
-      await Promise.race([addToCartPromise, abortPromise]);
-      console.log(`⏱️ [ADD TO CART TIMING] Add to local cart: ${(performance.now() - addToCartStart).toFixed(2)}ms`);
-
-      // 🚀 GEOLOCATION: Should already be cached from product selection, but fallback just in case
-      const geolocationStart = performance.now();
-      if (!appState.shippingAddress.countryCode) {
-        console.log('⚠️ [ADD TO CART TIMING] Geolocation not cached, running fallback...');
-        loadCountryOnDemand(appState).then(() => {
-          console.log(`⏱️ [ADD TO CART TIMING] Fallback geolocation: ${(performance.now() - geolocationStart).toFixed(2)}ms`);
-        }).catch((error) => {
-          console.warn('⚠️ [ADD TO CART TIMING] Fallback geolocation failed (non-critical):', error);
-        });
-      } else {
-        console.log(`✅ [ADD TO CART TIMING] Geolocation already cached: ${appState.shippingAddress.countryCode}`);
+      // Open cart and refresh stock in background
+      (appState as any).showCart = true;
+      if (localCart.localCart.items.length > 0) {
+        refreshCartStock(localCart).catch(() => {});
       }
-      console.log(`⏱️ [ADD TO CART TIMING] Geolocation check: ${(performance.now() - geolocationStart).toFixed(2)}ms`);
-
-      // Trigger cart update event to refresh quantities
-      const uiUpdateStart = performance.now();
-      window.dispatchEvent(new CustomEvent('cart-updated'));
-
-      // Show cart if successful
-      if (!localCart.lastError) {
-        appState.showCart = true;
-
-        // 🚀 FRESH STOCK: Refresh stock levels when opening cart (in background)
-        // Refresh stock levels in background without blocking UI
-        if (localCart.localCart.items.length > 0) {
-          const stockRefreshStart = performance.now();
-          refreshCartStock(localCart).then(() => {
-            console.log(`⏱️ [ADD TO CART TIMING] Background stock refresh: ${(performance.now() - stockRefreshStart).toFixed(2)}ms`);
-            // Trigger cart update event to refresh UI with new stock levels
-            window.dispatchEvent(new CustomEvent('cart-updated'));
-          }).catch((error: Error) => {
-            console.error('Background stock refresh failed:', error);
-          });
-        }
+      // Trigger header badge update
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('cart-updated'));
       }
-      console.log(`⏱️ [ADD TO CART TIMING] UI updates: ${(performance.now() - uiUpdateStart).toFixed(2)}ms`);
-      console.log(`✅ [ADD TO CART TIMING] TOTAL add to cart: ${(performance.now() - addToCartStartTime).toFixed(2)}ms`);
-    } catch (error) {
-      console.error('Failed to add to cart:', error);
-      console.log(`❌ [ADD TO CART TIMING] FAILED after: ${(performance.now() - addToCartStartTime).toFixed(2)}ms`);
-      // Could add error notification here
+    } catch (e) {
+      console.error('Failed to add to cart:', e);
     } finally {
-      clearTimeout(timeoutId);
       isAddingToCart.value = false;
     }
   });
 
-  // Watch for trigger signals and execute corresponding actions
-  useVisibleTask$(({ track }) => {
-    track(() => styleSelectTrigger.value);
-    if (styleSelectTrigger.value) {
-      handleStyleSelect(styleSelectTrigger.value);
-      styleSelectTrigger.value = null; // Reset trigger
+  // UI action handlers - BEST PRACTICE: Direct event handlers
+  const toggleSizeChart = $(() => {
+    showSizeChart.value = !showSizeChart.value;
+  });
+
+  const handleImageSelect = $((asset: any) => {
+    currentProductImage.value = asset;
+  });
+
+  const handleTouchStart = $((touch: { clientX: number; clientY: number }) => {
+    touchStartX.value = touch.clientX;
+    touchEndX.value = null;
+  });
+
+  const handleTouchMove = $((touch: { clientX: number; clientY: number }) => {
+    if (touchStartX.value !== null) {
+      touchEndX.value = touch.clientX;
     }
   });
 
-  useVisibleTask$(({ track }) => {
-    track(() => sizeSelectTrigger.value);
-    if (sizeSelectTrigger.value) {
-      handleSizeSelect(sizeSelectTrigger.value);
-      sizeSelectTrigger.value = null; // Reset trigger
-    }
-  });
-
-  useVisibleTask$(({ track }) => {
-    track(() => colorSelectTrigger.value);
-    if (colorSelectTrigger.value) {
-      handleColorSelect(colorSelectTrigger.value);
-      colorSelectTrigger.value = null; // Reset trigger
-    }
-  });
-
-  useVisibleTask$(({ track }) => {
-    track(() => prevStepTrigger.value);
-    if (prevStepTrigger.value) {
-      prevStep();
-      prevStepTrigger.value = false; // Reset trigger
-    }
-  });
-
-  useVisibleTask$(({ track }) => {
-    track(() => toggleSizeChartTrigger.value);
-    if (toggleSizeChartTrigger.value) {
-      showSizeChart.value = !showSizeChart.value;
-      toggleSizeChartTrigger.value = false; // Reset trigger
-    }
-  });
-
-  useVisibleTask$(({ track }) => {
-    track(() => imageSelectTrigger.value);
-    if (imageSelectTrigger.value) {
-      currentProductImage.value = imageSelectTrigger.value;
-      imageSelectTrigger.value = null; // Reset trigger
-    }
-  });
-
-  useVisibleTask$(({ track }) => {
-    track(() => touchStartTrigger.value);
-    if (touchStartTrigger.value) {
-      touchStartX.value = touchStartTrigger.value.clientX;
+  const handleTouchEnd = $(() => {
+    if (touchStartX.value !== null && touchEndX.value !== null) {
+      const diffX = touchStartX.value - touchEndX.value;
+      const minSwipeDistance = 50;
+      const allAssets: any[] = [];
+      if (productAssets.value.variantFeaturedAsset) allAssets.push(productAssets.value.variantFeaturedAsset);
+      if (productAssets.value.featuredAsset) allAssets.push(productAssets.value.featuredAsset);
+      if (productAssets.value.assets && productAssets.value.assets.length > 0) {
+        productAssets.value.assets.forEach((asset: any) => {
+          const exists = allAssets.some(a => a.id === asset.id);
+          if (!exists) allAssets.push(asset);
+        });
+      }
+      if (allAssets.length > 1) {
+        const currentIndex = allAssets.findIndex(asset => asset.id === currentProductImage.value?.id);
+        if (Math.abs(diffX) > minSwipeDistance) {
+          if (diffX > 0 && currentIndex < allAssets.length - 1) currentProductImage.value = allAssets[currentIndex + 1];
+          else if (diffX < 0 && currentIndex > 0) currentProductImage.value = allAssets[currentIndex - 1];
+        }
+      }
+      touchStartX.value = null;
       touchEndX.value = null;
-      touchStartTrigger.value = null; // Reset trigger
     }
-  });
-
-  useVisibleTask$(({ track }) => {
-    track(() => touchMoveTrigger.value);
-    if (touchMoveTrigger.value && touchStartX.value !== null) {
-      touchEndX.value = touchMoveTrigger.value.clientX;
-      touchMoveTrigger.value = null; // Reset trigger
-    }
-  });
-
-  useVisibleTask$(({ track }) => {
-    track(() => touchEndTrigger.value);
-    if (touchEndTrigger.value) {
-      // Handle touch end logic - swipe navigation
-      if (touchStartX.value !== null && touchEndX.value !== null) {
-        const diffX = touchStartX.value - touchEndX.value;
-        const minSwipeDistance = 50;
-
-        if (selectedProduct.value && productAssets.value) {
-          const allAssets = [];
-          if (productAssets.value.featuredAsset) {
-            allAssets.push(productAssets.value.featuredAsset);
-          }
-          if (productAssets.value.assets && productAssets.value.assets.length > 0) {
-            productAssets.value.assets.forEach((asset: any) => {
-              if (!productAssets.value.featuredAsset || asset.id !== productAssets.value.featuredAsset.id) {
-                allAssets.push(asset);
-              }
-            });
-          }
-
-          if (allAssets.length > 1) {
-            const currentIndex = allAssets.findIndex(asset => asset.id === currentProductImage.value?.id);
-
-            if (Math.abs(diffX) > minSwipeDistance) {
-              if (diffX > 0 && currentIndex < allAssets.length - 1) {
-                currentProductImage.value = allAssets[currentIndex + 1];
-              } else if (diffX < 0 && currentIndex > 0) {
-                currentProductImage.value = allAssets[currentIndex - 1];
-              }
-            }
-          }
-        }
-
-        touchStartX.value = null;
-        touchEndX.value = null;
-      }
-      touchEndTrigger.value = false; // Reset trigger
-    }
-  });
-
-  useVisibleTask$(({ track }) => {
-    track(() => addToCartTrigger.value);
-    if (addToCartTrigger.value) {
-      handleAddToCart();
-      // Don't reset trigger here as it's a boolean toggle
-    }
-  });
-
-  // Lazy load assets when selectedProduct changes OR when variant selection changes
-  useVisibleTask$(({ track, cleanup }) => {
-    track(() => selectedProduct.value);
-    track(() => selectedVariantId.value); // Also track variant changes for color-specific images
-
-    // Use AbortController for proper cleanup
-    const controller = new AbortController();
-
-    if (selectedProduct.value) {
-      console.log('Product selected, lazy loading assets...');
-      assetsLoading.value = true;
-
-      // Create timeout for asset loading
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-        console.error('Asset loading timeout - using placeholder');
-        currentProductImage.value = { id: 'placeholder', preview: '/asset_placeholder.webp' };
-        assetsLoading.value = false;
-      }, 8000); // 8 second timeout
-
-      // Add a small delay to prevent blocking UI when switching products
-      const loadAssets = async () => {
-        try {
-          // Small delay to allow UI to update
-          await new Promise(resolve => setTimeout(resolve, 10));
-
-          // Check if component is still mounted and product is still selected
-          if (controller.signal.aborted || !selectedProduct.value) return;
-
-          // Lazy load assets for the selected product
-          const assets = await getProductAssets(selectedProduct.value.slug || '');
-
-          // Check if component is still mounted
-          if (controller.signal.aborted) return;
-
-          clearTimeout(timeoutId);
-          productAssets.value = assets;
-
-          // Smart image selection based on variant selection
-          let selectedImage = null;
-
-          // If we have a selected variant (both size and color chosen), try to find variant-specific image
-          if (selectedVariantId.value && selectedProduct.value.variants) {
-            const selectedVariant = selectedProduct.value.variants.find(v => v.id === selectedVariantId.value);
-            if (selectedVariant?.featuredAsset) {
-              selectedImage = selectedVariant.featuredAsset;
-              console.log('Using variant-specific featured image for selected color/size');
-            }
-          }
-
-          // Fallback hierarchy: variant asset -> product featured asset -> first asset -> placeholder
-          if (!selectedImage) {
-            if (assets.featuredAsset) {
-              selectedImage = assets.featuredAsset;
-            } else if (assets.assets && assets.assets.length > 0) {
-              selectedImage = assets.assets[0];
-            } else {
-              selectedImage = { id: 'placeholder', preview: '/asset_placeholder.webp' };
-            }
-          }
-
-          currentProductImage.value = selectedImage;
-          assetsLoading.value = false;
-        } catch (error) {
-          if (!controller.signal.aborted) {
-            clearTimeout(timeoutId);
-            console.error('Failed to load assets:', error);
-            currentProductImage.value = { id: 'placeholder', preview: '/asset_placeholder.webp' };
-            assetsLoading.value = false;
-          }
-        }
-      };
-
-      loadAssets();
-    } else {
-      // No product selected - clear assets
-      productAssets.value = null;
-      currentProductImage.value = null;
-      assetsLoading.value = false;
-    }
-
-    cleanup(() => {
-      controller.abort();
-    });
-  });
-
-  // 🚀 CACHE CLEANUP: Only cleanup old cache entries (removed cache warming that was causing 5s delay)
-  useVisibleTask$(() => {
-    // Add a small delay to prevent blocking initial render
-    const timeoutId = setTimeout(() => {
-      // Clean up old cache entries
-      cleanupCache();
-
-      // Enable auto cleanup for product cache
-      enableAutoCleanup();
-    }, 200);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  });
-
-  // Disable auto cleanup when component is unmounted
-  useVisibleTask$(({ cleanup }) => {
-    cleanup(() => {
-      disableAutoCleanup();
-    });
-  });
-
-  // 🚀 PHASE 2A removed - stock now loaded in Phase 1 (server-side) for instant button activation!
-
-  // 🚀 PROGRESSIVE LOADING: Phase 2 - Load images 200ms later (can wait, doesn't block buttons)
-  useVisibleTask$(async ({ cleanup }) => {
-    console.log('🚀 [PHASE 2] Scheduling image loading...');
-
-    const controller = new AbortController();
-
-    // Wait 200ms before loading images (buttons already active with stock from Phase 1)
-    setTimeout(async () => {
-      if (controller.signal.aborted) return;
-
-      try {
-        console.log('🚀 [PHASE 2] Loading featured images...');
-
-        const imageData = await getFeaturedImages();
-
-        if (!controller.signal.aborted && imageData && fullProductData.value.shortSleeve) {
-          console.log('✅ [PHASE 2] Images loaded - adding to product data');
-
-          // Add images to existing product data
-          fullProductData.value = {
-            shortSleeve: {
-              ...fullProductData.value.shortSleeve,
-              featuredAsset: imageData.shortSleeve
-            },
-            longSleeve: {
-              ...fullProductData.value.longSleeve,
-              featuredAsset: imageData.longSleeve
-            }
-          };
-
-          console.log('📊 [PHASE 2] Complete product data ready with images');
-        }
-      } catch (error) {
-        if (!controller.signal.aborted) {
-          console.error('❌ [PHASE 2] Image loading failed:', error);
-        }
-      }
-    }, 200); // 200ms delay for images
-
-    cleanup(() => {
-      controller.abort();
-    });
-  });
-
-  // Load cart quantities for all variants when products are available
-  useVisibleTask$(() => {
-    // Add a small delay to prevent blocking initial render
-    const timeoutId = setTimeout(() => {
-      const loadQuantities = () => {
-        const allVariants: string[] = [];
-
-        // Collect all variant IDs from progressively loaded products (only when available)
-        if (fullProductData.value.shortSleeve?.variants && Array.isArray(fullProductData.value.shortSleeve.variants)) {
-          allVariants.push(...fullProductData.value.shortSleeve.variants.map((v: any) => v.id).filter(Boolean));
-        }
-        if (fullProductData.value.longSleeve?.variants && Array.isArray(fullProductData.value.longSleeve.variants)) {
-          allVariants.push(...fullProductData.value.longSleeve.variants.map((v: any) => v.id).filter(Boolean));
-        }
-
-        if (allVariants.length === 0) return;
-
-        // Always in local cart mode
-        if (localCart.hasLoadedOnce) {
-          // Use loaded cart context data
-          const result: Record<string, number> = {};
-          allVariants.forEach((variantId) => {
-            const localItem = localCart.localCart.items.find(
-              (item: any) => item.productVariantId === variantId
-            );
-            result[variantId] = localItem?.quantity || 0;
-          });
-          quantitySignal.value = result;
-        } else {
-          // Use lightweight localStorage check (no context loading)
-          quantitySignal.value = LocalCartService.getItemQuantitiesFromStorage(allVariants);
-        }
-      };
-
-      // Load quantities initially
-      loadQuantities();
-
-      // Listen for cart updates to sync quantities
-      const handleCartUpdate = () => {
-        if (localCart.hasLoadedOnce) {
-          loadQuantities();
-        }
-      };
-
-      window.addEventListener('cart-updated', handleCartUpdate);
-
-      return () => {
-        window.removeEventListener('cart-updated', handleCartUpdate);
-      };
-    }, 100); // Small delay to prevent blocking initial render
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
   });
 
   return (
     <div class="shop-component">
-      <style>
-        {`
-          @keyframes fadeInUp {
-            from {
-              opacity: 0;
-              transform: translateY(30px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-
-          @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
-
-          @keyframes slideInLeft {
-            from {
-              opacity: 0;
-              transform: translateX(-50px);
-            }
-            to {
-              opacity: 1;
-              transform: translateX(0);
-            }
-          }
-
-          .animate-fade-in-up {
-            animation: fadeInUp 0.8s ease-out forwards;
-          }
-
-          .animate-fade-in {
-            animation: fadeIn 0.6s ease-out forwards;
-          }
-
-          .animate-slide-in-left {
-            animation: slideInLeft 0.6s ease-out forwards;
-          }
-        `}
-      </style>
-
-      {/* Style Selection Section */}
+      {/* Style Selection Section - BEST PRACTICE: Direct event handlers */}
       <StyleSelection
-        stylesData={stylesData.value}
-        fullProductData={fullProductData}
         selectedStyle={selectedStyle}
         isLoadingStep={isLoadingStep}
-        styleSelectTrigger={styleSelectTrigger}
+        onStyleSelect$={handleStyleSelect}
+        hasStock={hasStock}
       />
 
       {/* Product Customization Section */}
-      {!showBrandStory.value && selectedStyle.value && (
-        <div id={props.context === 'standalone' ? 'customization-section' : props.scrollTarget} class="animate-fade-in">
+      {selectedStyle.value && (
+        <div id={props.context === 'standalone' ? 'customization-section' : props.scrollTarget}>
           <SizeColorSelection
-            selectedProduct={selectedProduct}
             selectedStyle={selectedStyle}
             selectedSize={selectedSize}
             selectedColor={selectedColor}
@@ -801,18 +457,20 @@ export const ShopComponent = component$<ShopComponentProps>((props) => {
             touchStartX={touchStartX}
             touchEndX={touchEndX}
             isAddingToCart={isAddingToCart}
-            addToCartTrigger={addToCartTrigger}
-            sizeSelectTrigger={sizeSelectTrigger}
-            colorSelectTrigger={colorSelectTrigger}
-            prevStepTrigger={prevStepTrigger}
-            toggleSizeChartTrigger={toggleSizeChartTrigger}
-            imageSelectTrigger={imageSelectTrigger}
-            touchStartTrigger={touchStartTrigger}
-            touchMoveTrigger={touchMoveTrigger}
-            touchEndTrigger={touchEndTrigger}
+            stockMap={stockMap}
+            onSizeSelect$={handleSizeSelect}
+            onColorSelect$={handleColorSelect}
+            onPrevStep$={prevStep}
+            onToggleSizeChart$={toggleSizeChart}
+            onImageSelect$={handleImageSelect}
+            onTouchStart$={handleTouchStart}
+            onTouchMove$={handleTouchMove}
+            onTouchEnd$={handleTouchEnd}
+            onAddToCart$={handleAddToCart}
           />
         </div>
       )}
     </div>
   );
 });
+

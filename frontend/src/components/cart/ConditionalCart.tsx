@@ -1,5 +1,4 @@
-import { component$, useVisibleTask$ } from '@qwik.dev/core';
-import { useLocalCart, refreshCartStock, loadCartIfNeeded } from '~/contexts/CartContext';
+import { component$ } from '@qwik.dev/core';
 import Cart from './Cart';
 
 interface ConditionalCartProps {
@@ -8,24 +7,13 @@ interface ConditionalCartProps {
 }
 
 export default component$<ConditionalCartProps>(({ isHomePage, showCart }) => {
-	const localCart = useLocalCart();
-
-	// For non-homepage routes, ensure stock is refreshed on mount
-	useVisibleTask$(async () => {
-		if (!isHomePage) {
-			// Load cart if needed first
-			loadCartIfNeeded(localCart);
-			
-			// Then refresh stock if cart has items
-			if (localCart.localCart.items.length > 0) {
-				await refreshCartStock(localCart);
-			}
-		}
-	});
+	// 🚀 SIMPLIFIED: No stock refresh needed here
+	// Stock refresh happens when cart button is clicked (in header)
+	// Cart context is already loaded eagerly by CartProvider
 
 	// Render logic based on page type
 	if (!isHomePage) {
-		// Non-homepage: Always show cart (stock refresh handled above)
+		// Non-homepage: Always show cart (checkout page has persistent cart)
 		return <Cart />;
 	} else {
 		// Homepage: Only show cart when showCart is true

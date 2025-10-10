@@ -69,14 +69,16 @@ type FacetValue = {
 	name: string;
 };
 
-type FeaturedAsset = {
+export type FeaturedAsset = {
 	id: string;
 	preview: string;
+	source?: string;
 };
 
-type Asset = {
+export type Asset = {
 	id: string;
 	preview: string;
+	source?: string;
 };
 
 export type ProductOptionGroup = {
@@ -101,7 +103,8 @@ export type Variant = {
 	sku: string;
 	stockLevel: string;
 	trackInventory?: string | boolean;
-	featuredAsset?: any;
+	featuredAsset?: FeaturedAsset;
+	assets?: Asset[];
 	options: ProductOption[];
 };
 
@@ -603,3 +606,80 @@ export type CurrencyCode =
 	| 'ZWL';
 
 export type Order = OrderGql;
+
+// Local Cart Types
+export type LocalCartItemVariant = {
+	id: string;
+	name: string;
+	price?: number;
+	priceWithTax: number;
+	stockLevel: string;
+	product: {
+		id: string;
+		name: string;
+		slug: string;
+	};
+	options: ProductOption[];
+	featuredAsset?: FeaturedAsset;
+};
+
+export type LocalCartItem = {
+	productVariantId: string;
+	quantity: number;
+	productVariant: LocalCartItemVariant;
+};
+
+export type LocalCart = {
+	items: LocalCartItem[];
+	lastUpdated?: number;
+};
+
+// Type guard for checking if a variant has required properties
+export function isValidVariant(variant: any): variant is Variant {
+	return (
+		typeof variant === 'object' &&
+		variant !== null &&
+		typeof variant.id === 'string' &&
+		typeof variant.name === 'string' &&
+		typeof variant.priceWithTax === 'number' &&
+		typeof variant.stockLevel === 'string' &&
+		Array.isArray(variant.options)
+	);
+}
+
+// Type guard for Product
+export function isValidProduct(product: any): product is Product {
+	return (
+		typeof product === 'object' &&
+		product !== null &&
+		typeof product.id === 'string' &&
+		typeof product.name === 'string' &&
+		Array.isArray(product.variants)
+	);
+}
+
+// GraphQL Response Types
+export type StockQueryResponse = {
+	product: {
+		id: string;
+		variants: Array<{
+			id: string;
+			stockLevel: string;
+		}>;
+	} | null;
+};
+
+export type ProductAssetsResponse = {
+	product: {
+		featuredAsset: FeaturedAsset | null;
+		assets: Asset[];
+	} | null;
+};
+
+export type ColorThumbnailsResponse = {
+	product: Product | null;
+};
+
+export type SizeOptionsResponse = {
+	product: Product | null;
+};

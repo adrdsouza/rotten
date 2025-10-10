@@ -13,13 +13,13 @@
 		"node": ">=16"
 	},
 	"scripts": {
-		"build": "QWIK_LOG_LEVEL=silent qwik build && node scripts/cleanup-static-sitemaps.js && pm2 restart store",
+		"build": "pnpm lint && pnpm build.types && pnpm build.client && pnpm build.server && node scripts/cleanup-static-sitemaps.js && pm2 restart store",
 		"build.verbose": "qwik build && node scripts/cleanup-static-sitemaps.js",
 		"cleanup-sitemaps": "node scripts/cleanup-static-sitemaps.js",
 		"build:progress": "./build-with-progress.sh",
-		"build.client": "NODE_OPTIONS='--max-old-space-size=6144' vite build",
+		"build.client": "NODE_OPTIONS='--max-old-space-size=6144' vite build --logLevel warn",
 		"build.preview": "vite build --ssr src/entry.preview.tsx",
-		"build.server": "vite build -c adapters/express/vite.config.mts",
+		"build.server": "vite build -c adapters/express/vite.config.mts --logLevel warn",
 		"build.types": "tsc --incremental --noEmit",
 		"develop": "concurrently pnpm:dev pnpm:dev.server",
 		"dev": "vite --mode ssr --port 4000",

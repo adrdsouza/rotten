@@ -1,6 +1,5 @@
 import { component$, useContext, useVisibleTask$, $, useSignal } from '@qwik.dev/core';
-import { useLocalCart, loadCartIfNeeded, refreshCartStock } from '~/contexts/CartContext';
-import { LocalCartService } from '~/services/LocalCartService';
+import { useLocalCart, refreshCartStock } from '~/contexts/CartContext';
 import { LocalAddressService } from '~/services/LocalAddressService';
 import { useLocation, Link } from '@qwik.dev/router';
 import { APP_STATE, CUSTOMER_NOT_DEFINED_ID } from '~/constants';
@@ -24,36 +23,12 @@ export default component$(() => {
 	const showLoginModal = useSignal(false);
 	const userMenuRef = useSignal<Element>();
 
-	// 🚀 OPTIMIZED: Direct localStorage check for badge - no cart context loading
-	const cartQuantitySignal = useSignal(0);
-
-	// Load cart quantity from localStorage on mount (lightweight check)
-	useVisibleTask$(() => {
-		cartQuantitySignal.value = LocalCartService.getCartQuantityFromStorage();
-
-		// 🚀 OPTIMIZED: Listen for cart updates to sync badge
-		const handleCartUpdate = (event: CustomEvent) => {
-			// Add null check to prevent "Cannot read properties of null" error
-			if (event.detail && typeof event.detail.totalQuantity === 'number') {
-				cartQuantitySignal.value = event.detail.totalQuantity;
-			} else {
-				// Fallback to localStorage if event data is invalid
-				cartQuantitySignal.value = LocalCartService.getCartQuantityFromStorage();
-			}
-		};
-
-		window.addEventListener('cart-updated', handleCartUpdate as EventListener);
-
-		return () => {
-			window.removeEventListener('cart-updated', handleCartUpdate as EventListener);
-		};
-	});
-
-	// 🚀 OPTIMIZED: Only access cart context when actually needed (for operations)
+	// ✅ PROPER ARCHITECTURE: Cart context is the single source of truth
+	// Badge reads from context, not localStorage directly
 	const localCart = useLocalCart();
 
-	// Always use local cart quantity from lightweight localStorage
-	const totalQuantity = cartQuantitySignal.value;
+	// Cart quantity comes from context (which is loaded from localStorage on mount)
+	const totalQuantity = localCart.localCart.totalQuantity;
 	// Check if we're on checkout or confirmation pages
 	const isOnCheckoutPage = isCheckoutPage(location.url.toString());
 	const isOnConfirmationPage = location.url.pathname.includes('/checkout/confirmation/');
@@ -76,14 +51,6 @@ export default component$(() => {
 		// Always add scroll listener
 		window.addEventListener('scroll', handleScroll);
 		return () => window.removeEventListener('scroll', handleScroll);
-	});
-
-	// 🚀 FRESH STOCK: Refresh stock levels on page load/refresh
-	useVisibleTask$(() => {
-		// Only refresh stock if we have items in cart
-		if (localCart.localCart.items.length > 0) {
-			refreshCartStock(localCart);
-		}
 	});
 
 	// Click outside to close user menu
@@ -139,8 +106,6 @@ export default component$(() => {
 							{!(isOnCheckoutPage || isOnConfirmationPage) && (
 								<button
 									onClick$={$(async () => {
-										// 🚀 DEMAND-BASED: Load cart only when cart icon is clicked
-										loadCartIfNeeded(localCart);
 
 										// 🚀 RESTORE COUNTRY: Check sessionStorage for saved country when opening cart
 										if (!appState.shippingAddress.countryCode) {
@@ -168,10 +133,6 @@ export default component$(() => {
 								});
 							}
 						}
-										// Sync badge with loaded cart state
-										if (localCart.hasLoadedOnce) {
-											cartQuantitySignal.value = localCart.localCart.totalQuantity;
-										}
 									})}
 									class="relative p-1 hover:scale-105 transition-all duration-500 ease-in-out cursor-pointer text-white hover:text-gray-200 flex items-center justify-center"
 									aria-label={`${totalQuantity} items in cart`}

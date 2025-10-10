@@ -511,6 +511,8 @@ export const getShirtStylesForSelection = async () => {
 	}
 };
 
+
+
 // 🚀 PHASE 1: FCP Button Data + Stock - Load on server-side for instant button activation
 export const getFCPButtonData = async () => {
 	console.log('🚀 [FCP] Loading button data + stock levels (server-side)...');
@@ -720,13 +722,21 @@ export const getStockLevelsOnly = async () => {
 	}
 };
 
-// 🚀 PHASE 2B: Featured Images - Load after stock (can wait 200ms)
-export const getFeaturedImages = async () => {
-	console.log('🚀 [PHASE 2B] Loading featured images...');
+// 🚀 PHASE 2: Featured Images - Only load for in-stock products
+export const getFeaturedImages = async (inStockProducts: { shortSleeve: boolean; longSleeve: boolean }) => {
+	console.log('🚀 [PHASE 2] Loading featured images for in-stock products only...');
+	console.log(`🔍 [PHASE 2] Stock status - Short: ${inStockProducts.shortSleeve}, Long: ${inStockProducts.longSleeve}`);
 
-	// Image-only query
-	const imageQuery = gql`
-		query GetFeaturedImages {
+	// Skip entirely if no products are in stock
+	if (!inStockProducts.shortSleeve && !inStockProducts.longSleeve) {
+		console.log('⏭️ [PHASE 2] No products in stock, skipping image loading');
+		return { shortSleeve: null, longSleeve: null };
+	}
+
+	// Build dynamic query based on stock status
+	let queryFields = '';
+	if (inStockProducts.shortSleeve) {
+		queryFields += `
 			shortsleeve: product(slug: "shortsleeveshirt") {
 				id
 				featuredAsset {
@@ -735,6 +745,10 @@ export const getFeaturedImages = async () => {
 					source
 				}
 			}
+		`;
+	}
+	if (inStockProducts.longSleeve) {
+		queryFields += `
 			longsleeve: product(slug: "longsleeveshirt") {
 				id
 				featuredAsset {
@@ -743,6 +757,12 @@ export const getFeaturedImages = async () => {
 					source
 				}
 			}
+		`;
+	}
+
+	const imageQuery = gql`
+		query GetFeaturedImagesForInStock {
+			${queryFields}
 		}
 	`;
 
@@ -750,14 +770,14 @@ export const getFeaturedImages = async () => {
 		const startTime = Date.now();
 		const result: any = await requester(imageQuery);
 		const loadTime = Date.now() - startTime;
-		console.log(`✅ [PHASE 2B] Featured images loaded in ${loadTime}ms`);
+		console.log(`✅ [PHASE 2] Featured images loaded in ${loadTime}ms for in-stock products`);
 
 		return {
-			shortSleeve: result.shortsleeve?.featuredAsset || null,
-			longSleeve: result.longsleeve?.featuredAsset || null
+			shortSleeve: inStockProducts.shortSleeve ? (result.shortsleeve?.featuredAsset || null) : null,
+			longSleeve: inStockProducts.longSleeve ? (result.longsleeve?.featuredAsset || null) : null
 		};
 	} catch (error) {
-		console.error('❌ [PHASE 2B] Image query failed:', error);
+		console.error('❌ [PHASE 2] Image query failed:', error);
 		return { shortSleeve: null, longSleeve: null };
 	}
 };
@@ -788,6 +808,7 @@ export const getColorThumbnails = async (productSlug: string) => {
 				variants {
 					id
 					name
+					stockLevel
 					featuredAsset {
 						id
 						preview
