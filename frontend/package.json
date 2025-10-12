@@ -90,6 +90,7 @@
 		"graphql": "^16.11.0",
 		"graphql-tag": "^2.12.6",
 		"qwik-image": "^1.0.0",
+		"libphonenumber-js": "^1.12.23",
 		"stripe": "^18.5.0",
 		"us-state-converter": "^1.0.8",
 		"validator": "^13.15.15",

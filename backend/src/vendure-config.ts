@@ -351,7 +351,7 @@ export const config: VendureConfig = {
         //     syncTrackingIntervalMinutes: 30,     // Every 30 min during LA business hours (9 AM-7 PM, Mon-Fri)
         //     orderSyncTriggerStates: ['PaymentSettled'],
         // }),
-        AuditPlugin,
+        // AuditPlugin,
         // HardenPlugin.init({
         //     maxQueryComplexity: 5000, // Reduced from 10000 for better control
         //     apiMode: process.env.APP_ENV !== 'prod' ? 'dev' : 'prod',
@@ -389,7 +389,7 @@ export const config: VendureConfig = {
         }),
         AssetServerPlugin.init({
             route: 'assets',
-            assetUploadDir: '/home/vendure/rottenhand/assets',
+            assetUploadDir: '/Users/ammag/Documents/others/rotten/assets',
             assetUrlPrefix: process.env.ASSETS_URL || (IS_DEV ? 'http://localhost:3000/assets' : 'https://rottenhand.com/assets/'),
             presets: [
                 // Default Vendure presets
